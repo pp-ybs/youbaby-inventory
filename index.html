@@ -370,8 +370,8 @@ function DohaInventory(){
 }
 
 // ---- sidebar ----
-const NAV=[{id:"dashboard",label:"Home",icon:I.home},{id:"catalog",label:"Catalog",icon:I.grid},{id:"showcase",label:"Website Showcase",icon:I.globe},{id:"categories",label:"Categories",icon:I.layers},{id:"doha",label:"Doha Inventory",icon:I.box}];
-const SOON=[{label:"Customers",icon:I.users}];
+const NAV=[{id:"dashboard",label:"Home",icon:I.home},{id:"catalog",label:"Catalog",icon:I.grid},{id:"showcase",label:"Website Showcase",icon:I.globe},{id:"categories",label:"Categories",icon:I.layers}];
+const SOON=[{label:"Items & Props",icon:I.box},{label:"Customers",icon:I.users}];
 function Sidebar({view,setView,themes,setBr,source,signOut,email}){
  return <aside style={{width:236,background:"var(--panel)",borderRight:"1px solid var(--line)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh"}}>
    <div style={{padding:"20px 18px 16px",borderBottom:"1px solid var(--line)",display:"flex",alignItems:"center",gap:11}}>
