@@ -60,7 +60,7 @@ const GENDERS=['Boy','Girl','Neutral'];
 const sc = t => (t.selection_count!=null?t.selection_count:(t.popularity||0));
 const IMG_BASE="https://ahysgpjnhldhdeinymrd.supabase.co/storage/v1/object/public/app/images/";
 const imgUrl = t => !t.image ? null : (/^https?:/.test(t.image) ? t.image : IMG_BASE+t.image);
-const newId = c => `YBS-${(c||'NEW').slice(0,2).toUpperCase()}-${Date.now().toString(36).toUpperCase().slice(-5)}`;
+const newId = (c,list) => {const pre=(c||'NEW').slice(0,2).toUpperCase();let max=0;(list||[]).forEach(t=>{const m=/-(\d+)$/.exec(t.id||"");if(m){const n=+m[1];if(n>max)max=n}});return `YBS-${pre}-${String(max+1).padStart(4,"0")}`;};
 
 // ---- icons ----
 const I={
@@ -340,6 +340,9 @@ function Sidebar({view,setView,themes,setBr,source,signOut,email}){
    <div style={{padding:"14px 18px 20px",borderTop:"1px solid var(--line)"}}>
      <div style={{fontSize:9.5,fontWeight:700,color:"var(--muted)",letterSpacing:".16em",marginBottom:11}}>LOCATIONS</div>
      {BR.map(b=>{const c=themes.filter(t=>(t.branches||[]).includes(b)).length;return <div key={b} onClick={()=>setBr(b)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"var(--soft)"}}><Dot c={BR_COLOR[b]}/>{b}</span><span style={{fontSize:12.5,fontWeight:700,color:BR_COLOR[b]}}>{c}</span></div>})}
+     {signOut&&<div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--line)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+       {email&&<span title={email} style={{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{email}</span>}
+       <button onClick={signOut} title="Sign out" style={{flexShrink:0,marginLeft:"auto",fontSize:11.5,fontWeight:600,color:"var(--soft)",border:"1px solid var(--line2)",borderRadius:8,padding:"5px 11px"}}>Sign out</button></div>}
    </div></aside>;
 }
 
@@ -362,6 +365,8 @@ function LoginScreen(){
 function App(){
  const [themes,setThemes]=useState(()=>D.themes.map(t=>({...t})));
  const [source,setSource]=useState("local");
+ const [toast,setToast]=useState("");
+ const notify=m=>{setToast(m);setTimeout(()=>setToast(""),4500);};
  const [session,setSession]=useState(sb?undefined:null);
  useEffect(()=>{if(!sb)return;sb.auth.getSession().then(({data})=>setSession(data.session));const {data:sub}=sb.auth.onAuthStateChange((_e,s)=>setSession(s));return ()=>sub.subscription.unsubscribe()},[]);
  const [view,setView]=useState("dashboard");
@@ -375,15 +380,16 @@ function App(){
    }catch(e){const c=localStorage.getItem("ybs_themes_v2");if(c)setThemes(JSON.parse(c));}
  })()},[]);
  const persist=ts=>{if(source!=="cloud")localStorage.setItem("ybs_themes_v2",JSON.stringify(ts));};
- const toggle=async t=>{const nd=!t.display;setThemes(ts=>{const n=ts.map(x=>x.id===t.id?{...x,display:nd}:x);persist(n);return n});if(source==="cloud"&&sb){try{await sb.from("themes").update({display:nd}).eq("id",t.id)}catch(e){}}};
+ const toggle=async t=>{const nd=!t.display;setThemes(ts=>{const n=ts.map(x=>x.id===t.id?{...x,display:nd}:x);persist(n);return n});if(source==="cloud"&&sb){const {error}=await sb.from("themes").update({display:nd}).eq("id",t.id);if(error){setThemes(ts=>{const n=ts.map(x=>x.id===t.id?{...x,display:!nd}:x);persist(n);return n});notify("Couldn't save change: "+error.message);}}};
  const saveTheme=async d=>{
-   const isNew=!d.id; const row={...d,id:d.id||newId(d.category)};
+   const isNew=!d.id; const row={...d,id:d.id||newId(d.category,themes)};
    delete row.popularity; // selection_count is the source of truth in UI
+   const prev=themes;
    setThemes(ts=>{const n=isNew?[row,...ts]:ts.map(x=>x.id===row.id?{...x,...row}:x);persist(n);return n});
    setForm(null); if(sel&&sel.id===row.id)setSel(row);
-   if(source==="cloud"&&sb){try{await sb.from("themes").upsert(row)}catch(e){console.warn(e)}}
+   if(source==="cloud"&&sb){const {error}=await sb.from("themes").upsert(row);if(error){setThemes(()=>{persist(prev);return prev});notify("Couldn't save theme: "+error.message);}}
  };
- const delTheme=async t=>{setThemes(ts=>{const n=ts.filter(x=>x.id!==t.id);persist(n);return n});setSel(null);if(source==="cloud"&&sb){try{await sb.from("themes").delete().eq("id",t.id)}catch(e){}}};
+ const delTheme=async t=>{const prev=themes;setThemes(ts=>{const n=ts.filter(x=>x.id!==t.id);persist(n);return n});setSel(null);if(source==="cloud"&&sb){const {error}=await sb.from("themes").delete().eq("id",t.id);if(error){setThemes(()=>{persist(prev);return prev});notify("Couldn't delete: "+error.message);}}};
  const openCat=c=>{setCat(c);setView("catalog")}; const openBr=b=>{setBr2(b);setView("catalog")};
  const go=x=>{if(x&&x.__cat)openCat(x.__cat);else if(typeof x==="string")openCat(x);else setSel(x)};
  const selLive=sel?themes.find(t=>t.id===sel.id)||sel:null;
@@ -401,6 +407,7 @@ function App(){
    </main>
    {selLive&&<Drawer t={selLive} onClose={()=>setSel(null)} onToggle={toggle} onEdit={t=>{setSel(null);setForm(t)}} onDelete={delTheme}/>}
    {form&&<ThemeForm init={form} onSave={saveTheme} onClose={()=>setForm(null)}/>}
+   {toast&&<div className="fade" onClick={()=>setToast("")} style={{position:"fixed",bottom:22,left:"50%",transform:"translateX(-50%)",zIndex:400,background:"var(--danger)",color:"#fff",padding:"11px 18px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:"0 8px 24px rgba(20,20,30,.18)",maxWidth:"90vw",cursor:"pointer"}}>{toast}</div>}
  </div>;
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
