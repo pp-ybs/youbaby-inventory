@@ -22,13 +22,18 @@
 
 ## Data conventions
 - **Names → Title Case** (initcap, normalise `-`→` – `). Fix typos `Flappy`/`Fluppy` → `Fluffy`.
-- **xlsx parsing**: images are anchored by cell. Parse `xl/drawings/drawing1.xml` `<xdr:from><xdr:col>/<xdr:row>` (0-indexed: col1=B, col2=C, col5=F…) + `_rels` → media file. Sheet cells via `sharedStrings` + `sheet1.xml`.
 - Typical sheet layout: **B = THEME PHOTO (setup)**, **C = OUTFIT** (sometimes a photo, sometimes text), other columns = size/qty/remarks/notes.
   - setup photo ← col B image. outfit photo ← col C image. If C is text → `outfit_note`.
   - A row with **only** an outfit photo (no setup photo) → `item_type='outfit'`.
   - Extra/variant photos (e.g. "basket a bit different" + a photo in the REMARKS column) → append to `extra_photos` as `{p:<url>, n:<comment>}`.
 - **gender**: map BOY→Boy, GIRL(S)→Girl, both→Neutral. Newborn sheets usually have **no gender column → leave ''** (owner fills later). Don't invent gender.
 - Outfit lists (header `Outfit/Photo/pc/note`): photo in col C; B is a label ("OUTFIT AVAILABLE"=generic → name "… Outfit N"; meaningful labels like "headband"→accessory, "camel/teddy"→prop).
+
+## Parsing workbooks (xlsx)
+- A source file is usually a **multi-sheet workbook** — one tab per session type (Maternity / Infant / Cake Smash / Newborn / outfit lists / accessories). **Iterate ALL worksheets**, don't assume one sheet.
+  - Map each sheet → category by its **sheet name** (read names from `xl/workbook.xml` + `xl/_rels/workbook.xml.rels`). Show the owner the sheet→category/type mapping and confirm before bulk insert if any tab is ambiguous.
+  - Detect layout per sheet from its header row: setups sheet (`THEME PHOTO`/`OUTFIT` cols), outfit list (`Outfit/Photo/pc/note`), accessories/toys (`WRAP/BACKDROP`/`TOYS`...).
+- Images are anchored per sheet: worksheet `xl/worksheets/sheetN.xml` → its `_rels` → `xl/drawings/drawingN.xml`; in the drawing, `<xdr:from><xdr:col>/<xdr:row>` (0-indexed: col1=B, col2=C, col5=F…) + drawing `_rels` → media file. Cells via `sharedStrings` + each `sheetN.xml`. (Map each sheet to ITS own drawing/rels — don't hardcode `drawing1`.)
 
 ## PHOTOS — direct to Supabase Storage (NEW pipeline)
 The environment now has **`SUPABASE_SERVICE_KEY`** (env var) and network allows **`*.supabase.co`**. So:
