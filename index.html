@@ -352,9 +352,10 @@ function Categories({themes,go}){
 
 // ---- Doha inventory (Qatar — separate stock) ----
 const DITYPES=["setup","outfit","fabric/background","prop","accessory","backdrop","other"];
-// item_types that live in the "Items & Props" section (cross-shoot stuff), not in the shoot-category view
-const PROP_TYPES=["backdrop","prop","accessory","fabric/background","other"];
-const PROP_GROUP={backdrop:"Backdrops",prop:"Props",accessory:"Accessories","fabric/background":"Fabrics & Backgrounds",other:"Other"};
+// item_types that live in the "Items & Props" section (cross-shoot stuff), not in the shoot-category view.
+// NOTE: maternity fabrics stay in their shoot category (Maternity) — only backgrounds/backdrops/props/accessories move here.
+const PROP_TYPES=["backdrop","background","prop","accessory","other"];
+const PROP_GROUP={backdrop:"Backdrops",background:"Backgrounds",prop:"Props",accessory:"Accessories",other:"Other"};
 // shoot types an item can be used for (usable_for)
 const SHOOT_TYPES=["Maternity","Newborn","Sitter","Infant","Cake Smash","Children"];
 const dTC=t=>t==="fabric/background"||t==="backdrop"?"#a47cd1":(t==="prop"||t==="accessory")?"#48b08c":t==="outfit"?"#e06b94":t==="setup"?"#cf8a1e":"#9a9ca8";
@@ -526,14 +527,20 @@ function ItemsProps(){
      <span style={{display:"inline-flex",alignItems:"center",gap:5,background:"var(--gold-soft)",color:"var(--gold)",borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:700}}><Dot c="#d2734a" s={6}/>Backdrops · props · accessories · fabrics</span></div>
    <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:18}}>{props.length} item{props.length!==1?"s":""} · shared across shoot types · filter by what they can be used for</p>
    {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8,marginBottom:14}}>{err}</div>}
-   <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
-     <button onClick={()=>setShoot("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!shoot?"var(--ink)":"var(--line2)"}`,background:!shoot?"var(--ink)":"var(--panel)",color:!shoot?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All shoots ({props.length})</button>
-     {SHOOT_TYPES.map(s=>{const n=props.filter(i=>(i.usable_for||[]).includes(s)).length;if(!n)return null;return <button key={s} onClick={()=>setShoot(shoot===s?"":s)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${shoot===s?(CAT_COLOR[s]||"var(--ink)"):"var(--line2)"}`,background:shoot===s?(CAT_COLOR[s]||"var(--ink)"):"var(--panel)",color:shoot===s?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{s} ({n})</button>})}
+   <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+     <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>LOCATION</span>
+     <button onClick={()=>setLoc("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!loc?"var(--ink)":"var(--line2)"}`,background:!loc?"var(--ink)":"var(--panel)",color:!loc?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All ({props.length})</button>
+     {locs.map(l=>{const n=props.filter(i=>i.location===l).length;return <button key={l} onClick={()=>setLoc(loc===l?"":l)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${loc===l?(BR_COLOR[l]||"var(--ink)"):"var(--line2)"}`,background:loc===l?(BR_COLOR[l]||"var(--ink)"):"var(--panel)",color:loc===l?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{l} ({n})</button>})}
+   </div>
+   <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+     <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>SHOOT TYPE</span>
+     <button onClick={()=>setShoot("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!shoot?"var(--ink)":"var(--line2)"}`,background:!shoot?"var(--ink)":"var(--panel)",color:!shoot?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
+     {SHOOT_TYPES.map(s=>{const n=props.filter(i=>(!loc||i.location===loc)&&(i.usable_for||[]).includes(s)).length;if(!n)return null;return <button key={s} onClick={()=>setShoot(shoot===s?"":s)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${shoot===s?(CAT_COLOR[s]||"var(--ink)"):"var(--line2)"}`,background:shoot===s?(CAT_COLOR[s]||"var(--ink)"):"var(--panel)",color:shoot===s?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{s} ({n})</button>})}
    </div>
    <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:22}}>
-     <div style={{position:"relative",flex:1,minWidth:180}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name / id / notes…" style={{paddingLeft:34}}/></div>
+     <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em"}}>ITEM TYPE</span>
      <select value={sub} onChange={e=>setSub(e.target.value)} style={{width:"auto"}}><option value="">All sub-types</option>{subtypes.map(t=><option key={t} value={t}>{PROP_GROUP[t]||t}</option>)}</select>
-     {locs.length>1&&<select value={loc} onChange={e=>setLoc(e.target.value)} style={{width:"auto"}}><option value="">All locations</option>{locs.map(l=><option key={l} value={l}>{l}</option>)}</select>}
+     <div style={{position:"relative",flex:1,minWidth:180}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name / id / notes…" style={{paddingLeft:34}}/></div>
      {(shoot||sub||loc||q)&&<button onClick={()=>{setShoot("");setSub("");setLoc("");setQ("")}} style={{fontSize:12.5,color:"var(--soft)",fontWeight:600,padding:"8px 6px"}}>Clear</button>}
    </div>
    {subtypes.map(t=>{const list=filtered.filter(i=>i.item_type===t);if(!list.length)return null;return <div key={t} style={{marginBottom:34}}>
