@@ -399,6 +399,7 @@ function DohaEdit({item,onSave,onClose,allItems=[],links=[],onLink,onUnlink}){
 }
 function DohaInventory(){
  const [items,setItems]=useState(null),[err,setErr]=useState(""),[cat,setCat]=useState(""),[sel,setSel]=useState(null),[links,setLinks]=useState([]);
+ const [typeF,setTypeF]=useState(""),[genF,setGenF]=useState(""),[ageF,setAgeF]=useState(""),[q,setQ]=useState("");
  useEffect(()=>{(async()=>{
    if(!sb){setItems([]);return;}
    const {data,error}=await sb.from("doha_inventory").select("*").order("category").order("slot_no");
@@ -410,6 +411,13 @@ function DohaInventory(){
  if(items===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading Doha inventory…</div>;
  const cats=[...new Set(items.map(i=>i.category).filter(Boolean))];
  const byId=Object.fromEntries(items.map(i=>[i.id,i]));
+ const ageBucket=m=>{const s=(m||"").toLowerCase().replace(/\([^)]*kg[^)]*\)/g,"").replace(/up to[^,;]*kg/g,"");
+   if(/year|1\s*y|12\s*month|годик/.test(s)) return "1 year+";
+   const ns=(s.match(/\d+/g)||[]).map(Number).filter(x=>x<=18); const mx=ns.length?Math.max(...ns):null;
+   if(mx===null) return "Other"; if(mx<=3)return "0–3 m"; if(mx<=6)return "3–6 m"; if(mx<=12)return "6–12 m"; return "1 year+";};
+ const matchF=i=>(!typeF||i.item_type===typeF)&&(!genF||i.gender===genF)&&(cat!=="Infant"||!ageF||ageBucket(i.measurement)===ageF)
+   &&(!q||((i.name||"")+" "+(i.id||"")+" "+(i.measurement||"")+" "+(i.notes||"")+" "+(i.remarks||"")+" "+(i.outfit_note||"")).toLowerCase().includes(q.trim().toLowerCase()));
+ const ftypes=[...new Set(items.map(i=>i.item_type).filter(Boolean))];
  const PLAN=["Maternity","Infant","Cake Smash","Sitter","Newborn"];
  const present=PLAN.filter(c=>items.some(i=>i.category===c)).concat(cats.filter(c=>!PLAN.includes(c)));
  const coming=PLAN.filter(c=>!items.some(i=>i.category===c));
@@ -450,7 +458,14 @@ function DohaInventory(){
      <button onClick={()=>setCat("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!cat?"var(--ink)":"var(--line2)"}`,background:!cat?"var(--ink)":"var(--panel)",color:!cat?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All ({items.length})</button>
      {present.map(c=><button key={c} onClick={()=>setCat(c)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${cat===c?"var(--ink)":"var(--line2)"}`,background:cat===c?"var(--ink)":"var(--panel)",color:cat===c?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{c} ({items.filter(i=>i.category===c).length})</button>)}
    </div>
-   {sections.map(c=>{const list=items.filter(i=>i.category===c);return <div key={c} style={{marginBottom:34}}>
+   <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:22}}>
+     <div style={{position:"relative",flex:1,minWidth:180}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name / size / notes…" style={{paddingLeft:34}}/></div>
+     <select value={typeF} onChange={e=>setTypeF(e.target.value)} style={{width:"auto"}}><option value="">All types</option>{ftypes.map(t=><option key={t} value={t}>{t}</option>)}</select>
+     <select value={genF} onChange={e=>setGenF(e.target.value)} style={{width:"auto"}}><option value="">Any gender</option>{GENDERS.map(g=><option key={g} value={g}>{g}</option>)}</select>
+     {cat==="Infant"&&<select value={ageF} onChange={e=>setAgeF(e.target.value)} style={{width:"auto"}}><option value="">All ages</option>{["0–3 m","3–6 m","6–12 m","1 year+","Other"].map(a=><option key={a} value={a}>{a}</option>)}</select>}
+     {(typeF||genF||ageF||q)&&<button onClick={()=>{setTypeF("");setGenF("");setAgeF("");setQ("")}} style={{fontSize:12.5,color:"var(--soft)",fontWeight:600,padding:"8px 6px"}}>Clear</button>}
+   </div>
+   {sections.map(c=>{const list=items.filter(i=>i.category===c&&matchF(i));if(!list.length)return null;return <div key={c} style={{marginBottom:34}}>
      <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:14}}><Dot c={CAT_COLOR[c]||"#a47cd1"} s={9}/><span style={{fontWeight:700,fontSize:16}}>{c}</span><span style={{fontSize:12,color:"var(--muted)",fontWeight:600}}>{list.length} item{list.length!==1?"s":""}</span></div>
      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(214px,1fr))",gap:16}}>{list.map(card)}</div>
    </div>;})}
