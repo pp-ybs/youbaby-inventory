@@ -351,8 +351,8 @@ function Categories({themes,go}){
 }
 
 // ---- Doha inventory (Qatar — separate stock) ----
-const DITYPES=["outfit","fabric/background","prop","accessory","backdrop","other"];
-const dTC=t=>t==="fabric/background"||t==="backdrop"?"#a47cd1":(t==="prop"||t==="accessory")?"#48b08c":t==="outfit"?"#e06b94":"#9a9ca8";
+const DITYPES=["setup","outfit","fabric/background","prop","accessory","backdrop","other"];
+const dTC=t=>t==="fabric/background"||t==="backdrop"?"#a47cd1":(t==="prop"||t==="accessory")?"#48b08c":t==="outfit"?"#e06b94":t==="setup"?"#cf8a1e":"#9a9ca8";
 function DohaEdit({item,onSave,onClose}){
  const [f,setF]=useState({...item});
  const set=(k,v)=>setF(p=>({...p,[k]:v}));
