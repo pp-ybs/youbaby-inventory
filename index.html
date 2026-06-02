@@ -371,6 +371,7 @@ function DohaEdit({item,onSave,onClose}){
        <div><label>QUANTITY</label><input value={f.quantity||""} onChange={e=>set("quantity",e.target.value)} placeholder="1"/></div>
        <div><label>CONDITION</label><select value={f.condition||"Good"} onChange={e=>set("condition",e.target.value)}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>
        <div><label>TIMES USED</label><input type="number" min="0" value={f.times_used||0} onChange={e=>set("times_used",e.target.value)}/></div>
+       <div style={{gridColumn:"1/-1"}}><label>OUTFIT <span style={{color:"var(--muted)",fontWeight:400}}>(note for now; we'll link the actual outfit item later)</span></label><input value={f.outfit_note||""} onChange={e=>set("outfit_note",e.target.value)} placeholder="e.g. Available / On spot / white & brown only"/></div>
        <div style={{gridColumn:"1/-1"}}><label>PHOTO <span style={{color:"var(--muted)",fontWeight:400}}>(upload from your device, or paste a link)</span></label><PhotoField value={f.photo||""} onChange={v=>set("photo",v)} prefix="qatar"/></div>
        <div style={{gridColumn:"1/-1"}}><label>REMARKS <span style={{color:"var(--muted)",fontWeight:400}}>(availability / backdrop notes)</span></label><input value={f.remarks||""} onChange={e=>set("remarks",e.target.value)}/></div>
        <div style={{gridColumn:"1/-1"}}><label>NOTES</label><textarea rows={2} value={f.notes||""} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical"}}/></div>
@@ -396,7 +397,7 @@ function DohaInventory(){
  const sections=cat?present.filter(c=>c===cat):present;
  const save=async d=>{
    setItems(its=>its.map(x=>x.id===d.id?{...x,...d}:x)); setSel(null);
-   if(sb){const {error}=await sb.from("doha_inventory").update({name:d.name,item_type:d.item_type,gender:d.gender,measurement:d.measurement,quantity:d.quantity,condition:d.condition,times_used:d.times_used,photo:d.photo,remarks:d.remarks,notes:d.notes,on_website:d.on_website}).eq("id",d.id);if(error)setErr("Couldn't save: "+error.message);}
+   if(sb){const {error}=await sb.from("doha_inventory").update({name:d.name,item_type:d.item_type,gender:d.gender,measurement:d.measurement,quantity:d.quantity,condition:d.condition,times_used:d.times_used,photo:d.photo,remarks:d.remarks,notes:d.notes,outfit_note:d.outfit_note,on_website:d.on_website}).eq("id",d.id);if(error)setErr("Couldn't save: "+error.message);}
  };
  const card=i=><div key={i.id} onClick={()=>setSel(i)} className="fade" style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",overflow:"hidden",boxShadow:"var(--shadow)",cursor:"pointer",transition:"transform .16s,box-shadow .16s",display:"flex",flexDirection:"column"}}
      onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="var(--shadow-h)"}} onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="var(--shadow)"}}>
@@ -415,6 +416,7 @@ function DohaInventory(){
          {i.item_type&&<Chip label={i.item_type} color={dTC(i.item_type)} sm/>}
          <Chip label={i.condition||"Good"} color={COND_COLOR[i.condition||"Good"]} sm/></div>
        <div style={{fontSize:11.5,color:"var(--soft)",marginTop:"auto",borderTop:"1px solid var(--line)",paddingTop:8}}>{i.measurement||"—"} · qty {i.quantity||"—"}</div>
+       {i.outfit_note&&<div style={{fontSize:11,color:"#5a93d6",fontWeight:600,display:"flex",alignItems:"center",gap:5}}><Icon d={I.users} s={12} c="#5a93d6"/>Outfit: {i.outfit_note}</div>}
        {(i.remarks||i.notes)&&<div style={{fontSize:11,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{[i.remarks,i.notes].filter(Boolean).join(" · ")}</div>}
      </div></div>;
  return <div className="scroll fade" style={{flex:1,padding:"26px 30px"}}>
