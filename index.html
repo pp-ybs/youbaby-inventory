@@ -324,39 +324,78 @@ function Categories({themes,go}){
 }
 
 // ---- Doha inventory (Qatar — separate stock) ----
+const DITYPES=["outfit","fabric/background","prop","accessory","backdrop","other"];
+const dTC=t=>t==="fabric/background"||t==="backdrop"?"#a47cd1":(t==="prop"||t==="accessory")?"#48b08c":t==="outfit"?"#e06b94":"#9a9ca8";
+function DohaEdit({item,onSave,onClose}){
+ const [f,setF]=useState({...item});
+ const set=(k,v)=>setF(p=>({...p,[k]:v}));
+ useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
+ return <div style={{position:"fixed",inset:0,background:"#1a1a2433",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+   <div className="scroll fade" style={{width:560,maxWidth:"96vw",maxHeight:"92vh",background:"var(--panel)",borderRadius:18,boxShadow:"0 30px 80px rgba(20,20,30,.25)",overflow:"auto"}}>
+     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 24px",borderBottom:"1px solid var(--line)",position:"sticky",top:0,background:"var(--panel)",zIndex:1}}>
+       <div><span style={{fontWeight:700,fontSize:16}}>Edit item</span><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{f.id} · {f.category} · Doha</div></div>
+       <button onClick={onClose} style={{padding:4}}><Icon d={I.x} s={19} c="var(--muted)"/></button></div>
+     {f.photo&&<div style={{padding:"16px 24px 0"}}><img src={f.photo} style={{width:"100%",maxHeight:240,objectFit:"cover",borderRadius:12,border:"1px solid var(--line)"}} onError={e=>e.target.style.display="none"}/></div>}
+     <div style={{padding:24,display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+       <div style={{gridColumn:"1/-1"}}><label>NAME / DESCRIPTION</label><input value={f.name||""} onChange={e=>set("name",e.target.value)} placeholder="e.g. Classic Long Gown - Black"/></div>
+       <div><label>TYPE</label><select value={f.item_type||""} onChange={e=>set("item_type",e.target.value)}><option value="">—</option>{DITYPES.map(t=><option key={t}>{t}</option>)}</select></div>
+       <div><label>GENDER</label><select value={f.gender||""} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS.map(g=><option key={g}>{g}</option>)}</select></div>
+       <div><label>SIZE / MEASUREMENT</label><input value={f.measurement||""} onChange={e=>set("measurement",e.target.value)} placeholder="e.g. M-L / 4 Meters"/></div>
+       <div><label>QUANTITY</label><input value={f.quantity||""} onChange={e=>set("quantity",e.target.value)} placeholder="1"/></div>
+       <div><label>CONDITION</label><select value={f.condition||"Good"} onChange={e=>set("condition",e.target.value)}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>
+       <div><label>TIMES USED</label><input type="number" min="0" value={f.times_used||0} onChange={e=>set("times_used",e.target.value)}/></div>
+       <div style={{gridColumn:"1/-1"}}><label>PHOTO <span style={{color:"var(--muted)",fontWeight:400}}>(path in /qatar or full URL)</span></label><input value={f.photo||""} onChange={e=>set("photo",e.target.value)} placeholder="qatar/qatar_mat_01.png  or  https://…"/></div>
+       <div style={{gridColumn:"1/-1"}}><label>REMARKS <span style={{color:"var(--muted)",fontWeight:400}}>(availability / backdrop notes)</span></label><input value={f.remarks||""} onChange={e=>set("remarks",e.target.value)}/></div>
+       <div style={{gridColumn:"1/-1"}}><label>NOTES</label><textarea rows={2} value={f.notes||""} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical"}}/></div>
+       <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 14px"}}><Toggle on={!!f.on_website} onChange={v=>set("on_website",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.on_website?"Shown on website":"Hidden from website"}</span></div>
+     </div>
+     <div style={{display:"flex",gap:10,justifyContent:"flex-end",padding:"0 24px 22px"}}>
+       <button onClick={onClose} style={{padding:"11px 20px",border:"1px solid var(--line2)",borderRadius:10,fontWeight:600}}>Cancel</button>
+       <button onClick={()=>onSave({...f,times_used:Number(f.times_used)||0})} style={{padding:"11px 22px",background:"var(--ink)",color:"#fff",borderRadius:10,fontWeight:600}}>Save changes</button></div>
+   </div></div>;
+}
 function DohaInventory(){
- const [items,setItems]=useState(null),[err,setErr]=useState(""),[cat,setCat]=useState("");
+ const [items,setItems]=useState(null),[err,setErr]=useState(""),[cat,setCat]=useState(""),[sel,setSel]=useState(null);
  useEffect(()=>{(async()=>{
    if(!sb){setItems([]);return;}
-   const {data,error}=await sb.from("doha_inventory").select("*").order("slot_no");
+   const {data,error}=await sb.from("doha_inventory").select("*").order("category").order("slot_no");
    if(error){setErr(error.message);setItems([]);}else setItems(data||[]);
  })()},[]);
  if(items===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading Doha inventory…</div>;
  const cats=[...new Set(items.map(i=>i.category).filter(Boolean))];
- const TC=t=>t==="fabric/background"?"#a47cd1":"#e06b94";
- const TL=t=>t==="fabric/background"?"fabric / backdrop":(t==="outfit"?"outfit":"—");
  const PLAN=["Maternity","Infant","Cake Smash","Sitter","Newborn"];
  const present=PLAN.filter(c=>items.some(i=>i.category===c)).concat(cats.filter(c=>!PLAN.includes(c)));
  const coming=PLAN.filter(c=>!items.some(i=>i.category===c));
  const sections=cat?present.filter(c=>c===cat):present;
- const card=i=><div key={i.id} style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",overflow:"hidden",boxShadow:"var(--shadow)",display:"flex",flexDirection:"column"}}>
+ const save=async d=>{
+   setItems(its=>its.map(x=>x.id===d.id?{...x,...d}:x)); setSel(null);
+   if(sb){const {error}=await sb.from("doha_inventory").update({name:d.name,item_type:d.item_type,gender:d.gender,measurement:d.measurement,quantity:d.quantity,condition:d.condition,times_used:d.times_used,photo:d.photo,remarks:d.remarks,notes:d.notes,on_website:d.on_website}).eq("id",d.id);if(error)setErr("Couldn't save: "+error.message);}
+ };
+ const card=i=><div key={i.id} onClick={()=>setSel(i)} className="fade" style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",overflow:"hidden",boxShadow:"var(--shadow)",cursor:"pointer",transition:"transform .16s,box-shadow .16s",display:"flex",flexDirection:"column"}}
+     onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="var(--shadow-h)"}} onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="var(--shadow)"}}>
      <div style={{position:"relative",width:"100%",aspectRatio:"4/3",background:"var(--panel2)"}}>
        {i.photo?<img src={i.photo} loading="lazy" alt={i.name||i.id} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";if(e.target.nextSibling)e.target.nextSibling.style.display="flex"}}/>:null}
        <div style={{display:i.photo?"none":"flex",position:"absolute",inset:0,flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,color:"#a47cd1c0",fontSize:11,fontWeight:600}}><Icon d={I.image} s={26} c="#a47cd190" sw={1.5}/>No photo yet</div>
+       <span style={{position:"absolute",top:9,left:9}}><Chip label={i.category||"—"} color={CAT_COLOR[i.category]||"#a47cd1"} solid sm/></span>
+       <span style={{position:"absolute",top:9,right:9,display:"inline-flex",alignItems:"center",gap:4,background:"#000000a8",color:"#fff",borderRadius:20,padding:"2px 9px",fontSize:11,fontWeight:600,backdropFilter:"blur(4px)"}} title="Times used"><Icon d={I.cursor} s={11} c="#f3c64a" fill="#f3c64a" sw={0}/>{i.times_used||0}</span>
      </div>
-     <div style={{padding:"11px 13px",display:"flex",flexDirection:"column",gap:6,flex:1}}>
-       <div style={{fontWeight:600,fontSize:13.5}}>{i.name||<span style={{color:"var(--muted)"}}>— no name —</span>}</div>
+     <div style={{padding:"11px 13px",display:"flex",flexDirection:"column",gap:7,flex:1}}>
+       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+         <span style={{fontWeight:600,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{i.name||<span style={{color:"var(--muted)"}}>— no name —</span>}</span>
+         {i.gender&&<span style={{fontSize:10,fontWeight:700,color:i.gender==="Boy"?"#5a93d6":i.gender==="Girl"?"#e06b94":"#9a9ca8",flexShrink:0}}>{i.gender.toUpperCase()}</span>}</div>
        <div style={{fontSize:10.5,color:"var(--muted)"}}>{i.id}</div>
-       <span style={{alignSelf:"flex-start",background:TC(i.item_type)+"1e",color:TC(i.item_type),borderRadius:20,padding:"2px 9px",fontSize:10.5,fontWeight:600}}>{TL(i.item_type)}</span>
+       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+         {i.item_type&&<Chip label={i.item_type} color={dTC(i.item_type)} sm/>}
+         <Chip label={i.condition||"Good"} color={COND_COLOR[i.condition||"Good"]} sm/></div>
        <div style={{fontSize:11.5,color:"var(--soft)",marginTop:"auto",borderTop:"1px solid var(--line)",paddingTop:8}}>{i.measurement||"—"} · qty {i.quantity||"—"}</div>
-       {(i.remarks||i.notes)&&<div style={{fontSize:11,color:"var(--muted)"}}>{[i.remarks,i.notes].filter(Boolean).join(" · ")}</div>}
+       {(i.remarks||i.notes)&&<div style={{fontSize:11,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{[i.remarks,i.notes].filter(Boolean).join(" · ")}</div>}
      </div></div>;
  return <div className="scroll fade" style={{flex:1,padding:"26px 30px"}}>
    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
      <h1 style={{fontSize:26,fontWeight:700,letterSpacing:"-.01em"}}>Doha</h1>
      <span style={{display:"inline-flex",alignItems:"center",gap:5,background:"var(--gold-soft)",color:"var(--gold)",borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:700}}><Dot c="#d2734a" s={6}/>Qatar · separate stock</span></div>
-   <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:18}}>{items.length} item{items.length!==1?"s":""} · organised by category</p>
-   {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8,marginBottom:14}}>Couldn't load: {err}</div>}
+   <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:18}}>{items.length} item{items.length!==1?"s":""} · organised by category · tap a card to edit</p>
+   {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8,marginBottom:14}}>{err}</div>}
    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:24}}>
      <button onClick={()=>setCat("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!cat?"var(--ink)":"var(--line2)"}`,background:!cat?"var(--ink)":"var(--panel)",color:!cat?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All ({items.length})</button>
      {present.map(c=><button key={c} onClick={()=>setCat(c)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${cat===c?"var(--ink)":"var(--line2)"}`,background:cat===c?"var(--ink)":"var(--panel)",color:cat===c?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{c} ({items.filter(i=>i.category===c).length})</button>)}
@@ -366,13 +405,14 @@ function DohaInventory(){
      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(214px,1fr))",gap:16}}>{list.map(card)}</div>
    </div>;})}
    {!cat&&coming.length>0&&<div style={{marginTop:10,padding:"14px 16px",background:"var(--panel2)",border:"1px dashed var(--line2)",borderRadius:12,fontSize:12.5,color:"var(--muted)"}}><b style={{color:"var(--soft)"}}>Скоро в этом разделе:</b> {coming.join(" · ")} — подгрузим из ваших катарских таблиц следующими.</div>}
+   {sel&&<DohaEdit item={sel} onSave={save} onClose={()=>setSel(null)}/>}
  </div>;
 }
 
 // ---- sidebar ----
 const NAV=[{id:"dashboard",label:"Home",icon:I.home},{id:"catalog",label:"Catalog",icon:I.grid},{id:"showcase",label:"Website Showcase",icon:I.globe},{id:"categories",label:"Categories",icon:I.layers}];
 const SOON=[{label:"Items & Props",icon:I.box},{label:"Customers",icon:I.users}];
-function Sidebar({view,setView,themes,setBr,source,signOut,email}){
+function Sidebar({view,setView,themes,setBr,source,signOut,email,dohaCount}){
  return <aside style={{width:236,background:"var(--panel)",borderRight:"1px solid var(--line)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh"}}>
    <div style={{padding:"20px 18px 16px",borderBottom:"1px solid var(--line)",display:"flex",alignItems:"center",gap:11}}>
      <div style={{width:38,height:38,borderRadius:10,background:"var(--ink)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:15,flexShrink:0}}>YB</div>
@@ -385,7 +425,7 @@ function Sidebar({view,setView,themes,setBr,source,signOut,email}){
    </nav>
    <div style={{padding:"14px 18px 20px",borderTop:"1px solid var(--line)"}}>
      <div style={{fontSize:9.5,fontWeight:700,color:"var(--muted)",letterSpacing:".16em",marginBottom:11}}>LOCATIONS</div>
-     {BR.map(b=>{const c=themes.filter(t=>(t.branches||[]).includes(b)).length;return <div key={b} onClick={()=>b==="Doha"?setView("doha"):setBr(b)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"var(--soft)"}}><Dot c={BR_COLOR[b]}/>{b}</span><span style={{fontSize:12.5,fontWeight:700,color:BR_COLOR[b]}}>{c}</span></div>})}
+     {BR.map(b=>{const c=b==="Doha"?(dohaCount||0):themes.filter(t=>(t.branches||[]).includes(b)).length;return <div key={b} onClick={()=>b==="Doha"?setView("doha"):setBr(b)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"var(--soft)"}}><Dot c={BR_COLOR[b]}/>{b}</span><span style={{fontSize:12.5,fontWeight:700,color:BR_COLOR[b]}}>{c}</span></div>})}
      {signOut&&<div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--line)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
        {email&&<span title={email} style={{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{email}</span>}
        <button onClick={signOut} title="Sign out" style={{flexShrink:0,marginLeft:"auto",fontSize:11.5,fontWeight:600,color:"var(--soft)",border:"1px solid var(--line2)",borderRadius:8,padding:"5px 11px"}}>Sign out</button></div>}
@@ -411,6 +451,8 @@ function LoginScreen(){
 function App(){
  const [themes,setThemes]=useState(()=>D.themes.map(t=>({...t})));
  const [source,setSource]=useState("local");
+ const [dohaCount,setDohaCount]=useState(0);
+ useEffect(()=>{if(!sb)return;sb.from("doha_inventory").select("id",{count:"exact",head:true}).then(({count})=>setDohaCount(count||0))},[]);
  const [toast,setToast]=useState("");
  const notify=m=>{setToast(m);setTimeout(()=>setToast(""),4500);};
  const [session,setSession]=useState(sb?undefined:null);
@@ -444,7 +486,7 @@ function App(){
  if(sb&&session===undefined) return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
  if(sb&&!session) return <LoginScreen/>;
  return <div style={{display:"flex",height:"100vh",overflow:"hidden"}}>
-   <Sidebar view={view} setView={setView} themes={themes} setBr={openBr} source={source} signOut={signOut} email={session&&session.user&&session.user.email}/>
+   <Sidebar view={view} setView={setView} themes={themes} setBr={openBr} source={source} signOut={signOut} email={session&&session.user&&session.user.email} dohaCount={dohaCount}/>
    <main style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:"var(--bg)"}}>
      {view==="dashboard"&&<Dashboard themes={themes} go={go}/>}
      {view==="catalog"&&<Catalog themes={themes} onToggle={toggle} onOpen={setSel} onAdd={()=>setForm({})} state={catState}/>}
