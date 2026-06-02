@@ -110,6 +110,33 @@ const Stat=({icon,label,value,sub,color="var(--gold)"})=>
    <div style={{fontSize:28,fontWeight:700,lineHeight:1,letterSpacing:"-.01em"}}>{value}</div>
    {sub&&<div style={{fontSize:11.5,color:"var(--muted)",marginTop:7}}>{sub}</div>}</div>;
 
+// ---- photo upload (to Supabase Storage, in-app) ----
+function PhotoField({value,onChange,prefix}){
+ const [busy,setBusy]=useState(false),[err,setErr]=useState("");
+ const inp=useRef();
+ const pick=async e=>{
+   const file=e.target.files&&e.target.files[0]; if(!file)return;
+   if(!sb){setErr("No connection — can't upload");return;}
+   setBusy(true);setErr("");
+   try{
+     const ext=((file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg');
+     const path=`images/${prefix}/${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}.${ext}`;
+     const up=await sb.storage.from('app').upload(path,file,{contentType:file.type||'image/jpeg',upsert:false});
+     if(up.error)throw up.error;
+     onChange(sb.storage.from('app').getPublicUrl(path).data.publicUrl);
+   }catch(ex){setErr((ex&&ex.message)||"Upload failed");}
+   setBusy(false); if(inp.current)inp.current.value="";
+ };
+ return <div>
+   <div style={{display:"flex",gap:8}}>
+     <input value={value||""} onChange={e=>onChange(e.target.value)} placeholder="https://…  or click Upload →" style={{flex:1}}/>
+     <button type="button" onClick={()=>inp.current&&inp.current.click()} disabled={busy} style={{whiteSpace:"nowrap",padding:"9px 15px",border:"1px solid var(--line2)",borderRadius:10,fontWeight:600,fontSize:13,background:busy?"var(--panel2)":"var(--panel)",color:"var(--ink)",display:"inline-flex",alignItems:"center",gap:6}}><Icon d={I.image} s={15}/>{busy?"Uploading…":"Upload"}</button>
+   </div>
+   <input ref={inp} type="file" accept="image/*" onChange={pick} style={{display:"none"}}/>
+   {err&&<div style={{fontSize:11.5,color:"var(--danger)",marginTop:6}}>{err}</div>}
+ </div>;
+}
+
 // ---- catalog card ----
 function Card({t,onClick,onToggle}){
  const src=imgUrl(t);
@@ -197,7 +224,7 @@ function ThemeForm({init,onSave,onClose}){
        <div style={{gridColumn:"1/-1"}}><label>AVAILABLE AT</label><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{BR.map(b=>{const on=f.branches.includes(b);return <button key={b} onClick={()=>tb(b)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:10,border:`1px solid ${on?BR_COLOR[b]:"var(--line2)"}`,background:on?BR_COLOR[b]+"16":"var(--panel)",color:on?BR_COLOR[b]:"var(--soft)",fontWeight:600,fontSize:13}}><Dot c={BR_COLOR[b]} s={8}/>{b}</button>})}</div></div>
        <div><label>TIMES SELECTED</label><input type="number" min="0" value={f.selection_count} onChange={e=>set("selection_count",e.target.value)}/></div>
        <div><label>CONDITION</label><select value={f.condition} onChange={e=>set("condition",e.target.value)}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>
-       <div style={{gridColumn:"1/-1"}}><label>PHOTO URL <span style={{color:"var(--muted)",fontWeight:400}}>(paste a link, or a file name in /images)</span></label><input value={f.image} onChange={e=>set("image",e.target.value)} placeholder="https://…  or  image12.png"/></div>
+       <div style={{gridColumn:"1/-1"}}><label>PHOTO <span style={{color:"var(--muted)",fontWeight:400}}>(upload from your device, or paste a link / file name)</span></label><PhotoField value={f.image} onChange={v=>set("image",v)} prefix="themes"/></div>
        {imgUrl(f)&&<div style={{gridColumn:"1/-1"}}><img src={imgUrl(f)} style={{width:"100%",maxHeight:200,objectFit:"cover",borderRadius:12,border:"1px solid var(--line)"}}/></div>}
        <div style={{gridColumn:"1/-1"}}><label>WHAT'S INSIDE <span style={{color:"var(--muted)",fontWeight:400}}>(props / outfits / baskets used)</span></label><textarea rows={3} value={f.notes} onChange={e=>set("notes",e.target.value)} placeholder="e.g. Bear bonnet, cloud props, wooden bed, blue wrap…" style={{resize:"vertical"}}/></div>
        <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 14px"}}><Toggle on={f.display} onChange={v=>set("display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.display?"Shown on website":"Hidden from website"}</span></div>
@@ -344,7 +371,7 @@ function DohaEdit({item,onSave,onClose}){
        <div><label>QUANTITY</label><input value={f.quantity||""} onChange={e=>set("quantity",e.target.value)} placeholder="1"/></div>
        <div><label>CONDITION</label><select value={f.condition||"Good"} onChange={e=>set("condition",e.target.value)}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>
        <div><label>TIMES USED</label><input type="number" min="0" value={f.times_used||0} onChange={e=>set("times_used",e.target.value)}/></div>
-       <div style={{gridColumn:"1/-1"}}><label>PHOTO <span style={{color:"var(--muted)",fontWeight:400}}>(path in /qatar or full URL)</span></label><input value={f.photo||""} onChange={e=>set("photo",e.target.value)} placeholder="qatar/qatar_mat_01.png  or  https://…"/></div>
+       <div style={{gridColumn:"1/-1"}}><label>PHOTO <span style={{color:"var(--muted)",fontWeight:400}}>(upload from your device, or paste a link)</span></label><PhotoField value={f.photo||""} onChange={v=>set("photo",v)} prefix="qatar"/></div>
        <div style={{gridColumn:"1/-1"}}><label>REMARKS <span style={{color:"var(--muted)",fontWeight:400}}>(availability / backdrop notes)</span></label><input value={f.remarks||""} onChange={e=>set("remarks",e.target.value)}/></div>
        <div style={{gridColumn:"1/-1"}}><label>NOTES</label><textarea rows={2} value={f.notes||""} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical"}}/></div>
        <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 14px"}}><Toggle on={!!f.on_website} onChange={v=>set("on_website",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.on_website?"Shown on website":"Hidden from website"}</span></div>
