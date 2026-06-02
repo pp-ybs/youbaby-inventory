@@ -318,7 +318,7 @@ function Catalog({themes,onToggle,onOpen,onAdd,state}){
    <div style={{padding:"13px 20px",borderBottom:"1px solid var(--line)",background:"var(--panel)",display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
      <div style={{position:"relative",flex:1,minWidth:200}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search themes…" style={{paddingLeft:34}}/></div>
      <select value={cat} onChange={e=>setCat(e.target.value)} style={{width:"auto"}}><option value="">All types</option>{CATS.map(c=><option key={c}>{c}</option>)}</select>
-     <select value={br} onChange={e=>setBr(e.target.value)} style={{width:"auto"}}><option value="">All studios</option>{BR.map(b=><option key={b}>{b}</option>)}</select>
+     <select value={br} onChange={e=>setBr(e.target.value)} style={{width:"auto"}}><option value="">All studios</option>{[...new Set(themes.flatMap(t=>t.branches||[]))].map(b=><option key={b}>{b}</option>)}</select>
      <select value={gen} onChange={e=>setGen(e.target.value)} style={{width:"auto"}}><option value="">Any</option>{GENDERS.map(g=><option key={g}>{g}</option>)}</select>
      <select value={disp} onChange={e=>setDisp(e.target.value)} style={{width:"auto"}}><option value="">Website: all</option><option value="on">On site</option><option value="off">Hidden</option></select>
      <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}><option value="pop">Most selected</option><option value="az">A–Z</option><option value="cat">By type</option></select>
@@ -407,7 +407,7 @@ function DohaEdit({item,onSave,onClose,allItems=[],links=[],onLink,onUnlink}){
        <button onClick={()=>onSave({...f,times_used:Number(f.times_used)||0})} style={{padding:"11px 22px",background:"var(--ink)",color:"#fff",borderRadius:10,fontWeight:600}}>Save changes</button></div>
    </div></div>;
 }
-function DohaInventory(){
+function DohaInventory({loc="",setLoc}){
  const [items,setItems]=useState(null),[err,setErr]=useState(""),[cat,setCat]=useState(""),[sel,setSel]=useState(null),[links,setLinks]=useState([]);
  const [typeF,setTypeF]=useState(""),[genF,setGenF]=useState(""),[ageF,setAgeF]=useState(""),[q,setQ]=useState("");
  useEffect(()=>{(async()=>{
@@ -419,7 +419,8 @@ function DohaInventory(){
  const addLink=async(s,o)=>{setLinks(l=>l.find(x=>x.setup_id===s&&x.outfit_id===o)?l:[...l,{setup_id:s,outfit_id:o}]);if(sb){const {error}=await sb.from("doha_outfit_links").insert({setup_id:s,outfit_id:o});if(error)setErr("Link failed: "+error.message)}};
  const rmLink=async(s,o)=>{setLinks(l=>l.filter(x=>!(x.setup_id===s&&x.outfit_id===o)));if(sb)await sb.from("doha_outfit_links").delete().eq("setup_id",s).eq("outfit_id",o)};
  if(items===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading Doha inventory…</div>;
- const shootItems=items.filter(i=>!PROP_TYPES.includes(i.item_type)); // setups/outfits — props live in Items & Props
+ const inLoc=items.filter(i=>!loc||i.location===loc); // current location scope
+ const shootItems=inLoc.filter(i=>!PROP_TYPES.includes(i.item_type)); // setups/outfits — props live in Items & Props
  const cats=[...new Set(shootItems.map(i=>i.category).filter(Boolean))];
  const byId=Object.fromEntries(items.map(i=>[i.id,i]));
  const ageBucket=m=>{const s=(m||"").toLowerCase().replace(/\([^)]*kg[^)]*\)/g,"").replace(/up to[^,;]*kg/g,"");
@@ -462,10 +463,15 @@ function DohaInventory(){
      </div></div>;
  return <div className="scroll fade" style={{flex:1,padding:"26px 30px"}}>
    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-     <h1 style={{fontSize:26,fontWeight:700,letterSpacing:"-.01em"}}>Doha</h1>
-     <span style={{display:"inline-flex",alignItems:"center",gap:5,background:"var(--gold-soft)",color:"var(--gold)",borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:700}}><Dot c="#d2734a" s={6}/>Qatar · separate stock</span></div>
+     <h1 style={{fontSize:26,fontWeight:700,letterSpacing:"-.01em"}}>Inventory</h1>
+     <span style={{display:"inline-flex",alignItems:"center",gap:5,background:"var(--gold-soft)",color:"var(--gold)",borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:700}}><Dot c={BR_COLOR[loc]||"#d2734a"} s={6}/>{loc||"All locations"}</span></div>
    <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:18}}>{shootItems.length} item{shootItems.length!==1?"s":""} · set-ups & outfits by category · tap a card to edit</p>
    {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8,marginBottom:14}}>{err}</div>}
+   {setLoc&&<div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:12}}>
+     <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>LOCATION</span>
+     <button onClick={()=>{setLoc("");setCat("")}} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!loc?"var(--ink)":"var(--line2)"}`,background:!loc?"var(--ink)":"var(--panel)",color:!loc?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All ({items.length})</button>
+     {BR.map(l=>{const n=items.filter(i=>i.location===l).length;return <button key={l} onClick={()=>{setLoc(loc===l?"":l);setCat("")}} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${loc===l?(BR_COLOR[l]||"var(--ink)"):"var(--line2)"}`,background:loc===l?(BR_COLOR[l]||"var(--ink)"):"var(--panel)",color:loc===l?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.5}}>{l} ({n})</button>})}
+   </div>}
    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:24}}>
      <button onClick={()=>setCat("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!cat?"var(--ink)":"var(--line2)"}`,background:!cat?"var(--ink)":"var(--panel)",color:!cat?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All ({shootItems.length})</button>
      {present.map(c=><button key={c} onClick={()=>setCat(c)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${cat===c?"var(--ink)":"var(--line2)"}`,background:cat===c?"var(--ink)":"var(--panel)",color:cat===c?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{c} ({shootItems.filter(i=>i.category===c).length})</button>)}
@@ -553,9 +559,9 @@ function ItemsProps(){
 }
 
 // ---- sidebar ----
-const NAV=[{id:"dashboard",label:"Home",icon:I.home},{id:"catalog",label:"Catalog",icon:I.grid},{id:"showcase",label:"Website Showcase",icon:I.globe},{id:"categories",label:"Categories",icon:I.layers},{id:"items",label:"Items & Props",icon:I.box}];
+const NAV=[{id:"dashboard",label:"Home",icon:I.home},{id:"catalog",label:"Catalog",icon:I.grid},{id:"showcase",label:"Website Showcase",icon:I.globe},{id:"categories",label:"Categories",icon:I.layers},{id:"inventory",label:"Inventory",icon:I.list},{id:"items",label:"Items & Props",icon:I.box}];
 const SOON=[{label:"Customers",icon:I.users}];
-function Sidebar({view,setView,themes,setBr,source,signOut,email,dohaCount}){
+function Sidebar({view,setView,themes,setBr,source,signOut,email,dohaCount,setInvLoc,locCounts={}}){
  return <aside style={{width:236,background:"var(--panel)",borderRight:"1px solid var(--line)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh"}}>
    <div style={{padding:"20px 18px 16px",borderBottom:"1px solid var(--line)",display:"flex",alignItems:"center",gap:11}}>
      <div style={{width:38,height:38,borderRadius:10,background:"var(--ink)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:15,flexShrink:0}}>YB</div>
@@ -568,7 +574,7 @@ function Sidebar({view,setView,themes,setBr,source,signOut,email,dohaCount}){
    </nav>
    <div style={{padding:"14px 18px 20px",borderTop:"1px solid var(--line)"}}>
      <div style={{fontSize:9.5,fontWeight:700,color:"var(--muted)",letterSpacing:".16em",marginBottom:11}}>LOCATIONS</div>
-     {BR.map(b=>{const c=b==="Doha"?(dohaCount||0):themes.filter(t=>(t.branches||[]).includes(b)).length;return <div key={b} onClick={()=>b==="Doha"?setView("doha"):setBr(b)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"var(--soft)"}}><Dot c={BR_COLOR[b]}/>{b}</span><span style={{fontSize:12.5,fontWeight:700,color:BR_COLOR[b]}}>{c}</span></div>})}
+     {BR.map(b=>{const c=locCounts[b]||0;return <div key={b} onClick={()=>{setInvLoc&&setInvLoc(b);setView("inventory")}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"var(--soft)"}}><Dot c={BR_COLOR[b]}/>{b}</span><span style={{fontSize:12.5,fontWeight:700,color:BR_COLOR[b]}}>{c}</span></div>})}
      {signOut&&<div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--line)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
        {email&&<span title={email} style={{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{email}</span>}
        <button onClick={signOut} title="Sign out" style={{flexShrink:0,marginLeft:"auto",fontSize:11.5,fontWeight:600,color:"var(--soft)",border:"1px solid var(--line2)",borderRadius:8,padding:"5px 11px"}}>Sign out</button></div>}
@@ -595,7 +601,10 @@ function App(){
  const [themes,setThemes]=useState(()=>D.themes.map(t=>({...t})));
  const [source,setSource]=useState("local");
  const [dohaCount,setDohaCount]=useState(0);
- useEffect(()=>{if(!sb)return;sb.from("doha_inventory").select("id",{count:"exact",head:true}).then(({count})=>setDohaCount(count||0))},[]);
+ const [invLoc,setInvLoc]=useState("");
+ const [locCounts,setLocCounts]=useState({});
+ useEffect(()=>{if(!sb)return;sb.from("doha_inventory").select("id",{count:"exact",head:true}).then(({count})=>setDohaCount(count||0));
+   sb.from("doha_inventory").select("location").then(({data})=>{const m={};(data||[]).forEach(r=>{m[r.location]=(m[r.location]||0)+1});setLocCounts(m)})},[]);
  const [toast,setToast]=useState("");
  const notify=m=>{setToast(m);setTimeout(()=>setToast(""),4500);};
  const [session,setSession]=useState(sb?undefined:null);
@@ -629,13 +638,13 @@ function App(){
  if(sb&&session===undefined) return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
  if(sb&&!session) return <LoginScreen/>;
  return <div style={{display:"flex",height:"100vh",overflow:"hidden"}}>
-   <Sidebar view={view} setView={setView} themes={themes} setBr={openBr} source={source} signOut={signOut} email={session&&session.user&&session.user.email} dohaCount={dohaCount}/>
+   <Sidebar view={view} setView={setView} themes={themes} setBr={openBr} source={source} signOut={signOut} email={session&&session.user&&session.user.email} dohaCount={dohaCount} setInvLoc={setInvLoc} locCounts={locCounts}/>
    <main style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:"var(--bg)"}}>
      {view==="dashboard"&&<Dashboard themes={themes} go={go}/>}
      {view==="catalog"&&<Catalog themes={themes} onToggle={toggle} onOpen={setSel} onAdd={()=>setForm({})} state={catState}/>}
      {view==="showcase"&&<Showcase themes={themes} onOpen={setSel}/>}
      {view==="categories"&&<Categories themes={themes} go={openCat}/>}
-     {view==="doha"&&<DohaInventory/>}
+     {view==="inventory"&&<DohaInventory loc={invLoc} setLoc={setInvLoc}/>}
      {view==="items"&&<ItemsProps/>}
    </main>
    {selLive&&<Drawer t={selLive} onClose={()=>setSel(null)} onToggle={toggle} onEdit={t=>{setSel(null);setForm(t)}} onDelete={delTheme}/>}
