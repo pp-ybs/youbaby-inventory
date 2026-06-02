@@ -1,13 +1,15 @@
-# You Baby Studio — Qatar (Doha) Inventory · HANDOFF
+# You Baby Studio — Inventory · HANDOFF (ALL locations)
 
-> Read this first. Continuation notes for loading the Qatar/Doha inventory into the platform.
+> Read this first. Continuation notes for loading the studio inventory into the platform.
+> This is a **general, all-location** system. Qatar/Doha was loaded first as the pilot, but the
+> same table, model and pipeline serve **every location** (Dubai, Abu Dhabi, Doha, and any others).
 
 ## What this project is
 - Single-file app: `index.html` (React + Babel + supabase-js via CDN). Deployed via **GitHub Pages from `main`** → https://pp-ybs.github.io/youbaby-inventory/ . Dev branch: `claude/busy-knuth-lawXM` (develop there, then merge to `main` to publish).
 - Backend: **Supabase project "Inventory YBS"**, id `ahysgpjnhldhdeinymrd`, URL `https://ahysgpjnhldhdeinymrd.supabase.co`. Use the **Supabase MCP** for all DB work (`execute_sql`, `apply_migration`).
 - Two data domains:
-  - `themes` table — legacy DXB/AD catalogue (original app screens). Don't touch unless asked.
-  - **`doha_inventory` table** — the Qatar/Doha inventory. Shown in the app's **"Doha"** section (opens by clicking **Doha** under LOCATIONS in the sidebar). This is what we're actively building.
+  - `themes` table — **legacy** DXB/AD photo-setup catalogue (original app screens, 347 rows). It will eventually be folded into the unified inventory model below; don't touch unless asked.
+  - **`doha_inventory` table** — the **unified rich inventory** (despite the historical name). It has a `location` column and is meant for **ALL locations**; only Qatar (`location='Doha'`) is loaded so far. Currently surfaced in the app's **"Doha"** section. **Next UI step:** generalise so every location (DXB/AD/Doha/…) shows its own inventory with this same rich UI; consider renaming the table to `inventory` at that point (update the app, `doha_outfit_links`, and the migrate function references).
 
 ## `doha_inventory` schema (text PK)
 `id, location('Doha'), category, source_sheet, slot_no, name, item_type, gender, measurement, quantity, remarks, notes, outfit_note, photo, outfit_photo, extra_photos(jsonb [{p,n}]), condition, times_used, on_website, created_at, updated_at`
@@ -17,18 +19,24 @@
 - **`doha_outfit_links(setup_id, outfit_id)`** — M:N links; setup cards show linked outfit thumbnails.
 - RLS: `doha_inventory` and `doha_outfit_links` = **authenticated only** (correct, keep).
 
-## ID scheme (continue per category — find current max)
-`QA-MA-###` Maternity · `QA-IN-###` Infant · `QA-CS-###` Cake Smash · `QA-NB-###` Newborn · `QA-OF-###` standalone infant outfits. (`QA-BD-*` printed backdrops were merged into Maternity.)
+## ID scheme (per location + category — continue from current max)
+Pattern `<LOC>-<CAT>-###`. Qatar uses `QA-` : `QA-MA-###` Maternity · `QA-IN-###` Infant · `QA-CS-###` Cake Smash · `QA-NB-###` Newborn · `QA-OF-###` standalone infant outfits. (`QA-BD-*` printed backdrops were merged into Maternity.)
+For other locations use their own prefix, e.g. **`DXB-MA-###`**, **`AD-CS-###`**, etc., and set `location` accordingly (Dubai/Abu Dhabi/Doha/…).
 
 ## Data conventions
 - **Names → Title Case** (initcap, normalise `-`→` – `). Fix typos `Flappy`/`Fluppy` → `Fluffy`.
-- **xlsx parsing**: images are anchored by cell. Parse `xl/drawings/drawing1.xml` `<xdr:from><xdr:col>/<xdr:row>` (0-indexed: col1=B, col2=C, col5=F…) + `_rels` → media file. Sheet cells via `sharedStrings` + `sheet1.xml`.
 - Typical sheet layout: **B = THEME PHOTO (setup)**, **C = OUTFIT** (sometimes a photo, sometimes text), other columns = size/qty/remarks/notes.
   - setup photo ← col B image. outfit photo ← col C image. If C is text → `outfit_note`.
   - A row with **only** an outfit photo (no setup photo) → `item_type='outfit'`.
   - Extra/variant photos (e.g. "basket a bit different" + a photo in the REMARKS column) → append to `extra_photos` as `{p:<url>, n:<comment>}`.
 - **gender**: map BOY→Boy, GIRL(S)→Girl, both→Neutral. Newborn sheets usually have **no gender column → leave ''** (owner fills later). Don't invent gender.
 - Outfit lists (header `Outfit/Photo/pc/note`): photo in col C; B is a label ("OUTFIT AVAILABLE"=generic → name "… Outfit N"; meaningful labels like "headband"→accessory, "camel/teddy"→prop).
+
+## Parsing workbooks (xlsx)
+- A source file is usually a **multi-sheet workbook** — one tab per session type (Maternity / Infant / Cake Smash / Newborn / outfit lists / accessories). **Iterate ALL worksheets**, don't assume one sheet.
+  - Map each sheet → category by its **sheet name** (read names from `xl/workbook.xml` + `xl/_rels/workbook.xml.rels`). Show the owner the sheet→category/type mapping and confirm before bulk insert if any tab is ambiguous.
+  - Detect layout per sheet from its header row: setups sheet (`THEME PHOTO`/`OUTFIT` cols), outfit list (`Outfit/Photo/pc/note`), accessories/toys (`WRAP/BACKDROP`/`TOYS`...).
+- Images are anchored per sheet: worksheet `xl/worksheets/sheetN.xml` → its `_rels` → `xl/drawings/drawingN.xml`; in the drawing, `<xdr:from><xdr:col>/<xdr:row>` (0-indexed: col1=B, col2=C, col5=F…) + drawing `_rels` → media file. Cells via `sharedStrings` + each `sheetN.xml`. (Map each sheet to ITS own drawing/rels — don't hardcode `drawing1`.)
 
 ## PHOTOS — direct to Supabase Storage (NEW pipeline)
 The environment now has **`SUPABASE_SERVICE_KEY`** (env var) and network allows **`*.supabase.co`**. So:
