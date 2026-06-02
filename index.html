@@ -362,7 +362,7 @@ function DohaEdit({item,onSave,onClose}){
      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 24px",borderBottom:"1px solid var(--line)",position:"sticky",top:0,background:"var(--panel)",zIndex:1}}>
        <div><span style={{fontWeight:700,fontSize:16}}>Edit item</span><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{f.id} · {f.category} · Doha</div></div>
        <button onClick={onClose} style={{padding:4}}><Icon d={I.x} s={19} c="var(--muted)"/></button></div>
-     {f.photo&&<div style={{padding:"16px 24px 0"}}><img src={f.photo} style={{width:"100%",maxHeight:240,objectFit:"cover",borderRadius:12,border:"1px solid var(--line)"}} onError={e=>e.target.style.display="none"}/></div>}
+     {f.photo&&<div style={{padding:"16px 24px 0"}}><img src={f.photo} style={{width:"100%",maxHeight:460,objectFit:"contain",borderRadius:12,border:"1px solid var(--line)",background:"var(--panel2)"}} onError={e=>e.target.style.display="none"}/></div>}
      <div style={{padding:24,display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
        <div style={{gridColumn:"1/-1"}}><label>NAME / DESCRIPTION</label><input value={f.name||""} onChange={e=>set("name",e.target.value)} placeholder="e.g. Classic Long Gown - Black"/></div>
        <div><label>TYPE</label><select value={f.item_type||""} onChange={e=>set("item_type",e.target.value)}><option value="">—</option>{DITYPES.map(t=><option key={t}>{t}</option>)}</select></div>
