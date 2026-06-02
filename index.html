@@ -353,9 +353,16 @@ function Categories({themes,go}){
 // ---- Doha inventory (Qatar — separate stock) ----
 const DITYPES=["setup","outfit","fabric/background","prop","accessory","backdrop","other"];
 const dTC=t=>t==="fabric/background"||t==="backdrop"?"#a47cd1":(t==="prop"||t==="accessory")?"#48b08c":t==="outfit"?"#e06b94":t==="setup"?"#cf8a1e":"#9a9ca8";
-function DohaEdit({item,onSave,onClose}){
+function DohaEdit({item,onSave,onClose,allItems=[],links=[],onLink,onUnlink}){
  const [f,setF]=useState({...item});
  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+ const isSetup=item.item_type!=="outfit";
+ const pairType=isSetup?"outfit":"setup";
+ const byId=Object.fromEntries(allItems.map(i=>[i.id,i]));
+ const linkedIds=links.filter(l=>isSetup?l.setup_id===item.id:l.outfit_id===item.id).map(l=>isSetup?l.outfit_id:l.setup_id);
+ const candidates=allItems.filter(i=>i.location===item.location&&i.id!==item.id&&(pairType==="outfit"?i.item_type==="outfit":i.item_type!=="outfit")&&!linkedIds.includes(i.id));
+ const doLink=id=>isSetup?onLink(item.id,id):onLink(id,item.id);
+ const doUnlink=id=>isSetup?onUnlink(item.id,id):onUnlink(id,item.id);
  useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
  return <div style={{position:"fixed",inset:0,background:"#1a1a2433",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
    <div className="scroll fade" style={{width:560,maxWidth:"96vw",maxHeight:"92vh",background:"var(--panel)",borderRadius:18,boxShadow:"0 30px 80px rgba(20,20,30,.25)",overflow:"auto"}}>
@@ -376,6 +383,13 @@ function DohaEdit({item,onSave,onClose}){
        <div style={{gridColumn:"1/-1"}}><label>OUTFIT PHOTO <span style={{color:"var(--muted)",fontWeight:400}}>(the specific outfit, if different from the setup)</span></label>{f.outfit_photo&&<img src={f.outfit_photo} style={{width:90,height:90,objectFit:"cover",borderRadius:10,border:"1px solid var(--line)",marginBottom:8,display:"block"}} onError={e=>e.target.style.display="none"}/>}<PhotoField value={f.outfit_photo||""} onChange={v=>set("outfit_photo",v)} prefix="qatar"/></div>
        <div style={{gridColumn:"1/-1"}}><label>REMARKS <span style={{color:"var(--muted)",fontWeight:400}}>(availability / backdrop notes)</span></label><input value={f.remarks||""} onChange={e=>set("remarks",e.target.value)}/></div>
        <div style={{gridColumn:"1/-1"}}><label>NOTES</label><textarea rows={2} value={f.notes||""} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical"}}/></div>
+       {onLink&&<div style={{gridColumn:"1/-1"}}><label>{isSetup?"LINKED OUTFITS":"LINKED TO SETUP(S)"} <span style={{color:"var(--muted)",fontWeight:400}}>({isSetup?"outfits used with this setup":"setups this outfit belongs to"})</span></label>
+         <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:8}}>
+           {linkedIds.length===0&&<span style={{fontSize:12,color:"var(--muted)"}}>None yet.</span>}
+           {linkedIds.map(id=>{const o=byId[id];return <span key={id} style={{display:"inline-flex",alignItems:"center",gap:6,background:"var(--panel2)",border:"1px solid var(--line2)",borderRadius:20,padding:"3px 6px 3px 3px",fontSize:12}}>{o&&o.photo?<img src={o.photo} style={{width:24,height:24,objectFit:"cover",borderRadius:"50%"}}/>:<span style={{width:24}}/>}<span>{o?(o.name||o.id):id}</span><button onClick={()=>doUnlink(id)} title="Unlink" style={{display:"flex",padding:1}}><Icon d={I.x} s={13} c="var(--muted)"/></button></span>})}
+         </div>
+         <select value="" onChange={e=>{if(e.target.value){doLink(e.target.value);}}} style={{width:"100%"}}><option value="">+ link an existing {pairType}…</option>{candidates.map(c=><option key={c.id} value={c.id}>{(c.name||c.id)}{c.measurement?" · "+c.measurement:""}{c.gender?" · "+c.gender:""}</option>)}</select>
+       </div>}
        <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 14px"}}><Toggle on={!!f.on_website} onChange={v=>set("on_website",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.on_website?"Shown on website":"Hidden from website"}</span></div>
      </div>
      <div style={{display:"flex",gap:10,justifyContent:"flex-end",padding:"0 24px 22px"}}>
@@ -384,14 +398,18 @@ function DohaEdit({item,onSave,onClose}){
    </div></div>;
 }
 function DohaInventory(){
- const [items,setItems]=useState(null),[err,setErr]=useState(""),[cat,setCat]=useState(""),[sel,setSel]=useState(null);
+ const [items,setItems]=useState(null),[err,setErr]=useState(""),[cat,setCat]=useState(""),[sel,setSel]=useState(null),[links,setLinks]=useState([]);
  useEffect(()=>{(async()=>{
    if(!sb){setItems([]);return;}
    const {data,error}=await sb.from("doha_inventory").select("*").order("category").order("slot_no");
    if(error){setErr(error.message);setItems([]);}else setItems(data||[]);
+   const {data:lk}=await sb.from("doha_outfit_links").select("*"); setLinks(lk||[]);
  })()},[]);
+ const addLink=async(s,o)=>{setLinks(l=>l.find(x=>x.setup_id===s&&x.outfit_id===o)?l:[...l,{setup_id:s,outfit_id:o}]);if(sb){const {error}=await sb.from("doha_outfit_links").insert({setup_id:s,outfit_id:o});if(error)setErr("Link failed: "+error.message)}};
+ const rmLink=async(s,o)=>{setLinks(l=>l.filter(x=>!(x.setup_id===s&&x.outfit_id===o)));if(sb)await sb.from("doha_outfit_links").delete().eq("setup_id",s).eq("outfit_id",o)};
  if(items===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading Doha inventory…</div>;
  const cats=[...new Set(items.map(i=>i.category).filter(Boolean))];
+ const byId=Object.fromEntries(items.map(i=>[i.id,i]));
  const PLAN=["Maternity","Infant","Cake Smash","Sitter","Newborn"];
  const present=PLAN.filter(c=>items.some(i=>i.category===c)).concat(cats.filter(c=>!PLAN.includes(c)));
  const coming=PLAN.filter(c=>!items.some(i=>i.category===c));
@@ -419,6 +437,7 @@ function DohaInventory(){
          <Chip label={i.condition||"Good"} color={COND_COLOR[i.condition||"Good"]} sm/></div>
        <div style={{fontSize:11.5,color:"var(--soft)",marginTop:"auto",borderTop:"1px solid var(--line)",paddingTop:8}}>{i.measurement||"—"} · qty {i.quantity||"—"}</div>
        {i.outfit_note&&<div style={{fontSize:11,color:"#5a93d6",fontWeight:600,display:"flex",alignItems:"center",gap:5}}><Icon d={I.users} s={12} c="#5a93d6"/>Outfit: {i.outfit_note}</div>}
+       {(()=>{const lo=links.filter(l=>l.setup_id===i.id).map(l=>byId[l.outfit_id]).filter(Boolean);return lo.length>0?<div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--muted)",fontWeight:600}}>Outfits:</span>{lo.slice(0,6).map(o=>o.photo?<img key={o.id} src={o.photo} title={o.name||o.id} style={{width:28,height:28,objectFit:"cover",borderRadius:6,border:"1px solid var(--line)"}}/>:<span key={o.id} style={{fontSize:10,color:"var(--soft)"}}>{o.name}</span>)}</div>:null})()}
        {(i.remarks||i.notes)&&<div style={{fontSize:11,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{[i.remarks,i.notes].filter(Boolean).join(" · ")}</div>}
      </div></div>;
  return <div className="scroll fade" style={{flex:1,padding:"26px 30px"}}>
@@ -436,7 +455,7 @@ function DohaInventory(){
      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(214px,1fr))",gap:16}}>{list.map(card)}</div>
    </div>;})}
    {!cat&&coming.length>0&&<div style={{marginTop:10,padding:"14px 16px",background:"var(--panel2)",border:"1px dashed var(--line2)",borderRadius:12,fontSize:12.5,color:"var(--muted)"}}><b style={{color:"var(--soft)"}}>Скоро в этом разделе:</b> {coming.join(" · ")} — подгрузим из ваших катарских таблиц следующими.</div>}
-   {sel&&<DohaEdit item={sel} onSave={save} onClose={()=>setSel(null)}/>}
+   {sel&&<DohaEdit item={sel} onSave={save} onClose={()=>setSel(null)} allItems={items} links={links} onLink={addLink} onUnlink={rmLink}/>}
  </div>;
 }
 
