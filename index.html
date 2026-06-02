@@ -318,7 +318,7 @@ function Catalog({themes,onToggle,onOpen,onAdd,state}){
    <div style={{padding:"13px 20px",borderBottom:"1px solid var(--line)",background:"var(--panel)",display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
      <div style={{position:"relative",flex:1,minWidth:200}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search themes…" style={{paddingLeft:34}}/></div>
      <select value={cat} onChange={e=>setCat(e.target.value)} style={{width:"auto"}}><option value="">All types</option>{CATS.map(c=><option key={c}>{c}</option>)}</select>
-     <select value={br} onChange={e=>setBr(e.target.value)} style={{width:"auto"}}><option value="">All studios</option>{[...new Set(themes.flatMap(t=>t.branches||[]))].map(b=><option key={b}>{b}</option>)}</select>
+     <select value={br} onChange={e=>setBr(e.target.value)} style={{width:"auto"}}><option value="">All studios</option>{BR.map(b=><option key={b}>{b}</option>)}</select>
      <select value={gen} onChange={e=>setGen(e.target.value)} style={{width:"auto"}}><option value="">Any</option>{GENDERS.map(g=><option key={g}>{g}</option>)}</select>
      <select value={disp} onChange={e=>setDisp(e.target.value)} style={{width:"auto"}}><option value="">Website: all</option><option value="on">On site</option><option value="off">Hidden</option></select>
      <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}><option value="pop">Most selected</option><option value="az">A–Z</option><option value="cat">By type</option></select>
@@ -574,7 +574,7 @@ function Sidebar({view,setView,themes,setBr,source,signOut,email,dohaCount,setIn
    </nav>
    <div style={{padding:"14px 18px 20px",borderTop:"1px solid var(--line)"}}>
      <div style={{fontSize:9.5,fontWeight:700,color:"var(--muted)",letterSpacing:".16em",marginBottom:11}}>LOCATIONS</div>
-     {BR.map(b=>{const c=locCounts[b]||0;return <div key={b} onClick={()=>{setInvLoc&&setInvLoc(b);setView("inventory")}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"var(--soft)"}}><Dot c={BR_COLOR[b]}/>{b}</span><span style={{fontSize:12.5,fontWeight:700,color:BR_COLOR[b]}}>{c}</span></div>})}
+     {BR.map(b=>{const c=b==="Doha"?(locCounts["Doha"]||0):themes.filter(t=>(t.branches||[]).includes(b)).length;return <div key={b} onClick={()=>b==="Doha"?(setInvLoc&&setInvLoc("Doha"),setView("inventory")):setBr(b)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"var(--soft)"}}><Dot c={BR_COLOR[b]}/>{b}</span><span style={{fontSize:12.5,fontWeight:700,color:BR_COLOR[b]}}>{c}</span></div>})}
      {signOut&&<div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--line)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
        {email&&<span title={email} style={{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{email}</span>}
        <button onClick={signOut} title="Sign out" style={{flexShrink:0,marginLeft:"auto",fontSize:11.5,fontWeight:600,color:"var(--soft)",border:"1px solid var(--line2)",borderRadius:8,padding:"5px 11px"}}>Sign out</button></div>}
