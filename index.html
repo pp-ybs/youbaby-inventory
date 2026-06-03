@@ -1086,6 +1086,8 @@ function AddInvItem({onClose,onSaved,init={}}){
  useEffect(()=>{if(sb)sb.from("inv_item").select("id,code,name,kind,type,photo_url,session_type").order("name").then(({data})=>setCand(data||[]))},[]);
  const [busy,setBusy]=useState(false),[err,setErr]=useState(""),[saved,setSaved]=useState(null);
  const [kAdd,setKAdd]=useState(false),[kTxt,setKTxt]=useState("");
+ const [moreOpen,setMoreOpen]=useState(false);
+ const [aiBusy,setAiBusy]=useState(false),[aiMsg,setAiMsg]=useState(""),[aiPreview,setAiPreview]=useState(null);
  const set=(k,v)=>setF(p=>({...p,[k]:v}));
  const addKind=async()=>{const v=kTxt.trim();if(v){await addTaxOption("kind",f.session_type,v);set("kind",v);}setKTxt("");setKAdd(false);};
  const seg=f.type==="theme"?"SET":(KIND_CODE[f.kind]||"IT");
@@ -1108,6 +1110,18 @@ function AddInvItem({onClose,onSaved,init={}}){
  const showColor=!isAsset&&(f.type==="theme"||f.type==="item");
  const showUsable=!isAsset&&f.type==="item"&&(f.kind==="prop"||f.kind==="backdrop");
  useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
+ const aiSuggest=async()=>{
+   if(aiBusy)return; setAiBusy(true); setAiMsg(""); setAiPreview(null);
+   try{
+     const res = await fetch(SB_URL+"/functions/v1/suggest-item",{method:"POST",headers:{"content-type":"application/json","apikey":SB_KEY,"authorization":"Bearer "+SB_KEY},body:JSON.stringify({photo_url:f.photo_url||"",type:f.type,kind:f.kind,session_type:f.session_type,gender:f.gender,color:f.color,name:f.name,notes:f.notes})});
+     const j = await res.json().catch(()=>({ok:false,reason:"bad_response"}));
+     if(!j.ok){ setAiMsg(j.reason==="no_api_key" ? "AI not configured — ask your admin to set ANTHROPIC_API_KEY in Supabase secrets." : ("Couldn't get a suggestion: "+(j.message||j.reason||"unknown"))); return; }
+     setAiPreview(j.suggestion||{});
+   }catch(e){ setAiMsg(String(e?.message||e)); }
+   setAiBusy(false);
+ };
+ const applyAi=(field)=>{ if(!aiPreview||!aiPreview[field])return; set(field, aiPreview[field]); setAiPreview(p=>({...p,[field]:""})); };
+ const applyAllAi=()=>{ if(!aiPreview)return; ["name","color","subcategory","notes"].forEach(k=>{ if(aiPreview[k]) set(k, aiPreview[k]); }); setAiPreview(null); };
  const save=async()=>{
    if(!valid||busy)return;setBusy(true);setErr("");
    try{
@@ -1121,68 +1135,117 @@ function AddInvItem({onClose,onSaved,init={}}){
    }catch(e){setErr(e.message||String(e));}
    setBusy(false);
  };
- const reset=()=>{setSaved(null);setLinkIds([]);setF(p=>({...p,name:"",size:"",color:"",brand:"",photo_url:"",purchase_url:"",value:"",notes:""}));};
- const lab={display:"block",fontSize:10.5,fontWeight:700,color:"var(--muted)",letterSpacing:".01em",marginBottom:5};
- const pill=(on,onClick,txt,col)=><button type="button" onClick={onClick} style={{padding:"7px 14px",borderRadius:8,border:`1px solid ${on?(col||"var(--ink)"):"var(--line2)"}`,background:on?(col||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{txt}</button>;
- return <div style={{position:"fixed",inset:0,background:"#1a1a2433",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-   <div className="scroll fade modalcard" style={{width:560,maxWidth:"96vw",maxHeight:"92vh",background:"var(--panel)",borderRadius:9,boxShadow:"0 30px 80px rgba(20,20,30,.25)",overflow:"auto"}}>
-     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 24px",borderBottom:"1px solid var(--line)",position:"sticky",top:0,background:"var(--panel)",zIndex:1}}>
+ const reset=()=>{setSaved(null);setLinkIds([]);setAiPreview(null);setAiMsg("");setMoreOpen(false);setF(p=>({...p,name:"",size:"",color:"",brand:"",photo_url:"",extra_photos:[],purchase_url:"",value:"",notes:""}));};
+ const lab={display:"block",fontSize:11,fontWeight:700,color:"var(--muted)",letterSpacing:".02em",marginBottom:6,textTransform:"uppercase"};
+ const sec={background:"var(--panel)",border:"1px solid var(--line)",borderRadius:10,padding:"14px 16px"};
+ const secTitle={display:"flex",alignItems:"center",gap:8,fontSize:12,fontWeight:700,color:"var(--ink)",marginBottom:12,paddingBottom:9,borderBottom:"1px solid var(--line)"};
+ const stepDot=n=><span style={{width:20,height:20,borderRadius:"50%",background:"var(--accent)",color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700}}>{n}</span>;
+ const pill=(on,onClick,txt,col)=><button type="button" onClick={onClick} style={{padding:"9px 14px",borderRadius:9,border:`1.5px solid ${on?(col||"var(--ink)"):"var(--line2)"}`,background:on?(col||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:13,fontWeight:600,minHeight:38}}>{txt}</button>;
+ const isMobile=typeof window!=="undefined" && window.innerWidth<640;
+ return <div style={{position:"fixed",inset:0,background:"#1a1a2455",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:isMobile?"stretch":"center",justifyContent:"center",padding:isMobile?0:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+   <div className="scroll fade modalcard" style={{width:isMobile?"100%":640,maxWidth:"100%",maxHeight:isMobile?"100vh":"94vh",background:"var(--panel2)",borderRadius:isMobile?0:12,boxShadow:"0 30px 80px rgba(20,20,30,.25)",overflow:"auto",display:"flex",flexDirection:"column"}}>
+     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",borderBottom:"1px solid var(--line)",position:"sticky",top:0,background:"var(--panel)",zIndex:2}}>
        <div><span style={{fontWeight:700,fontSize:16}}>Add to inventory</span><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>Code preview: <b>{codePrefix(catForCode,seg)}-###</b></div></div>
-       <button onClick={onClose} style={{padding:4}}><Icon d={I.x} s={19} c="var(--muted)"/></button></div>
+       <button onClick={onClose} style={{padding:6,minWidth:36,minHeight:36}}><Icon d={I.x} s={20} c="var(--muted)"/></button></div>
      {saved?<div style={{padding:24,display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
        <div style={{fontSize:15,fontWeight:700,color:"var(--ok)"}}>✓ Added · {saved.code}</div>
        <div style={{background:"#fff",padding:"10px 14px",borderRadius:8,border:"1px solid var(--line)"}}><Barcode value={saved.code}/></div>
        <div style={{fontSize:12.5,color:"var(--muted)",textAlign:"center"}}>{saved.name} · {saved.session_type}{saved.kind?" · "+saved.kind:" · theme"} · {(saved._locs||[]).map(l=>l.location).join(", ")}</div>
-       <div style={{display:"flex",gap:10}}><button onClick={reset} style={{padding:"11px 22px",background:"var(--ink)",color:"#fff",borderRadius:8,fontWeight:600}}>Add another</button><button onClick={onClose} style={{padding:"11px 20px",border:"1px solid var(--line2)",borderRadius:8,fontWeight:600}}>Done</button></div>
-     </div>:<div style={{padding:"20px 22px 24px",display:"flex",flexDirection:"column",gap:15}}>
-       <div><span style={lab}>1 · Group</span><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{pill(f.grp==="shoot",()=>setF(p=>({...p,grp:"shoot",sessionRel:true})),"Session item","#3e7bfa")}{pill(f.grp==="electronics",()=>setF(p=>({...p,grp:"electronics",sessionRel:false,type:"item",kind:"other"})),"Equipment","#7c4dff")}{pill(f.grp==="facility",()=>setF(p=>({...p,grp:"facility",sessionRel:false,type:"item",kind:"other"})),"Consumables","#ff8f5e")}</div></div>
-       <div><span style={lab}>2 · Location(s) <span style={{color:"var(--muted)",fontWeight:400}}>(tap the studios it's in)</span></span>
-         <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <button type="button" key={b} onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1,times:(p[b]&&p[b].times)||0}}))} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 13px",borderRadius:8,border:`1px solid ${on?BR_COLOR[b]:"var(--line2)"}`,background:on?BR_COLOR[b]+"1c":"var(--panel)",color:on?BR_COLOR[b]:"var(--soft)",fontSize:12.5,fontWeight:on?700:600,transition:"all .12s"}}><Dot c={BR_COLOR[b]} s={7}/>{b}</button>})}</div>
-         {chosen.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8,marginTop:11,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"11px 13px"}}>{chosen.map(b=><div key={b} style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-           <span style={{display:"inline-flex",alignItems:"center",gap:6,width:74,fontSize:12.5,fontWeight:700,color:"var(--ink)"}}><Dot c={BR_COLOR[b]} s={8}/>{b}</span>
-           <span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Qty <input type="number" min="1" value={locs[b].qty} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,qty:e.target.value}}))} style={{width:54}}/></span>
-           {(f.type==="theme"||f.kind==="outfit")&&<span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Selected <input type="number" min="0" value={locs[b].times} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,times:e.target.value}}))} style={{width:58}}/></span>}
-           {f.perLocDate&&<span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Added <input type="date" max={today()} value={locs[b].date||f.acquired_on} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,date:e.target.value}}))} style={{width:140}}/></span>}
-         </div>)}</div>}</div>
-       {f.sessionRel&&<div><span style={lab}>3 · Session type</span><TaxSelect value={f.session_type} onChange={v=>set("session_type",v)} options={SESSION_CATS} onAdd={v=>addTaxOption("session",null,v)} placeholder="New session type…" addLabel="+ Add session type…"/></div>}
-       {!isAsset&&<div><span style={lab}>{f.sessionRel?"4":"3"} · Type</span><div style={{display:"flex",gap:8}}>{pill(f.type==="theme",()=>set("type","theme"),f.session_type==="Gender Reveal"?"Reveal":"Setup (theme)","var(--accent)")}{kinds.includes("outfit")&&pill(f.type==="item"&&f.kind==="outfit",()=>{set("type","item");set("kind","outfit");},"Outfit","#9a6fd1")}{pill(f.type==="item"&&f.kind!=="outfit",()=>{set("type","item");if(f.kind==="outfit")set("kind",(kinds.find(k=>k!=="outfit")||"prop"));},"Item","#48b08c")}</div></div>}
-       {!isAsset&&f.type==="item"&&<div><span style={lab}>{f.sessionRel?"5":"4"} · Kind</span><div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>{kinds.map(k=>pill(f.kind===k,()=>set("kind",k),ucf(k),dTC(k)))}
-         {kAdd?<span style={{display:"inline-flex",gap:5,alignItems:"center"}}><input autoFocus value={kTxt} placeholder="new kind…" onChange={e=>setKTxt(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addKind();}else if(e.key==="Escape"){setKTxt("");setKAdd(false);}}} style={{width:110}}/><button type="button" onMouseDown={e=>{e.preventDefault();addKind();}} style={{padding:"7px 12px",borderRadius:8,border:"none",background:"var(--ink)",color:"#fff",fontSize:12,fontWeight:600}}>Add</button></span>
-           :<button type="button" onClick={()=>setKAdd(true)} style={{padding:"7px 13px",borderRadius:8,border:"1px dashed var(--line2)",background:"var(--panel)",color:"var(--soft)",fontSize:12.5,fontWeight:600}}>+ Add</button>}</div></div>}
-       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-         {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} list="assettypesA" placeholder="e.g. Camera, Lens, Furniture"/><datalist id="assettypesA">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
-         {isAsset&&<div><span style={lab}>Status</span><select value={f.op_status} onChange={e=>set("op_status",e.target.value)}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
-         {isAsset&&!NO_SERIAL.has(f.subcategory)&&<div><span style={lab}>Serial no</span><input value={f.serial_no} onChange={e=>set("serial_no",e.target.value)} placeholder="serial / IMEI"/></div>}
-         {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"KEY HOLDER":"ASSIGNED TO / HELD AT"}</span><input value={f.assignee} onChange={e=>set("assignee",e.target.value)} placeholder="person or room"/></div>}
-         {showStyle&&<div><span style={lab}>Style</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={STYLE_OPTS[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("style",f.session_type,v)} placeholder="New style…" addLabel="+ Add style…"/></div>}
-         {showSetupStyle&&<div><span style={lab}>Reveal type</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={SETUP_STYLE[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("setup",f.session_type,v)} placeholder="New reveal type…" addLabel="+ Add reveal type…"/></div>}
-         {showGender&&<div><span style={lab}>Gender</span><select value={f.gender} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS_T.map(g=><option key={g}>{g}</option>)}</select></div>}
-         {showSub&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!subList.includes(v))addTaxOption(f.kind==="prop"?"propsub":"subkind",f.kind==="prop"?f.session_type:f.kind,v);}} list="subopts" placeholder={SUBTYPE_PH[f.kind]||""}/><datalist id="subopts">{subList.map(s=><option key={s} value={s}/>)}</datalist></div>}
-         {showDim&&<div><span style={lab}>Dimensions</span><input value={f.dimensions||""} onChange={e=>set("dimensions",e.target.value)} placeholder="e.g. 40 × 30 cm"/></div>}
-         {showSize&&<div style={{gridColumn:"1/-1"}}><span style={lab}>Size</span><SizePicker value={f.size} onChange={v=>set("size",v)} opts={sizeOpts} onAdd={v=>addTaxOption("size",f.session_type,v)}/></div>}
-         {!noCond&&<div><span style={lab}>Condition</span><select value={f.condition} onChange={e=>set("condition",e.target.value)}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>}
-         <div style={{gridColumn:"1/-1"}}><span style={lab}>Name / description *</span><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Brown Corduroy Overalls"/></div>
-         {showColor&&<div style={{gridColumn:"1/-1"}}><span style={lab}>{f.type==="theme"?"Colour / palette":"Color"}</span><ColorPicker value={f.color} onChange={v=>set("color",v)}/></div>}
-         {showUsable&&<div style={{gridColumn:"1/-1"}}><span style={lab}>Usable for <span style={{color:"var(--muted)",fontWeight:400}}>(other sessions it can be reused in)</span></span><UsablePicker value={f.usable_for} onChange={v=>set("usable_for",v)}/></div>}
-         <div style={{gridColumn:"1/-1"}}><span style={lab}>Photo <span style={{color:"var(--muted)",fontWeight:400}}>(cover)</span></span><PhotoField value={f.photo_url||""} onChange={v=>set("photo_url",v)} prefix="inv"/></div>
-         <div style={{gridColumn:"1/-1"}}><span style={lab}>More photos <span style={{color:"var(--muted)",fontWeight:400}}>(extra angles / variants — add or remove as needed)</span></span><Gallery photos={f.extra_photos} onChange={v=>set("extra_photos",v)} prefix="inv"/></div>
-         <div><span style={lab}>Purchase link <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><input value={f.purchase_url} onChange={e=>set("purchase_url",e.target.value)} placeholder="https://…"/></div>
-         {showValue&&<div><span style={lab}>Value <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><div style={{display:"flex",gap:6}}><input type="number" min="0" step="0.01" value={f.value} onChange={e=>set("value",e.target.value)} placeholder="e.g. 350" style={{flex:1,minWidth:0}}/><select value={f.value_currency} onChange={e=>set("value_currency",e.target.value)} style={{width:80}}>{["AED","QAR","USD"].map(c=><option key={c}>{c}</option>)}</select></div></div>}
-         <div><span style={lab}>Purchase date <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><input type="date" max={today()} value={f.purchase_date||""} onChange={e=>set("purchase_date",e.target.value)}/></div>
-         <div style={{gridColumn:"1/-1"}}><span style={lab}>Date added <span style={{color:"var(--muted)",fontWeight:400}}>(set the real date — used for usage stats)</span></span><div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><input type="date" max={today()} value={f.acquired_on} onChange={e=>set("acquired_on",e.target.value)} disabled={f.perLocDate} style={{opacity:f.perLocDate?.45:1,width:170}}/><label style={{display:"flex",alignItems:"center",gap:6,fontSize:11.5,color:"var(--soft)",cursor:"pointer"}}><input type="checkbox" checked={f.perLocDate} onChange={e=>set("perLocDate",e.target.checked)}/>Different date per location (added one by one)</label></div></div>
-         <div style={{gridColumn:"1/-1"}}><span style={lab}>Notes</span><textarea rows={2} value={f.notes} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical"}}/></div>
+       <div style={{display:"flex",gap:10}}><button onClick={reset} style={{padding:"12px 22px",background:"var(--ink)",color:"#fff",borderRadius:8,fontWeight:600,minHeight:46}}>Add another</button><button onClick={onClose} style={{padding:"12px 20px",border:"1px solid var(--line2)",borderRadius:8,fontWeight:600,minHeight:46}}>Done</button></div>
+     </div>:<>
+       <div style={{padding:isMobile?"14px 14px 90px":"18px 18px 18px",display:"flex",flexDirection:"column",gap:12,flex:1}}>
+         {/* SECTION 1 — Where & what */}
+         <div style={sec}>
+           <div style={secTitle}>{stepDot(1)}<span>WHERE &amp; WHAT</span></div>
+           <div style={{marginBottom:14}}><span style={lab}>Group</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{pill(f.grp==="shoot",()=>setF(p=>({...p,grp:"shoot",sessionRel:true})),"Session item","#3e7bfa")}{pill(f.grp==="electronics",()=>setF(p=>({...p,grp:"electronics",sessionRel:false,type:"item",kind:"other"})),"Equipment","#7c4dff")}{pill(f.grp==="facility",()=>setF(p=>({...p,grp:"facility",sessionRel:false,type:"item",kind:"other"})),"Consumables","#ff8f5e")}</div></div>
+           <div style={{marginBottom:14}}><span style={lab}>Location(s) <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0}}>· tap the studios it's in</span></span>
+             <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <button type="button" key={b} onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1,times:(p[b]&&p[b].times)||0}}))} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:9,border:`1.5px solid ${on?BR_COLOR[b]:"var(--line2)"}`,background:on?BR_COLOR[b]+"1c":"var(--panel)",color:on?BR_COLOR[b]:"var(--soft)",fontSize:13,fontWeight:on?700:600,minHeight:38,transition:"all .12s"}}><Dot c={BR_COLOR[b]} s={8}/>{b}</button>})}</div>
+             {chosen.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8,marginTop:11,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"11px 13px"}}>{chosen.map(b=><div key={b} style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+               <span style={{display:"inline-flex",alignItems:"center",gap:6,minWidth:74,fontSize:12.5,fontWeight:700,color:"var(--ink)"}}><Dot c={BR_COLOR[b]} s={8}/>{b}</span>
+               <span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Qty <input type="number" min="1" value={locs[b].qty} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,qty:e.target.value}}))} style={{width:60,minHeight:36}}/></span>
+               {(f.type==="theme"||f.kind==="outfit")&&<span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Selected <input type="number" min="0" value={locs[b].times} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,times:e.target.value}}))} style={{width:62,minHeight:36}}/></span>}
+               {f.perLocDate&&<span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Added <input type="date" max={today()} value={locs[b].date||f.acquired_on} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,date:e.target.value}}))} style={{width:140,minHeight:36}}/></span>}
+             </div>)}</div>}</div>
+           {f.sessionRel&&<div style={{marginBottom:14}}><span style={lab}>Session type</span><TaxSelect value={f.session_type} onChange={v=>set("session_type",v)} options={SESSION_CATS} onAdd={v=>addTaxOption("session",null,v)} placeholder="New session type…" addLabel="+ Add session type…"/></div>}
+           {!isAsset&&<div style={{marginBottom:14}}><span style={lab}>Type</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{pill(f.type==="theme",()=>set("type","theme"),f.session_type==="Gender Reveal"?"Reveal":"Setup (theme)","var(--accent)")}{kinds.includes("outfit")&&pill(f.type==="item"&&f.kind==="outfit",()=>{set("type","item");set("kind","outfit");},"Outfit","#9a6fd1")}{pill(f.type==="item"&&f.kind!=="outfit",()=>{set("type","item");if(f.kind==="outfit")set("kind",(kinds.find(k=>k!=="outfit")||"prop"));},"Item","#48b08c")}</div></div>}
+           {!isAsset&&f.type==="item"&&<div><span style={lab}>Kind</span><div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>{kinds.map(k=>pill(f.kind===k,()=>set("kind",k),ucf(k),dTC(k)))}
+             {kAdd?<span style={{display:"inline-flex",gap:5,alignItems:"center"}}><input autoFocus value={kTxt} placeholder="new kind…" onChange={e=>setKTxt(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addKind();}else if(e.key==="Escape"){setKTxt("");setKAdd(false);}}} style={{width:110,minHeight:38}}/><button type="button" onMouseDown={e=>{e.preventDefault();addKind();}} style={{padding:"9px 13px",borderRadius:8,border:"none",background:"var(--ink)",color:"#fff",fontSize:12.5,fontWeight:600,minHeight:38}}>Add</button></span>
+               :<button type="button" onClick={()=>setKAdd(true)} style={{padding:"9px 13px",borderRadius:8,border:"1px dashed var(--line2)",background:"var(--panel)",color:"var(--soft)",fontSize:13,fontWeight:600,minHeight:38}}>+ Add</button>}</div></div>}
+         </div>
+
+         {/* SECTION 2 — Photos */}
+         {!isAsset&&<div style={sec}>
+           <div style={secTitle}>{stepDot(2)}<span style={{flex:1}}>PHOTOS</span>
+             <button type="button" onClick={aiSuggest} disabled={aiBusy} title={f.photo_url?"Use AI to name + tag this item":"Add a photo for the best AI suggestion (works without too)"} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"6px 11px",borderRadius:8,border:"1px solid var(--accent)",background:aiBusy?"var(--panel2)":"linear-gradient(135deg,#3e7bfa,#7c4dff)",color:aiBusy?"var(--muted)":"#fff",fontSize:11.5,fontWeight:700,cursor:aiBusy?"default":"pointer"}}>{aiBusy?"Thinking…":"✨ Suggest with AI"}</button>
+           </div>
+           <div style={{marginBottom:12}}><span style={lab}>Cover photo</span><PhotoField value={f.photo_url||""} onChange={v=>set("photo_url",v)} prefix="inv"/></div>
+           <div><span style={lab}>More photos <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0}}>· extra angles or variants</span></span><Gallery photos={f.extra_photos} onChange={v=>set("extra_photos",v)} prefix="inv"/></div>
+           {aiMsg&&<div style={{marginTop:10,fontSize:12,padding:"9px 12px",borderRadius:8,background:"#fbecea",color:"var(--danger)",border:"1px solid #f3b8b3"}}>{aiMsg}</div>}
+           {aiPreview&&<div style={{marginTop:12,padding:"12px 14px",borderRadius:10,background:"linear-gradient(135deg,#eaf1ff,#f3edff)",border:"1px solid #c7d6ff"}}>
+             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}><span style={{fontSize:11,fontWeight:700,color:"#3e7bfa",letterSpacing:".04em",textTransform:"uppercase"}}>✨ AI Suggestion</span><span style={{flex:1}}/><button type="button" onClick={applyAllAi} style={{padding:"5px 11px",borderRadius:7,border:"none",background:"#3e7bfa",color:"#fff",fontSize:11.5,fontWeight:700,cursor:"pointer"}}>Apply all</button><button type="button" onClick={()=>setAiPreview(null)} title="Dismiss" style={{padding:4}}><Icon d={I.x} s={14} c="var(--muted)"/></button></div>
+             {["name","color","subcategory","notes"].filter(k=>aiPreview[k]).map(k=><div key={k} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderTop:"1px solid #c7d6ff66",fontSize:12.5}}><span style={{width:80,color:"var(--muted)",fontWeight:600,textTransform:"capitalize"}}>{k==="subcategory"?"Style":k}</span><span style={{flex:1,color:"var(--ink)"}}>{aiPreview[k]}</span><button type="button" onClick={()=>applyAi(k)} style={{padding:"3px 9px",borderRadius:6,border:"1px solid #3e7bfa",background:"transparent",color:"#3e7bfa",fontSize:11,fontWeight:700,cursor:"pointer"}}>Use</button></div>)}
+             {!["name","color","subcategory","notes"].some(k=>aiPreview[k])&&<div style={{fontSize:12,color:"var(--muted)"}}>No suggestions returned — try adding a photo.</div>}
+           </div>}
+         </div>}
+
+         {/* SECTION 3 — Details */}
+         <div style={sec}>
+           <div style={secTitle}>{stepDot(isAsset?2:3)}<span>DETAILS</span></div>
+           <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:14}}>
+             <div style={{gridColumn:"1/-1"}}><span style={lab}>Name / description <span style={{color:"var(--danger)"}}>*</span></span><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Brown Corduroy Overalls" style={{minHeight:44,fontSize:14}}/></div>
+             {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} list="assettypesA" placeholder="e.g. Camera, Lens, Furniture" style={{minHeight:44}}/><datalist id="assettypesA">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
+             {isAsset&&<div><span style={lab}>Status</span><select value={f.op_status} onChange={e=>set("op_status",e.target.value)} style={{minHeight:44}}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
+             {isAsset&&!NO_SERIAL.has(f.subcategory)&&<div><span style={lab}>Serial no</span><input value={f.serial_no} onChange={e=>set("serial_no",e.target.value)} placeholder="serial / IMEI" style={{minHeight:44}}/></div>}
+             {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"Key holder":"Assigned to / held at"}</span><input value={f.assignee} onChange={e=>set("assignee",e.target.value)} placeholder="person or room" style={{minHeight:44}}/></div>}
+             {showStyle&&<div><span style={lab}>Style</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={STYLE_OPTS[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("style",f.session_type,v)} placeholder="New style…" addLabel="+ Add style…"/></div>}
+             {showSetupStyle&&<div><span style={lab}>Reveal type</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={SETUP_STYLE[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("setup",f.session_type,v)} placeholder="New reveal type…" addLabel="+ Add reveal type…"/></div>}
+             {showGender&&<div><span style={lab}>Gender</span><select value={f.gender} onChange={e=>set("gender",e.target.value)} style={{minHeight:44}}><option value="">—</option>{GENDERS_T.map(g=><option key={g}>{g}</option>)}</select></div>}
+             {showSub&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!subList.includes(v))addTaxOption(f.kind==="prop"?"propsub":"subkind",f.kind==="prop"?f.session_type:f.kind,v);}} list="subopts" placeholder={SUBTYPE_PH[f.kind]||""} style={{minHeight:44}}/><datalist id="subopts">{subList.map(s=><option key={s} value={s}/>)}</datalist></div>}
+             {showDim&&<div><span style={lab}>Dimensions</span><input value={f.dimensions||""} onChange={e=>set("dimensions",e.target.value)} placeholder="e.g. 40 × 30 cm" style={{minHeight:44}}/></div>}
+             {showSize&&<div style={{gridColumn:"1/-1"}}><span style={lab}>Size</span><SizePicker value={f.size} onChange={v=>set("size",v)} opts={sizeOpts} onAdd={v=>addTaxOption("size",f.session_type,v)}/></div>}
+             {!noCond&&<div><span style={lab}>Condition</span><select value={f.condition} onChange={e=>set("condition",e.target.value)} style={{minHeight:44}}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>}
+             {showColor&&<div style={{gridColumn:"1/-1"}}><span style={lab}>{f.type==="theme"?"Colour / palette":"Color"}</span><ColorPicker value={f.color} onChange={v=>set("color",v)}/></div>}
+             {showUsable&&<div style={{gridColumn:"1/-1"}}><span style={lab}>Usable for <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0}}>· other sessions it can be reused in</span></span><UsablePicker value={f.usable_for} onChange={v=>set("usable_for",v)}/></div>}
+           </div>
+         </div>
+
+         {/* SECTION 4 — Links */}
+         <div style={sec}>
+           <div style={secTitle}>{stepDot(isAsset?3:4)}<span>{f.type==="theme"?"ITEMS IN THIS SETUP":"LINK TO SETUP(S)"} <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0,marginLeft:4}}>· optional</span></span></div>
+           <ItemPicker pool={cand.filter(a=>f.type==="theme"?a.type==="item":a.type==="theme")} selectedIds={linkIds} onToggle={id=>setLinkIds(l=>l.includes(id)?l.filter(x=>x!==id):[...l,id])} emptyHint={f.type==="theme"?"None yet — pick outfits / props / backdrops below.":"None yet — pick the setup(s) this belongs to."}/>
+         </div>
+
+         {/* SECTION 5 — Tags & visibility */}
+         <div style={sec}>
+           <div style={secTitle}>{stepDot(isAsset?4:5)}<span>TAGS &amp; VISIBILITY</span></div>
+           <div style={{display:"flex",flexDirection:"column",gap:8}}>
+             {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>(shows under the New filter)</span></span></div>}
+             {(f.type==="theme"&&(f.session_type==="Cake Smash"||f.session_type==="Sitter"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("Real balloon")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Real balloon"])]:(f.static_tags||[]).filter(x=>x!=="Real balloon"))}/><span style={{fontSize:13,fontWeight:500}}>Real balloon <span style={{color:"var(--muted)",fontWeight:400}}>(off = plain theme — Cake Smash &amp; Sitter)</span></span></div>}
+             {!isAsset&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"}</span></div>}
+           </div>
+         </div>
+
+         {/* SECTION 6 — More (collapsible) */}
+         <div style={sec}>
+           <button type="button" onClick={()=>setMoreOpen(m=>!m)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:0,background:"none",border:"none",cursor:"pointer",color:"var(--ink)"}}>{stepDot(isAsset?5:6)}<span style={{fontSize:12,fontWeight:700,letterSpacing:".02em"}}>MORE DETAILS</span><span style={{flex:1,fontSize:11.5,color:"var(--muted)",fontWeight:500,textAlign:"left"}}>· purchase, value, date added, notes</span><span style={{fontSize:14,color:"var(--muted)"}}>{moreOpen?"▴":"▾"}</span></button>
+           {moreOpen&&<div style={{marginTop:12,paddingTop:12,borderTop:"1px solid var(--line)",display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:14}}>
+             <div><span style={lab}>Purchase link <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0}}>· optional</span></span><input value={f.purchase_url} onChange={e=>set("purchase_url",e.target.value)} placeholder="https://…" style={{minHeight:44}}/></div>
+             {showValue&&<div><span style={lab}>Value <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0}}>· optional</span></span><div style={{display:"flex",gap:6}}><input type="number" min="0" step="0.01" value={f.value} onChange={e=>set("value",e.target.value)} placeholder="e.g. 350" style={{flex:1,minWidth:0,minHeight:44}}/><select value={f.value_currency} onChange={e=>set("value_currency",e.target.value)} style={{width:84,minHeight:44}}>{["AED","QAR","USD"].map(c=><option key={c}>{c}</option>)}</select></div></div>}
+             <div><span style={lab}>Purchase date <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0}}>· optional</span></span><input type="date" max={today()} value={f.purchase_date||""} onChange={e=>set("purchase_date",e.target.value)} style={{minHeight:44}}/></div>
+             <div style={{gridColumn:"1/-1"}}><span style={lab}>Date added <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0}}>· real date, used for usage stats</span></span><div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><input type="date" max={today()} value={f.acquired_on} onChange={e=>set("acquired_on",e.target.value)} disabled={f.perLocDate} style={{opacity:f.perLocDate?.45:1,width:170,minHeight:44}}/><label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--soft)",cursor:"pointer"}}><input type="checkbox" checked={f.perLocDate} onChange={e=>set("perLocDate",e.target.checked)}/>Different date per location</label></div></div>
+             <div style={{gridColumn:"1/-1"}}><span style={lab}>Notes</span><textarea rows={3} value={f.notes} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical",minHeight:80}}/></div>
+           </div>}
+         </div>
+
+         {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"10px 13px",borderRadius:8,border:"1px solid #f3b8b3"}}>{err}</div>}
        </div>
-       <div><span style={lab}>{f.type==="theme"?"LINK ITEMS IN THIS SETUP":"LINK TO SETUP(S)"} <span style={{color:"var(--muted)",fontWeight:400}}>(optional — {f.type==="theme"?"outfit / backdrop / props":"the setup(s) this belongs to"})</span></span>
-         <ItemPicker pool={cand.filter(a=>f.type==="theme"?a.type==="item":a.type==="theme")} selectedIds={linkIds} onToggle={id=>setLinkIds(l=>l.includes(id)?l.filter(x=>x!==id):[...l,id])} emptyHint={f.type==="theme"?"None yet — pick outfits / props / backdrops below.":"None yet — pick the setup(s) this belongs to."}/>
+       {/* Sticky save bar */}
+       <div style={{position:isMobile?"fixed":"sticky",bottom:0,left:0,right:0,padding:"12px 16px",background:"var(--panel)",borderTop:"1px solid var(--line)",display:"flex",gap:10,justifyContent:"flex-end",zIndex:3,boxShadow:isMobile?"0 -3px 16px rgba(0,0,0,.14)":"none"}}>
+         {!valid&&<span style={{flex:1,alignSelf:"center",fontSize:11.5,color:"var(--muted)"}}>{!f.name.trim()?"Name is required.":(!chosen.length?"Pick at least one studio.":(!f.session_type&&f.sessionRel?"Pick a session type.":""))}</span>}
+         <button onClick={onClose} style={{padding:"12px 18px",border:"1px solid var(--line2)",borderRadius:8,fontWeight:600,minHeight:46,background:"var(--panel)"}}>Cancel</button>
+         <button onClick={save} disabled={!valid||busy} style={{padding:"12px 22px",background:valid&&!busy?"var(--ink)":"#bcbcc4",color:"#fff",borderRadius:8,fontWeight:700,cursor:valid&&!busy?"pointer":"not-allowed",minHeight:46}}>{busy?"Saving…":"Save + generate code"}</button>
        </div>
-       {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>(shows under the New filter)</span></span></div>}
-       {(f.type==="theme"&&(f.session_type==="Cake Smash"||f.session_type==="Sitter"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("Real balloon")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Real balloon"])]:(f.static_tags||[]).filter(x=>x!=="Real balloon"))}/><span style={{fontSize:13,fontWeight:500}}>Real balloon <span style={{color:"var(--muted)",fontWeight:400}}>(off = plain theme — Cake Smash &amp; Sitter)</span></span></div>}
-       {!isAsset&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"}</span></div>}
-       {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8}}>{err}</div>}
-       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-         <button onClick={onClose} style={{padding:"11px 20px",border:"1px solid var(--line2)",borderRadius:8,fontWeight:600}}>Cancel</button>
-         <button onClick={save} disabled={!valid||busy} style={{padding:"11px 22px",background:valid&&!busy?"var(--ink)":"#bcbcc4",color:"#fff",borderRadius:8,fontWeight:600,cursor:valid&&!busy?"pointer":"not-allowed"}}>{busy?"Saving…":"Save + generate code"}</button></div>
-     </div>}
+     </>}
    </div></div>;
 }
 
@@ -1578,7 +1641,7 @@ function NewInventory({initCat=""}){
 
 // ---- sidebar ----
 const NAV=[{id:"dashboard",label:"Home",icon:I.home},{id:"catalog",label:"Catalog",icon:I.grid},{id:"showcase",label:"Website Showcase",icon:I.globe},{id:"settings",label:"Settings",icon:I.gear}];
-const SOON=[{label:"Customers",icon:I.users}];
+const SOON=[];
 function Sidebar({view,setView,themes,setBr,source,signOut,email,dohaCount,setInvLoc,locCounts={}}){
  return <aside className="app-side" style={{width:236,background:"var(--side-bg)",borderRight:"1px solid var(--side-line)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh"}}>
    <div style={{padding:"20px 18px 16px",borderBottom:"1px solid var(--side-line)",display:"flex",alignItems:"center",gap:11}}>
@@ -1587,8 +1650,10 @@ function Sidebar({view,setView,themes,setBr,source,signOut,email,dohaCount,setIn
        <div style={{marginTop:4,display:"inline-flex",alignItems:"center",gap:5,fontSize:9.5,fontWeight:600,color:source==="cloud"?"#3ad07f":"var(--side-muted)"}}><Dot c={source==="cloud"?"#3ad07f":"#6a6e7c"} s={6}/>{source==="cloud"?"Live · Supabase":"Local data"}</div></div></div>
    <nav style={{flex:1,padding:"12px 10px",overflowY:"auto"}} className="scroll">
      {NAV.map(n=>{const a=view===n.id;return <button key={n.id} onClick={()=>setView(n.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"10px 12px",borderRadius:8,marginBottom:3,textAlign:"left",background:a?"var(--side-active)":"transparent",color:a?"#fff":"var(--side-muted)",fontWeight:a?700:500,fontSize:13.5,transition:"all .12s"}}><Icon d={n.icon} s={17} c={a?"#fff":"var(--side-muted)"}/>{n.label}</button>})}
-     <div style={{fontSize:9.5,fontWeight:700,color:"var(--side-muted)",letterSpacing:".16em",margin:"18px 12px 8px"}}>COMING NEXT</div>
-     {SOON.map(n=><div key={n.label} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 12px",color:"var(--side-muted)",fontSize:13.5,opacity:.65}}><Icon d={n.icon} s={17} c="var(--side-muted)"/>{n.label}<span style={{marginLeft:"auto",fontSize:9,background:"rgba(240,162,60,.18)",color:"#f0a23c",padding:"1px 7px",borderRadius:8,fontWeight:700}}>SOON</span></div>)}
+     {SOON.length>0&&<>
+       <div style={{fontSize:9.5,fontWeight:700,color:"var(--side-muted)",letterSpacing:".16em",margin:"18px 12px 8px"}}>COMING NEXT</div>
+       {SOON.map(n=><div key={n.label} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 12px",color:"var(--side-muted)",fontSize:13.5,opacity:.65}}><Icon d={n.icon} s={17} c="var(--side-muted)"/>{n.label}<span style={{marginLeft:"auto",fontSize:9,background:"rgba(240,162,60,.18)",color:"#f0a23c",padding:"1px 7px",borderRadius:8,fontWeight:700}}>SOON</span></div>)}
+     </>}
    </nav>
    <div style={{padding:"14px 18px 20px",borderTop:"1px solid var(--side-line)"}}>
      <div style={{fontSize:9.5,fontWeight:700,color:"var(--side-muted)",letterSpacing:".16em",marginBottom:11}}>LOCATIONS</div>
