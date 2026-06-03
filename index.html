@@ -6,7 +6,7 @@
 <title>You Baby Studio · Inventory</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
@@ -17,28 +17,44 @@ window.YBS_DATA={"themes": [{"id": "YBS-CA-0001", "name": "Duckies", "category":
 </script>
 <style>
 :root{
-  --bg:#f6f7f9; --panel:#ffffff; --panel2:#f8f9fb;
-  --line:#ececf0; --line2:#e4e5ea;
-  --ink:#16171c; --soft:#62646f; --muted:#9a9ca8;
-  --gold:#bd9b43; --gold-soft:#f5efdb;
-  --ok:#2f9e54; --ok-soft:#e7f4ec; --warn:#cf8a1e; --danger:#d2473f;
-  --r:14px; --shadow:0 1px 2px rgba(20,20,30,.04),0 8px 24px rgba(20,20,30,.05);
-  --shadow-h:0 2px 6px rgba(20,20,30,.06),0 16px 40px rgba(20,20,30,.09);
+  --bg:#f4f6f9; --panel:#ffffff; --panel2:#f6f8fb;
+  --line:#eef1f5; --line2:#e2e6ee;
+  --ink:#15171e; --soft:#5c6170; --muted:#9aa0b0;
+  --accent:#3e7bfa; --accent-soft:#eaf1ff;
+  --gold:#f0a23c; --gold-soft:#fdeed6;
+  --ok:#22b573; --ok-soft:#e3f6ec; --warn:#f0a23c; --warn-soft:#fdeed6;
+  --danger:#ff5a5f; --danger-soft:#ffe9ea;
+  --purple:#7c4dff; --purple-soft:#efe9ff;
+  --r:18px; --shadow:0 1px 2px rgba(28,30,52,.04),0 12px 30px rgba(28,30,52,.06);
+  --shadow-h:0 2px 8px rgba(28,30,52,.07),0 20px 48px rgba(28,30,52,.1);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased}
-.pop{font-family:'Poppins',sans-serif}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Plus Jakarta Sans','Inter',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+.pop{font-family:inherit}
+h1,h2,h3{letter-spacing:-.02em}
 .scroll{overflow-y:auto;scrollbar-width:thin;scrollbar-color:#dcdce3 transparent}
 .scroll::-webkit-scrollbar{width:9px;height:9px}.scroll::-webkit-scrollbar-thumb{background:#dcdce3;border-radius:9px;border:3px solid var(--bg)}
 .hscroll{overflow-x:auto;scrollbar-width:none}.hscroll::-webkit-scrollbar{display:none}
 button{cursor:pointer;font-family:inherit;border:none;background:none;color:inherit}
-input,select,textarea{font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:9px 12px;outline:none;transition:border-color .15s,box-shadow .15s;width:100%}
-input:focus,select:focus,textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-soft)}
+input,select,textarea{font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--panel);border:1px solid var(--line2);border-radius:11px;padding:9px 12px;outline:none;transition:border-color .15s,box-shadow .15s;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 select{cursor:pointer;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239a9ca8' stroke-width='2.5'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 11px center;padding-right:30px}
 label{font-size:11px;font-weight:600;color:var(--soft);letter-spacing:.02em;display:block;margin-bottom:6px}
 .fade{animation:fade .25s ease}@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 .din{animation:din .28s cubic-bezier(.22,.61,.36,1)}@keyframes din{from{transform:translateX(30px);opacity:.3}to{transform:none;opacity:1}}
 @media print{body *{visibility:hidden!important}#print-area,#print-area *{visibility:visible!important}#print-area{position:absolute;left:0;top:0;width:100%}.noprint{display:none!important}.label{page-break-inside:avoid}}
+.app-mobnav{display:none}
+@media(max-width:860px){
+  .app-side{display:none!important}
+  .app-mobnav{display:flex!important}
+  .app-main{padding-bottom:68px!important}
+  .scroll{padding-left:16px!important;padding-right:16px!important}
+  .cardgrid{grid-template-columns:repeat(2,1fr)!important;gap:12px!important}
+  .modalcard{width:100%!important;max-width:100%!important;max-height:100%!important;height:100%!important;border-radius:0!important}
+  .filterbar{gap:7px!important}
+  h1{font-size:21px!important}
+}
+@media(max-width:430px){ .cardgrid{grid-template-columns:1fr!important} }
 </style>
 </head>
 <body>
@@ -53,11 +69,11 @@ const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null;
 
 const CATS=['Cake Smash','Sitter','Maternity','Infant','Newborn'];
-let CAT_COLOR={'Cake Smash':'#e06b94','Sitter':'#5a93d6','Maternity':'#a47cd1','Infant':'#48b08c','Newborn':'#d59a3f','Children':'#e0a06b','Gender Reveal':'#6fb1c9'};
+let CAT_COLOR={'Cake Smash':'#ff6468','Sitter':'#3e7bfa','Maternity':'#7c4dff','Infant':'#22b573','Newborn':'#f0a23c','Children':'#ff8f5e','Gender Reveal':'#18b8c4'};
 const BR=['DXB','AD','Doha','Al Quoz'];
-const BR_COLOR={'DXB':'#bd9b43','AD':'#5577d6','Doha':'#d2734a','Al Quoz':'#8a6fd1'};
+const BR_COLOR={'DXB':'#3e7bfa','AD':'#7c4dff','Doha':'#ff6468','Al Quoz':'#f0a23c'};
 const CONDS=['Excellent','Good','Fair','Poor','Damaged'];
-const COND_COLOR={Excellent:'#2f9e54',Good:'#7bbf3f',Fair:'#cf8a1e',Poor:'#e07a2e',Damaged:'#d2473f'};
+const COND_COLOR={Excellent:'#22b573',Good:'#5bbf6a',Fair:'#f0a23c',Poor:'#ff8f3c',Damaged:'#ff5a5f'};
 const GENDERS=['Boy','Girl','Neutral'];
 const sc = t => (t.selection_count!=null?t.selection_count:(t.popularity||0));
 const monthsSince = d => { if(!d) return 0; const ms=Date.now()-new Date(d).getTime(); return Math.max(0,ms/(1000*60*60*24*30.44)); };
@@ -113,6 +129,8 @@ const I={
  chevL:"M15 18l-6-6 6-6",
  cursor:"M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z",
  gear:"M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
+ pin:"M12 21s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10z M12 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4z",
+ up:"M12 19V5 M5 12l7-7 7 7",
 };
 const Icon=({d,s=18,c="currentColor",sw=2,fill="none",style})=>
  <svg width={s} height={s} viewBox="0 0 24 24" fill={fill} stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={style}>
@@ -388,7 +406,7 @@ const PROP_TYPES=["backdrop","background","prop","accessory","other"];
 const PROP_GROUP={backdrop:"Backdrops",background:"Backgrounds",prop:"Props",accessory:"Accessories",other:"Other"};
 // shoot types an item can be used for (usable_for)
 const SHOOT_TYPES=["Maternity","Newborn","Sitter","Infant","Cake Smash","Children","Gender Reveal"];
-const dTC=t=>t==="fabric"||t==="background"||t==="backdrop"?"#a47cd1":t==="wrap"?"#5a93d6":(t==="prop"||t==="accessory"||t==="basket")?"#48b08c":t==="outfit"?"#e06b94":t==="setup"?"#cf8a1e":"#9a9ca8";
+const dTC=t=>t==="fabric"||t==="background"||t==="backdrop"?"#7c4dff":t==="wrap"?"#3e7bfa":(t==="prop"||t==="accessory"||t==="basket")?"#22b573":t==="outfit"?"#ff6468":t==="setup"?"#f0a23c":"#9aa0b0";
 function DohaEdit({item,onSave,onClose,allItems=[],links=[],onLink,onUnlink}){
  const [f,setF]=useState({...item});
  const set=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -401,7 +419,7 @@ function DohaEdit({item,onSave,onClose,allItems=[],links=[],onLink,onUnlink}){
  const doUnlink=id=>isSetup?onUnlink(item.id,id):onUnlink(id,item.id);
  useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
  return <div style={{position:"fixed",inset:0,background:"#1a1a2433",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-   <div className="scroll fade" style={{width:560,maxWidth:"96vw",maxHeight:"92vh",background:"var(--panel)",borderRadius:18,boxShadow:"0 30px 80px rgba(20,20,30,.25)",overflow:"auto"}}>
+   <div className="scroll fade modalcard" style={{width:560,maxWidth:"96vw",maxHeight:"92vh",background:"var(--panel)",borderRadius:18,boxShadow:"0 30px 80px rgba(20,20,30,.25)",overflow:"auto"}}>
      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 24px",borderBottom:"1px solid var(--line)",position:"sticky",top:0,background:"var(--panel)",zIndex:1}}>
        <div><span style={{fontWeight:700,fontSize:16}}>Edit item</span><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{f.id} · {f.category} · Doha</div></div>
        <button onClick={onClose} style={{padding:4}}><Icon d={I.x} s={19} c="var(--muted)"/></button></div>
@@ -699,7 +717,7 @@ function AddInvItem({onClose,onSaved}){
  const lab={display:"block",fontSize:10.5,fontWeight:700,color:"var(--muted)",letterSpacing:".06em",marginBottom:5};
  const pill=(on,onClick,txt,col)=><button type="button" onClick={onClick} style={{padding:"7px 14px",borderRadius:20,border:`1px solid ${on?(col||"var(--ink)"):"var(--line2)"}`,background:on?(col||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{txt}</button>;
  return <div style={{position:"fixed",inset:0,background:"#1a1a2433",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-   <div className="scroll fade" style={{width:560,maxWidth:"96vw",maxHeight:"92vh",background:"var(--panel)",borderRadius:18,boxShadow:"0 30px 80px rgba(20,20,30,.25)",overflow:"auto"}}>
+   <div className="scroll fade modalcard" style={{width:560,maxWidth:"96vw",maxHeight:"92vh",background:"var(--panel)",borderRadius:18,boxShadow:"0 30px 80px rgba(20,20,30,.25)",overflow:"auto"}}>
      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 24px",borderBottom:"1px solid var(--line)",position:"sticky",top:0,background:"var(--panel)",zIndex:1}}>
        <div><span style={{fontWeight:700,fontSize:16}}>Add to inventory</span><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>Code preview: <b>{codePrefix(catForCode,seg)}-###</b></div></div>
        <button onClick={onClose} style={{padding:4}}><Icon d={I.x} s={19} c="var(--muted)"/></button></div>
@@ -799,7 +817,7 @@ function InvEdit({item,onClose,onSaved}){
  const toggleLink=async(cid)=>{const row=item.type==="theme"?{theme_id:item.id,component_item_id:cid}:{theme_id:cid,component_item_id:item.id};if(links.includes(cid)){setLinks(l=>l.filter(x=>x!==cid));await sb.from("inv_theme_item").delete().eq("theme_id",row.theme_id).eq("component_item_id",row.component_item_id);}else{setLinks(l=>[...l,cid]);await sb.from("inv_theme_item").insert(row);}};
  const lab={display:"block",fontSize:10.5,fontWeight:700,color:"var(--muted)",letterSpacing:".06em",marginBottom:5};
  return <div style={{position:"fixed",inset:0,background:"#1a1a2433",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-   <div className="scroll fade" style={{width:580,maxWidth:"96vw",maxHeight:"92vh",background:"var(--panel)",borderRadius:18,boxShadow:"0 30px 80px rgba(20,20,30,.25)",overflow:"auto"}}>
+   <div className="scroll fade modalcard" style={{width:580,maxWidth:"96vw",maxHeight:"92vh",background:"var(--panel)",borderRadius:18,boxShadow:"0 30px 80px rgba(20,20,30,.25)",overflow:"auto"}}>
      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 24px",borderBottom:"1px solid var(--line)",position:"sticky",top:0,background:"var(--panel)",zIndex:1}}>
        <div><span style={{fontWeight:700,fontSize:16}}>Edit · {f.code}</span>{f.archived&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,color:"#8a6d1e",background:"#f5eccf",borderRadius:10,padding:"2px 8px"}}>ARCHIVED</span>}<div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{isAsset?(f.subcategory||"Asset")+(f.op_status?" · "+f.op_status:""):(f.type==="theme"?"Theme":f.kind)+" · "+f.session_type}</div></div>
        <button onClick={onClose} style={{padding:4}}><Icon d={I.x} s={19} c="var(--muted)"/></button></div>
@@ -914,22 +932,32 @@ function NewInventory({initCat=""}){
    .sort((a,b)=>sort==="az"?(a.name||"").localeCompare(b.name||""):sort==="cond"?worstCond(a)-worstCond(b):sort==="least"?selOf(a)-selOf(b):(loc?((b.inv_item_location||[]).find(x=>x.location===loc)?.times_selected||0)-((a.inv_item_location||[]).find(x=>x.location===loc)?.times_selected||0):selOf(b)-selOf(a)));
  const valTotals={};filtered.forEach(r=>{if(r.value!=null&&r.value!=="")valTotals[r.value_currency||"AED"]=(valTotals[r.value_currency||"AED"]||0)+Number(r.value||0);});
  const valStr=Object.entries(valTotals).map(([c,n])=>c+" "+n.toLocaleString()).join(" · ");
- const card=r=><div key={r.id} onClick={()=>setEdit(r)} className="fade" style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",overflow:"hidden",boxShadow:"var(--shadow)",cursor:"pointer",display:"flex",flexDirection:"column"}}>
-   <div style={{position:"relative",width:"100%",aspectRatio:"4/3",background:"var(--panel2)"}}>
-     {r.photo_url?<img src={r.photo_url} loading="lazy" alt={r.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#a47cd1c0",fontSize:11,fontWeight:600}}><Icon d={I.image} s={26} c="#a47cd190"/></div>}
-     <span style={{position:"absolute",top:9,left:9}}><Chip label={r.type==="theme"?"theme":r.kind||"item"} color={dTC(r.kind||(r.type==="theme"?"setup":""))} solid sm/></span>
+ const card=r=>{const locs=r.inv_item_location||[];const tot=locs.reduce((s,x)=>s+(x.quantity||0),0);
+   const badge=r.archived?["Archived","#8a6d1e","#f5ecd6"]:(r.op_status&&r.op_status!=="Working"?[r.op_status,(r.op_status==="Not working"?"#d2473f":"#8a6d1e"),(r.op_status==="Not working"?"#ffe2e1":"#f5ecd6")]:((r.static_tags||[]).includes("New")?["New","#b07d12","var(--gold-soft)"]:null));
+   return <div key={r.id} onClick={()=>setEdit(r)} className="fade" style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",overflow:"hidden",boxShadow:"var(--shadow)",cursor:"pointer",display:"flex",flexDirection:"column"}}>
+   <div style={{position:"relative",width:"100%",aspectRatio:"1/1",background:"var(--panel2)"}}>
+     {r.photo_url?<img src={r.photo_url} loading="lazy" alt={r.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#c4c7d2"}}><Icon d={I.image} s={26} c="#c4c7d2"/></div>}
+     <span style={{position:"absolute",top:10,left:10}}><Chip label={r.type==="theme"?"theme":r.kind||"item"} color={dTC(r.kind||(r.type==="theme"?"setup":""))} solid sm/></span>
+     {badge&&<span style={{position:"absolute",top:10,right:10,fontSize:9,fontWeight:700,borderRadius:20,padding:"3px 9px",color:badge[1],background:badge[2]}}>{badge[0]}</span>}
    </div>
-   <div style={{padding:"11px 13px",display:"flex",flexDirection:"column",gap:7,flex:1}}>
-     <span style={{fontWeight:600,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name||"—"}</span>
-     <div style={{background:"#fff",borderRadius:6,padding:"3px 4px",alignSelf:"flex-start",border:"1px solid var(--line)"}}><Barcode value={r.code} height={34}/></div>
-     <div style={{fontSize:11,color:"var(--soft)"}}>{[r.session_type,r.subcategory,r.gender,r.size].filter(Boolean).join(" · ")||"—"}{r.assignee?" · "+r.assignee:""}</div>
-     {r.op_status&&r.op_status!=="Working"&&<div><span style={{fontSize:9,fontWeight:700,borderRadius:10,padding:"1px 7px",color:r.op_status==="Not working"?"#d2473f":"#8a6d1e",background:r.op_status==="Not working"?"#fbe6e3":"#f5eccf"}}>{r.op_status.toUpperCase()}</span>{r.serial_no?<span style={{fontSize:9.5,color:"var(--muted)",marginLeft:6}}>SN {r.serial_no}</span>:null}</div>}
-     <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>{(r.inv_item_location||[]).map(l=><span key={l.location} title={l.location+" · "+(l.condition||"—")+" · selected "+(l.times_selected||0)} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:600,color:BR_COLOR[l.location]||"var(--soft)",background:"var(--panel2)",border:`1px solid ${BR_COLOR[l.location]||"var(--line2)"}`,borderRadius:20,padding:"1px 8px 1px 6px"}}><Dot c={COND_COLOR[l.condition]||"var(--line2)"} s={6}/>{l.location} ·{l.quantity}</span>)}{(r.inv_item_location||[]).length>0&&<span style={{fontSize:10,color:"var(--muted)",fontWeight:600}}>· {(r.inv_item_location||[]).reduce((s,x)=>s+(x.quantity||0),0)} total</span>}{(r.static_tags||[]).includes("New")&&<span style={{fontSize:9,fontWeight:700,color:"var(--gold)",background:"var(--gold-soft)",borderRadius:10,padding:"1px 7px"}}>NEW</span>}{r.archived&&<span style={{fontSize:9,fontWeight:700,color:"#8a6d1e",background:"#f5eccf",borderRadius:10,padding:"1px 7px"}}>ARCHIVED</span>}</div>
-     {(r.type==="theme"||r.kind==="outfit")&&<div style={{fontSize:10.5,color:"var(--gold)",fontWeight:600,display:"flex",alignItems:"center",gap:4}}><Icon d={I.cursor} s={11} c="#f3c64a" fill="#f3c64a" sw={0}/>{selOf(r)} selected · ~{fmtRate(selRate(r))}/mo{r.value!=null&&r.value!==""&&selOf(r)>0?` · ${Math.round(Number(r.value)/selOf(r)).toLocaleString()} ${r.value_currency||""}/use`:""}</div>}
-     {acqOf(r)&&<div style={{fontSize:9.5,color:"var(--muted)"}}>Added {fmtDate(acqOf(r))} · {ageLabel(acqOf(r))} in use{r.value!=null?" · "+r.value+" "+(r.value_currency||""):""}</div>}
-   </div></div>;
+   <div style={{padding:"12px 13px 13px",display:"flex",flexDirection:"column",gap:8,flex:1}}>
+     <div>
+       <div style={{fontWeight:700,fontSize:14,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",lineHeight:1.3}}>{r.name||"—"}</div>
+       <div style={{fontSize:11.5,color:"var(--muted)",marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{[r.session_type,r.subcategory,r.gender,r.size,r.assignee].filter(Boolean).join(" · ")||"—"}</div>
+     </div>
+     {locs.length>0&&<div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+       <Icon d={I.pin} s={13} c="var(--muted)"/>
+       {locs.map(l=><span key={l.location} title={l.location+" · "+(l.condition||"—")+" · "+(l.quantity||0)} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10.5,fontWeight:600,color:"var(--soft)",background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:20,padding:"2px 8px"}}><Dot c={COND_COLOR[l.condition]||"var(--line2)"} s={6}/>{l.location}<span style={{color:"var(--muted)",fontWeight:600}}>{l.quantity}</span></span>)}
+       <span style={{fontSize:10.5,color:"var(--muted)",fontWeight:600,marginLeft:"auto"}}>{tot} total</span>
+     </div>}
+     {(r.type==="theme"||r.kind==="outfit")&&<div style={{fontSize:11,color:"var(--gold)",fontWeight:700,display:"flex",alignItems:"center",gap:5}}><Icon d={I.star} s={12} c="var(--gold)" fill="var(--gold)" sw={0}/>{selOf(r)} selected · ~{fmtRate(selRate(r))}/mo</div>}
+     <div style={{marginTop:"auto",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:10,color:"var(--muted)",fontWeight:500,paddingTop:2}}>
+       <span style={{fontFamily:"ui-monospace,SFMono-Regular,monospace",letterSpacing:"-.02em"}}>{r.code}</span>
+       {acqOf(r)&&<span>{ageLabel(acqOf(r))}{r.value!=null&&r.value!==""?" · "+(r.value_currency||"")+" "+r.value:""}</span>}
+     </div>
+   </div></div>;};
  return <div ref={scrollRef} className="scroll fade" style={{flex:1,padding:"26px 30px",position:"relative"}}>
-   <button onClick={()=>scrollRef.current&&scrollRef.current.scrollTo({top:0,behavior:"smooth"})} title="Go to top" style={{position:"fixed",right:26,bottom:24,zIndex:50,width:42,height:42,borderRadius:"50%",background:"var(--ink)",color:"#fff",boxShadow:"0 6px 20px rgba(20,20,30,.28)",display:"flex",alignItems:"center",justifyContent:"center",border:"none",cursor:"pointer"}}><Icon d="M12 19V5 M5 12l7-7 7 7" s={20} c="#fff"/></button>
+   <button onClick={()=>scrollRef.current&&scrollRef.current.scrollTo({top:0,behavior:"smooth"})} title="Go to top" style={{position:"fixed",right:20,bottom:84,zIndex:60,width:44,height:44,borderRadius:"50%",background:"var(--ink)",color:"#fff",boxShadow:"0 8px 22px rgba(20,22,40,.3)",display:"flex",alignItems:"center",justifyContent:"center",border:"none",cursor:"pointer"}}><Icon d={I.up} s={20} c="#fff"/></button>
    <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
      <h1 style={{fontSize:26,fontWeight:700,letterSpacing:"-.01em"}}>Catalog</h1>
      <span style={{fontSize:12,color:"var(--muted)"}}>{filtered.length===rows.length?rows.length:filtered.length+" / "+rows.length} item{rows.length!==1?"s":""}</span>
@@ -938,7 +966,7 @@ function NewInventory({initCat=""}){
      {(()=>{const na=rows.filter(r=>r.archived).length;return na>0&&<button onClick={()=>setShowArch(!showArch)} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 13px",borderRadius:10,border:`1px solid ${showArch?"var(--ink)":"var(--line2)"}`,background:showArch?"var(--ink)":"var(--panel)",color:showArch?"#fff":"var(--soft)",fontWeight:600,fontSize:13}}>{showArch?"Hide":"Show"} archived ({na})</button>})()}
      <button onClick={()=>setLabels(true)} disabled={!filtered.length} title="Print barcode labels for the items currently shown" style={{display:"flex",alignItems:"center",gap:6,background:"var(--panel)",border:"1px solid var(--line2)",color:"var(--soft)",padding:"9px 13px",borderRadius:10,fontWeight:600,fontSize:13,opacity:filtered.length?1:.5}}><Icon d={I.list} s={15} c="var(--soft)"/>Print labels</button>
      <button onClick={()=>setAdd(true)} style={{display:"flex",alignItems:"center",gap:6,background:"var(--ink)",color:"#fff",padding:"9px 15px",borderRadius:10,fontWeight:600,fontSize:13}}><Icon d={I.plus} s={15} c="#fff"/>Add item</button></div>
-   <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:18}}>One card per real thing · multi-location · auto barcode. (New structure — being filled in.)</p>
+   <p style={{color:"var(--muted)",fontSize:12.5,marginTop:2,marginBottom:16}}>One card per real item · tracked across every studio.</p>
    {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8,marginBottom:14}}>{err}</div>}
    {(()=>{const GL={shoot:"Shoot Inventory",electronics:"Electronics & Inventory"};const groups=["shoot","electronics"];return <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
      <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>GROUP</span>
@@ -980,7 +1008,7 @@ function NewInventory({initCat=""}){
      <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}><option value="popular">{isElecView?"Default":"Most selected"+(loc?" (in "+loc+")":"")}</option>{!isElecView&&<option value="least">Least selected</option>}<option value="az">A–Z</option><option value="cond">Condition (worst first)</option></select>
      <div style={{position:"relative",flex:1,minWidth:160}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name / code…" style={{paddingLeft:34}}/></div>
    </div>
-   {filtered.length?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(214px,1fr))",gap:16}}>{filtered.map(card)}</div>:<div style={{color:"var(--muted)",fontSize:13,padding:"30px 0"}}>Nothing here yet — tap “Add item”.</div>}
+   {filtered.length?<div className="cardgrid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(208px,1fr))",gap:16}}>{filtered.map(card)}</div>:<div style={{color:"var(--muted)",fontSize:13,padding:"30px 0"}}>Nothing here yet — tap “Add item”.</div>}
    {add&&<AddInvItem onClose={()=>setAdd(false)} onSaved={load}/>}
    {edit&&<InvEdit item={edit} onClose={()=>setEdit(null)} onSaved={()=>{setEdit(null);load();}}/>}
    {labels&&<LabelSheet items={filtered} onClose={()=>setLabels(false)}/>}
@@ -991,13 +1019,13 @@ function NewInventory({initCat=""}){
 const NAV=[{id:"dashboard",label:"Home",icon:I.home},{id:"catalog",label:"Catalog",icon:I.grid},{id:"showcase",label:"Website Showcase",icon:I.globe},{id:"categories",label:"Categories",icon:I.layers},{id:"settings",label:"Settings",icon:I.gear}];
 const SOON=[{label:"Customers",icon:I.users}];
 function Sidebar({view,setView,themes,setBr,source,signOut,email,dohaCount,setInvLoc,locCounts={}}){
- return <aside style={{width:236,background:"var(--panel)",borderRight:"1px solid var(--line)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh"}}>
+ return <aside className="app-side" style={{width:236,background:"var(--panel)",borderRight:"1px solid var(--line)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh"}}>
    <div style={{padding:"20px 18px 16px",borderBottom:"1px solid var(--line)",display:"flex",alignItems:"center",gap:11}}>
-     <div style={{width:38,height:38,borderRadius:10,background:"var(--ink)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:15,flexShrink:0}}>YB</div>
+     <div style={{width:38,height:38,borderRadius:12,background:"linear-gradient(135deg,#ff6468,#f0a23c)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:15,flexShrink:0,boxShadow:"0 4px 12px rgba(255,100,104,.35)"}}>YB</div>
      <div><div style={{fontSize:15,fontWeight:700,lineHeight:1.1}}>You Baby Studio</div>
        <div style={{marginTop:4,display:"inline-flex",alignItems:"center",gap:5,fontSize:9.5,fontWeight:600,color:source==="cloud"?"var(--ok)":"var(--muted)"}}><Dot c={source==="cloud"?"var(--ok)":"#b0b0ba"} s={6}/>{source==="cloud"?"Live · Supabase":"Local data"}</div></div></div>
    <nav style={{flex:1,padding:"12px 10px",overflowY:"auto"}} className="scroll">
-     {NAV.map(n=>{const a=view===n.id;return <button key={n.id} onClick={()=>setView(n.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"10px 12px",borderRadius:10,marginBottom:2,textAlign:"left",background:a?"#f0f1f4":"transparent",color:a?"var(--ink)":"var(--soft)",fontWeight:a?600:500,fontSize:13.5,transition:"all .12s"}}><Icon d={n.icon} s={17} c={a?"var(--ink)":"var(--muted)"}/>{n.label}</button>})}
+     {NAV.map(n=>{const a=view===n.id;return <button key={n.id} onClick={()=>setView(n.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"10px 12px",borderRadius:12,marginBottom:3,textAlign:"left",background:a?"var(--accent-soft)":"transparent",color:a?"var(--accent)":"var(--soft)",fontWeight:a?700:500,fontSize:13.5,transition:"all .12s"}}><Icon d={n.icon} s={17} c={a?"var(--accent)":"var(--muted)"}/>{n.label}</button>})}
      <div style={{fontSize:9.5,fontWeight:700,color:"var(--muted)",letterSpacing:".16em",margin:"18px 12px 8px"}}>COMING NEXT</div>
      {SOON.map(n=><div key={n.label} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 12px",color:"var(--muted)",fontSize:13.5,opacity:.7}}><Icon d={n.icon} s={17} c="var(--muted)"/>{n.label}<span style={{marginLeft:"auto",fontSize:9,background:"var(--gold-soft)",color:"var(--gold)",padding:"1px 7px",borderRadius:10,fontWeight:700}}>SOON</span></div>)}
    </nav>
@@ -1016,7 +1044,7 @@ function LoginScreen(){
  const go=async()=>{if(!email||!pw)return;setBusy(true);setErr("");const {error}=await sb.auth.signInWithPassword({email:email.trim(),password:pw});setBusy(false);if(error)setErr(error.message)};
  return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg)"}}>
    <div className="fade" style={{width:384,maxWidth:"92vw",background:"var(--panel)",border:"1px solid var(--line)",borderRadius:18,padding:"34px 30px",boxShadow:"var(--shadow-h)"}}>
-     <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:16}}><div style={{width:42,height:42,borderRadius:11,background:"var(--ink)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:16}}>YB</div><div><div style={{fontWeight:700,fontSize:16}}>You Baby Studio</div><div style={{fontSize:10,color:"var(--muted)",letterSpacing:".18em",fontWeight:700}}>INVENTORY SYSTEM</div></div></div>
+     <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:16}}><div style={{width:42,height:42,borderRadius:13,background:"linear-gradient(135deg,#ff6468,#f0a23c)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:16,boxShadow:"0 4px 12px rgba(255,100,104,.35)"}}>YB</div><div><div style={{fontWeight:700,fontSize:16}}>You Baby Studio</div><div style={{fontSize:10,color:"var(--muted)",letterSpacing:".18em",fontWeight:700}}>INVENTORY SYSTEM</div></div></div>
      <p style={{fontSize:13,color:"var(--soft)",marginBottom:18}}>Sign in to manage your themes.</p>
      <label>EMAIL</label><input value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()} placeholder="you@youbabystudio.com" style={{marginBottom:14}} autoFocus/>
      <label>PASSWORD</label><input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()} placeholder="••••••••" style={{marginBottom:16}}/>
@@ -1213,13 +1241,16 @@ function App(){
  if(sb&&!session) return <LoginScreen/>;
  return <div style={{display:"flex",height:"100vh",overflow:"hidden"}}>
    <Sidebar view={view} setView={navTo} themes={allThemes} setBr={openBr} source={source} signOut={signOut} email={session&&session.user&&session.user.email}/>
-   <main style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:"var(--bg)"}}>
+   <main className="app-main" style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:"var(--bg)"}}>
      {view==="dashboard"&&<InvDashboard rows={invRows} go={openCat} onOpen={r=>setSel(allThemes.find(t=>t.id===r.id)||{id:r.id,__inv:true,_row:r})}/>}
      {view==="catalog"&&<NewInventory initCat={catInit}/>}
      {view==="showcase"&&<Showcase themes={allThemes} onOpen={setSel}/>}
      {view==="categories"&&<Categories themes={allThemes} go={openCat}/>}
      {view==="settings"&&<Settings key={taxV} onSaved={()=>setTaxV(v=>v+1)} notify={notify}/>}
    </main>
+   <nav className="app-mobnav" style={{position:"fixed",bottom:0,left:0,right:0,zIndex:90,background:"rgba(255,255,255,.92)",backdropFilter:"blur(12px)",borderTop:"1px solid var(--line)",height:"64px",alignItems:"center",justifyContent:"space-around",padding:"0 6px"}}>
+     {NAV.map(n=>{const a=view===n.id;return <button key={n.id} onClick={()=>navTo(n.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,flex:1,padding:"6px 0",color:a?"var(--accent)":"var(--muted)"}}><Icon d={n.icon} s={21} c={a?"var(--accent)":"var(--muted)"}/><span style={{fontSize:9.5,fontWeight:a?700:500,letterSpacing:"-.01em"}}>{n.label.split(" ")[0]}</span></button>})}
+   </nav>
    {selLive&&selLive.__inv&&<InvEdit item={selLive._row} onClose={()=>setSel(null)} onSaved={()=>{setSel(null);loadInv();}}/>}
    {selLive&&!selLive.__inv&&<Drawer t={selLive} onClose={()=>setSel(null)} onToggle={toggle} onEdit={t=>{setSel(null);setForm(t)}} onDelete={delTheme}/>}
    {form&&<ThemeForm init={form} onSave={saveTheme} onClose={()=>setForm(null)}/>}
