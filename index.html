@@ -335,24 +335,63 @@ function ShowRow({title,sub,items,onOpen}){
    </div></div>;
 }
 function Showcase({themes,onOpen}){
- const [gen,setGen]=useState(""); const [loc,setLoc]=useState("");
- const pool=themes.filter(t=>t.display&&imgUrl(t)&&(!gen||t.gender===gen)&&(!loc||(t.branches||[]).includes(loc)));
- const hero=[...pool].sort((a,b)=>sc(b)-sc(a))[0];
- const title=gen?`Baby ${gen} Set-ups`:"Our Photo Set-ups";
- return <div className="scroll fade" style={{flex:1,overflow:"auto"}}>
-   <div style={{maxWidth:1080,margin:"0 auto",padding:"40px 30px 60px"}}>
-     <div style={{textAlign:"center",marginBottom:34}}>
-       {hero&&<div style={{width:104,height:104,borderRadius:"50%",overflow:"hidden",margin:"0 auto 18px",boxShadow:"var(--shadow-h)",border:"4px solid var(--panel)"}}><img src={imgUrl(hero)} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>}
-       <h1 style={{fontSize:32,fontWeight:800,lineHeight:1.1,color:"var(--ink)",letterSpacing:"-.02em"}}>{title}{loc&&<> · {loc}</>}</h1>
-       <p style={{fontSize:14.5,fontWeight:400,color:"var(--muted)",maxWidth:520,margin:"12px auto 0",lineHeight:1.55}}>A reference of the set-ups we offer. Looks may vary slightly per session.</p>
-       <div style={{display:"flex",gap:9,justifyContent:"center",marginTop:22,flexWrap:"wrap"}}>
-         <select value={gen} onChange={e=>setGen(e.target.value)} style={{width:"auto"}}><option value="">All babies</option>{GENDERS.map(g=><option key={g} value={g}>Baby {g}</option>)}</select>
-         <select value={loc} onChange={e=>setLoc(e.target.value)} style={{width:"auto"}}><option value="">All studios</option>{BR.map(b=><option key={b}>{b}</option>)}</select>
+ const [secs,setSecs]=useState([]),[links,setLinks]=useState([]),[board,setBoard]=useState(""),[picker,setPicker]=useState(null),[pq,setPq]=useState(""),[preview,setPreview]=useState(false),[loaded,setLoaded]=useState(false);
+ const load=async()=>{if(!sb){setLoaded(true);return;}const {data:s}=await sb.from("showcase_section").select("*").order("sort");const {data:l}=await sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender)").order("sort");setSecs(s||[]);setLinks(l||[]);setLoaded(true);};
+ useEffect(()=>{load()},[]);
+ const boards=[...new Set(secs.map(s=>s.board))]; const activeBoard=board||boards[0]||"Maternity · Dubai";
+ const boardSecs=secs.filter(s=>s.board===activeBoard).sort((a,b)=>(a.sort||0)-(b.sort||0));
+ const itemsOf=sid=>links.filter(l=>l.section_id===sid);
+ const addBoard=async()=>{const n=window.prompt("New board name (e.g. Baby Girl · Dubai):");if(!n)return;await sb.from("showcase_section").insert({board:n,title:"New section",sort:0});setBoard(n);load();};
+ const addSection=async()=>{const mx=Math.max(0,...boardSecs.map(s=>s.sort||0));await sb.from("showcase_section").insert({board:activeBoard,title:"New section",sort:mx+1});load();};
+ const upd=async(id,patch)=>{setSecs(ss=>ss.map(s=>s.id===id?{...s,...patch}:s));if(sb)await sb.from("showcase_section").update(patch).eq("id",id);};
+ const move=async(s,dir)=>{const arr=boardSecs;const i=arr.findIndex(x=>x.id===s.id);const j=i+dir;if(j<0||j>=arr.length)return;const a=arr[i],b=arr[j];await sb.from("showcase_section").update({sort:b.sort}).eq("id",a.id);await sb.from("showcase_section").update({sort:a.sort}).eq("id",b.id);load();};
+ const delSection=async(s)=>{if(!window.confirm("Delete section “"+s.title+"”?"))return;await sb.from("showcase_section").delete().eq("id",s.id);load();};
+ const addItem=async(sid,it)=>{await sb.from("showcase_section_item").insert({section_id:sid,item_id:it.id});load();};
+ const rmItem=async(linkId)=>{await sb.from("showcase_section_item").delete().eq("id",linkId);load();};
+ const pickItems=themes.filter(t=>{const q=pq.trim().toLowerCase();return !q||((t.name||"")+" "+(t._row&&t._row.code||"")).toLowerCase().includes(q);});
+ const thumb=(url,d,sz)=>url?<img src={url} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--panel2)"}}><Icon d={I.image} s={sz||20} c="#c4c7d2"/></div>;
+ if(!loaded) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)"}}>Loading…</div>;
+ return <div className="scroll fade" style={{flex:1,overflow:"auto",padding:"26px 30px"}}>
+   <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:6}}>
+     <h1 style={{fontSize:25,fontWeight:800,letterSpacing:"-.02em"}}>Website Showcase</h1>
+     <span style={{flex:1}}/>
+     <button onClick={()=>setPreview(!preview)} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:8,border:"1px solid var(--line2)",background:preview?"var(--ink)":"var(--panel)",color:preview?"#fff":"var(--soft)",fontWeight:600,fontSize:13}}><Icon d={I.eye} s={15} c={preview?"#fff":"var(--soft)"}/>{preview?"Editing preview":"Preview"}</button>
+   </div>
+   <p style={{color:"var(--muted)",fontSize:12.5,marginBottom:16}}>Build the public set-up gallery: create sections, drop themes in (a theme can sit in several sections), reorder, and publish.</p>
+   <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:18}}>
+     {boards.map(b=><button key={b} onClick={()=>setBoard(b)} style={{padding:"7px 14px",borderRadius:8,border:`1px solid ${b===activeBoard?"var(--ink)":"var(--line2)"}`,background:b===activeBoard?"var(--ink)":"var(--panel)",color:b===activeBoard?"#fff":"var(--soft)",fontWeight:600,fontSize:13}}>{b}</button>)}
+     <button onClick={addBoard} style={{padding:"7px 13px",borderRadius:8,border:"1px dashed var(--line2)",color:"var(--soft)",fontWeight:600,fontSize:13}}>+ New board</button>
+   </div>
+   {preview?
+     <div style={{maxWidth:1000,margin:"0 auto"}}>
+       <h2 style={{textAlign:"center",fontSize:26,fontWeight:800,marginBottom:24}}>{activeBoard}</h2>
+       {boardSecs.map(s=><div key={s.id} style={{marginBottom:26}}><div style={{fontSize:16,fontWeight:700}}>{s.title}</div>{s.note&&<div style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>{s.note}</div>}<div className="hscroll" style={{display:"flex",gap:10,paddingTop:8}}>{itemsOf(s.id).map(l=><div key={l.id} style={{position:"relative",width:150,height:200,flexShrink:0,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)"}}>{thumb(l.inv_item&&l.inv_item.photo_url,null,26)}{l.inv_item&&l.inv_item.size&&<span style={{position:"absolute",top:6,right:6,fontSize:9,fontWeight:700,background:"rgba(0,0,0,.55)",color:"#fff",borderRadius:5,padding:"1px 6px"}}>{l.inv_item.size}</span>}</div>)}{!itemsOf(s.id).length&&<span style={{fontSize:12,color:"var(--muted)"}}>No themes yet.</span>}</div></div>)}
+     </div>
+   :<div style={{display:"flex",flexDirection:"column",gap:14}}>
+     {boardSecs.map((s,i)=><div key={s.id} style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:10,padding:"14px 16px",boxShadow:"var(--shadow)"}}>
+       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+         <input value={s.title} onChange={e=>upd(s.id,{title:e.target.value})} style={{fontSize:15,fontWeight:700,border:"none",borderBottom:"1px dashed var(--line2)",background:"transparent",flex:1,minWidth:0,padding:"2px 0"}}/>
+         <button onClick={()=>move(s,-1)} disabled={i===0} style={{padding:5,opacity:i===0?.3:1}}><Icon d={I.up} s={16} c="var(--muted)"/></button>
+         <button onClick={()=>move(s,1)} disabled={i===boardSecs.length-1} style={{padding:5,opacity:i===boardSecs.length-1?.3:1}}><Icon d="M12 5v14 M5 12l7 7 7-7" s={16} c="var(--muted)"/></button>
+         <button onClick={()=>delSection(s)} style={{padding:5}}><Icon d={I.trash} s={15} c="var(--danger)"/></button>
+       </div>
+       <input value={s.note||""} onChange={e=>upd(s.id,{note:e.target.value})} placeholder="Optional note (e.g. +DRESS 600 AED · studio only)" style={{fontSize:12,color:"var(--muted)",border:"none",background:"transparent",width:"100%",padding:"0 0 10px"}}/>
+       <div style={{display:"flex",gap:9,flexWrap:"wrap",alignItems:"center"}}>
+         {itemsOf(s.id).map(l=><div key={l.id} style={{position:"relative",width:78,height:96,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)"}}>{thumb(l.inv_item&&l.inv_item.photo_url)}<button onClick={()=>rmItem(l.id)} style={{position:"absolute",top:3,right:3,width:18,height:18,borderRadius:"50%",background:"rgba(0,0,0,.6)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.x} s={11} c="#fff"/></button><div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:8.5,color:"#fff",background:"rgba(0,0,0,.5)",padding:"2px 4px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.inv_item&&l.inv_item.name}</div></div>)}
+         <button onClick={()=>{setPq("");setPicker(s.id);}} style={{width:78,height:96,borderRadius:8,border:"1.5px dashed var(--line2)",color:"var(--soft)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,fontSize:11,fontWeight:600}}><Icon d={I.plus} s={18} c="var(--soft)"/>Add</button>
+       </div>
+     </div>)}
+     <button onClick={addSection} style={{padding:"13px",borderRadius:10,border:"1.5px dashed var(--line2)",color:"var(--soft)",fontWeight:600,fontSize:13.5}}>+ Add section</button>
+   </div>}
+   {picker!==null&&<div style={{position:"fixed",inset:0,background:"#1a1a2433",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&setPicker(null)}>
+     <div className="scroll fade modalcard" style={{width:560,maxWidth:"96vw",maxHeight:"86vh",background:"var(--panel)",borderRadius:12,overflow:"auto"}}>
+       <div style={{position:"sticky",top:0,background:"var(--panel)",padding:"16px 20px",borderBottom:"1px solid var(--line)",zIndex:1}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><span style={{fontWeight:700,fontSize:15}}>Add themes to “{(secs.find(x=>x.id===picker)||{}).title}”</span><button onClick={()=>setPicker(null)}><Icon d={I.x} s={18} c="var(--muted)"/></button></div><input value={pq} onChange={e=>setPq(e.target.value)} placeholder="Search themes by name or code…" autoFocus/></div>
+       <div style={{padding:16,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
+         {pickItems.slice(0,120).map(t=>{const added=itemsOf(picker).some(l=>l.item_id===t.id);return <button key={t.id} onClick={()=>!added&&addItem(picker,t)} disabled={added} style={{textAlign:"left",border:`1px solid ${added?"var(--ok)":"var(--line)"}`,borderRadius:9,overflow:"hidden",background:"var(--panel)",opacity:added?.6:1,cursor:added?"default":"pointer"}}><div style={{width:"100%",aspectRatio:"1/1"}}>{thumb(t.image||(t._row&&t._row.photo_url))}</div><div style={{padding:"6px 8px"}}><div style={{fontSize:11.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.name}</div><div style={{fontSize:9.5,color:added?"var(--ok)":"var(--muted)"}}>{added?"✓ Added":(t.category||"")}</div></div></button>})}
        </div>
      </div>
-     {pool.length===0?<div style={{textAlign:"center",padding:"60px",color:"var(--muted)"}}>No set-ups match — try different filters.</div>
-       :SESSION_CATS.filter(c=>pool.some(t=>t.category===c)).map(c=><ShowRow key={c} title={c} sub={`${pool.filter(t=>t.category===c).length} set-ups`} items={pool.filter(t=>t.category===c)} onOpen={onOpen}/>)}
-   </div></div>;
+   </div>}
+ </div>;
 }
 
 // ---- dashboard / catalog / categories ----
@@ -949,10 +988,8 @@ function LabelSheet({items=[],onClose}){
 }
 // ---- right-hand detail panel (Pulse-style) ----
 const ST_COL=s=>s==="Available"?"#16a34a":s==="In use"?"#2563eb":s==="In repair"?"#d97706":s==="Overdue"?"#ea580c":s==="For sale"?"#7c3aed":s==="Retired"?"#6b7280":"#9aa0b0";
-function ItemPanel({item:r,onClose,onEdit,onPrint}){
+function ItemPanel({item:r,published,onClose,onEdit,onPrint}){
  const [tab,setTab]=useState("Overview");
- const [web,setWeb]=useState(!!r.website_display);
- const toggleWeb=async()=>{const nv=!web;setWeb(nv);if(sb)await sb.from("inv_item").update({website_display:nv}).eq("id",r.id);};
  useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
  const isAsset=r.item_group!=="shoot"; const locs=r.inv_item_location||[]; const ic=itemIcon(r);
  const st=r.op_status; const acq=acqOf(r);
@@ -975,7 +1012,7 @@ function ItemPanel({item:r,onClose,onEdit,onPrint}){
          <div style={{fontSize:11,fontWeight:700,color:"var(--muted)",margin:"4px 0 6px"}}>Locations</div>
          {locs.length?locs.map(l=><div key={l.location} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid var(--line)"}}><Dot c={BR_COLOR[l.location]||"#bbb"} s={8}/><span style={{fontSize:13,fontWeight:600,flex:1}}>{l.location}</span>{!isAsset&&l.condition&&<span style={{fontSize:11.5,color:COND_COLOR[l.condition],fontWeight:600,marginRight:10}}>{l.condition}</span>}<span style={{fontSize:12.5,color:"var(--soft)"}}>qty {l.quantity}</span></div>):<div style={lab}>No locations.</div>}
          {r.value!=null&&r.value!==""&&<Row k="Value" v={(r.value_currency||"")+" "+r.value}/>}
-         {!isAsset&&<div onClick={toggleWeb} style={{marginTop:14,display:"flex",alignItems:"center",gap:11,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"11px 14px",cursor:"pointer"}}><Toggle on={web} onChange={toggleWeb}/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{web?"Shown on website":"Hidden from website"}</div><div style={{fontSize:11,color:"var(--muted)"}}>Public on youbabystudio.com</div></div></div>}
+         {!isAsset&&<div style={{marginTop:14,display:"flex",alignItems:"center",gap:11,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"11px 14px"}}><Icon d={I.globe} s={18} c={published?"#16a34a":"var(--muted)"}/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{published?"Published on website":"Not on website"}</div><div style={{fontSize:11,color:"var(--muted)"}}>{published?"Live because it's in the Website Showcase":"Add it in Website Showcase to publish"}</div></div></div>}
        </div>}
        {tab==="Specifications"&&<div>
          <Row k="Group" v={r.item_group==="shoot"?"Session inventory":r.item_group==="facility"?"Facility":"Equipment"}/>
@@ -1025,7 +1062,10 @@ function NewInventory({initCat=""}){
  const pickGroup=g=>{setGroupF(g);setLoc("");setBrowseAll(false);setCatF("");setGenF("");setKindF("");setSubF("");setSizeF("");setTypeF("");setNewF(false);setUnusedF(false);setEcatF("");setEtypeF("");setEstatF("");};
  const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sb.from("inv_item").select("*,inv_item_location(location,quantity,status,times_selected,condition,acquired_on)").order("created_at",{ascending:false});if(error)setErr(error.message);setRows(data||[]);};
  const [pubF,setPubF]=useState("");
- const toggleWeb=async(r,e)=>{if(e)e.stopPropagation();if(sb)await sb.from("inv_item").update({website_display:!r.website_display}).eq("id",r.id);load();};
+ const [pubSet,setPubSet]=useState(()=>new Set());
+ const loadPub=async()=>{if(!sb)return;const {data}=await sb.from("showcase_section_item").select("item_id");setPubSet(new Set((data||[]).map(x=>x.item_id)));};
+ useEffect(()=>{loadPub()},[]);
+ const isPub=r=>pubSet.has(r.id);
  const removeItem=async(r,e)=>{if(e)e.stopPropagation();if(!window.confirm("Remove “"+(r.name||r.code)+"”? This can't be undone."))return;if(sb){await sb.from("inv_item_location").delete().eq("item_id",r.id);await sb.from("inv_theme_item").delete().eq("theme_id",r.id);await sb.from("inv_theme_item").delete().eq("component_item_id",r.id);await sb.from("inv_item").delete().eq("id",r.id);}load();};
  useEffect(()=>{load()},[]);
  useEffect(()=>{if(initCat){setGroupF("shoot");setBrowseAll(true);setCatF(initCat);}},[initCat]);
@@ -1045,7 +1085,7 @@ function NewInventory({initCat=""}){
    &&(ex==="ecat"||!ecatF||elecCat(r)===ecatF)
    &&(ex==="etype"||!etypeF||(r.subcategory||"")===etypeF)
    &&(ex==="estat"||!estatF||(r.op_status||"")===estatF)
-   &&(ex==="pub"||!pubF||(pubF==="yes"?!!r.website_display:!r.website_display))
+   &&(ex==="pub"||!pubF||(pubF==="yes"?pubSet.has(r.id):!pubSet.has(r.id)))
    &&(showArch||!r.archived)
    &&(!unusedF||(tracksUse(r)&&invSel(r)===0))
    &&(!newF||(r.static_tags||[]).includes("New"))
@@ -1153,7 +1193,7 @@ function NewInventory({initCat=""}){
            <span style={{width:110,fontSize:12.5,fontWeight:600,color:isStatus?c:"var(--muted)",display:"inline-flex",alignItems:"center",gap:6}}>{isStatus&&<Dot c={c} s={6}/>}{st||"—"}</span>
            <span style={{width:110,fontSize:12.5,color:cond?COND_COLOR[cond]:"var(--muted)",fontWeight:cond?600:400,display:"inline-flex",alignItems:"center",gap:6}}>{cond&&<Dot c={COND_COLOR[cond]} s={6}/>}{cond||"—"}</span>
            <span style={{width:140,fontSize:12.5,color:"var(--soft)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{(r.inv_item_location||[]).map(l=>l.location).join(", ")||"—"}</span>
-           {!isElecView&&<span style={{width:50,...cell,justifyContent:"center"}} onClick={e=>toggleWeb(r,e)} title={r.website_display?"Published on website — click to hide":"Hidden — click to publish"}><Icon d={I.globe} s={16} c={r.website_display?"#16a34a":"var(--line2)"}/></span>}
+           {!isElecView&&<span style={{width:50,...cell,justifyContent:"center"}} title={isPub(r)?"Published — it's in the Website Showcase":"Not on website — add it in Website Showcase to publish"}><Icon d={I.globe} s={16} c={isPub(r)?"#16a34a":"var(--line2)"}/></span>}
            <span style={{width:30,...cell,justifyContent:"flex-end"}}><button className="rowdel" onClick={e=>removeItem(r,e)} title="Remove item" style={{display:"flex",padding:4,color:"var(--danger)"}}><Icon d={I.trash} s={15} c="var(--danger)"/></button></span>
          </div>;})}
        </div></div>;}
@@ -1161,7 +1201,7 @@ function NewInventory({initCat=""}){
    })()}
    {add&&<AddInvItem init={{grp:groupF||undefined,session_type:!isElecView?(catF||undefined):undefined,subcategory:isElecView?(etypeF||undefined):undefined}} onClose={()=>setAdd(false)} onSaved={load}/>}
    {edit&&<InvEdit item={edit} onClose={()=>setEdit(null)} onSaved={()=>{setEdit(null);setDetail(null);load();}}/>}
-   {detail&&<ItemPanel item={detail} onClose={()=>setDetail(null)} onEdit={r=>{setDetail(null);setEdit(r);}} onPrint={r=>setLabelItem(r)}/>}
+   {detail&&<ItemPanel item={detail} published={pubSet.has(detail.id)} onClose={()=>setDetail(null)} onEdit={r=>{setDetail(null);setEdit(r);}} onPrint={r=>setLabelItem(r)}/>}
    {labelItem&&<LabelSheet items={[labelItem]} onClose={()=>setLabelItem(null)}/>}
    {labels&&<LabelSheet items={filtered} onClose={()=>setLabels(false)}/>}
  </div>;
