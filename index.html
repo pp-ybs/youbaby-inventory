@@ -669,7 +669,7 @@ function NewInventory(){
 }
 
 // ---- sidebar ----
-const NAV=[{id:"dashboard",label:"Home",icon:I.home},{id:"catalog",label:"Catalog",icon:I.grid},{id:"showcase",label:"Website Showcase",icon:I.globe},{id:"categories",label:"Categories",icon:I.layers},{id:"inventory",label:"Inventory",icon:I.list},{id:"items",label:"Items & Props",icon:I.box},{id:"newinv",label:"New Inventory",icon:I.star}];
+const NAV=[{id:"dashboard",label:"Home",icon:I.home},{id:"catalog",label:"Catalog",icon:I.grid},{id:"showcase",label:"Website Showcase",icon:I.globe},{id:"categories",label:"Categories",icon:I.layers},{id:"newinv",label:"New Inventory",icon:I.star}];
 const SOON=[{label:"Customers",icon:I.users}];
 function Sidebar({view,setView,themes,setBr,source,signOut,email,dohaCount,setInvLoc,locCounts={}}){
  return <aside style={{width:236,background:"var(--panel)",borderRight:"1px solid var(--line)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh"}}>
@@ -684,7 +684,7 @@ function Sidebar({view,setView,themes,setBr,source,signOut,email,dohaCount,setIn
    </nav>
    <div style={{padding:"14px 18px 20px",borderTop:"1px solid var(--line)"}}>
      <div style={{fontSize:9.5,fontWeight:700,color:"var(--muted)",letterSpacing:".16em",marginBottom:11}}>LOCATIONS</div>
-     {BR.map(b=>{const c=b==="Doha"?(locCounts["Doha"]||0):themes.filter(t=>(t.branches||[]).includes(b)).length;return <div key={b} onClick={()=>b==="Doha"?(setInvLoc&&setInvLoc("Doha"),setView("inventory")):setBr(b)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"var(--soft)"}}><Dot c={BR_COLOR[b]}/>{b}</span><span style={{fontSize:12.5,fontWeight:700,color:BR_COLOR[b]}}>{c}</span></div>})}
+     {BR.map(b=>{const c=themes.filter(t=>(t.branches||[]).includes(b)).length;return <div key={b} onClick={()=>setBr(b)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"var(--soft)"}}><Dot c={BR_COLOR[b]}/>{b}</span><span style={{fontSize:12.5,fontWeight:700,color:BR_COLOR[b]}}>{c}</span></div>})}
      {signOut&&<div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--line)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
        {email&&<span title={email} style={{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{email}</span>}
        <button onClick={signOut} title="Sign out" style={{flexShrink:0,marginLeft:"auto",fontSize:11.5,fontWeight:600,color:"var(--soft)",border:"1px solid var(--line2)",borderRadius:8,padding:"5px 11px"}}>Sign out</button></div>}
@@ -761,8 +761,6 @@ function App(){
      {view==="catalog"&&<Catalog themes={allThemes} onToggle={toggle} onOpen={setSel} onAdd={()=>setForm({})} state={catState}/>}
      {view==="showcase"&&<Showcase themes={allThemes} onOpen={setSel}/>}
      {view==="categories"&&<Categories themes={allThemes} go={openCat}/>}
-     {view==="inventory"&&<DohaInventory loc={invLoc} setLoc={setInvLoc}/>}
-     {view==="items"&&<ItemsProps/>}
      {view==="newinv"&&<NewInventory/>}
    </main>
    {selLive&&!selLive.__doha&&<Drawer t={selLive} onClose={()=>setSel(null)} onToggle={toggle} onEdit={t=>{setSel(null);setForm(t)}} onDelete={delTheme}/>}
