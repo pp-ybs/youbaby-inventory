@@ -575,8 +575,8 @@ const SIZE_OPTS=["S","M","L","XL","One size"];
 // size options per session type (baby sessions use age, maternity uses dress sizes)
 const SIZE_BY_CAT={Maternity:["S","M","L","XL","One size"],"Cake Smash":["1 year","12-18m","One size"],Infant:["1-3m","3-6m","One size"],Sitter:["6-9m","9-12m","One size"]};
 const PROP_SUBTYPES=["flowers","toys","balloons","number","cake stand","banner","other"];
-const SUBTYPE_OPTS={prop:PROP_SUBTYPES,basket:["Moon","Heart","Bed","Basket"],accessory:["bonnet","headband","hat","crown","bow tie","veil"]};
-const SUBTYPE_PH={prop:"e.g. flowers, toys, number…",basket:"e.g. Moon, Heart, Bed, Basket",accessory:"e.g. bonnet, headband, hat"};
+const SUBTYPE_OPTS={prop:PROP_SUBTYPES,basket:["Bed","Sofa","Basket"],accessory:["bonnet","headband","hat","crown","bow tie","veil"]};
+const SUBTYPE_PH={prop:"e.g. flowers, toys, number…",basket:"e.g. Bed, Sofa, Basket",accessory:"e.g. bonnet, headband, hat"};
 function SizePicker({value,onChange,opts=SIZE_OPTS}){
  const cur=(value||"").split(",").map(s=>s.trim()).filter(Boolean);
  const toggle=s=>{const next=cur.includes(s)?cur.filter(x=>x!==s):[...cur,s];onChange(next.join(", "));};
