@@ -326,7 +326,7 @@ function Catalog({themes,onToggle,onOpen,onAdd,state}){
      <button onClick={()=>setOnlyPhoto(!onlyPhoto)} style={{padding:"8px 12px",borderRadius:10,border:`1px solid ${onlyPhoto?"var(--gold)":"var(--line2)"}`,background:onlyPhoto?"var(--gold-soft)":"var(--panel)",color:onlyPhoto?"var(--gold)":"var(--soft)",fontSize:12.5,fontWeight:600,display:"flex",alignItems:"center",gap:6}}><Icon d={I.image} s={14}/>Photo</button>
      <div style={{display:"flex",border:"1px solid var(--line2)",borderRadius:9,overflow:"hidden"}}><button onClick={()=>setMode("grid")} style={{padding:"8px 10px",background:mode==="grid"?"var(--ink)":"var(--panel)",color:mode==="grid"?"#fff":"var(--muted)"}}><Icon d={I.grid} s={15}/></button><button onClick={()=>setMode("list")} style={{padding:"8px 10px",background:mode==="list"?"var(--ink)":"var(--panel)",color:mode==="list"?"#fff":"var(--muted)"}}><Icon d={I.list} s={15}/></button></div>
      {active&&<button onClick={()=>{setQ("");setCat("");setBr("");setGen("");setDisp("");setOnlyPhoto(false)}} style={{fontSize:12.5,color:"var(--soft)",fontWeight:600,padding:"8px 6px"}}>Clear</button>}
-     <button onClick={onAdd} style={{display:"flex",alignItems:"center",gap:6,background:"var(--ink)",color:"#fff",padding:"9px 15px",borderRadius:10,fontWeight:600,fontSize:13}}><Icon d={I.plus} s={15} c="#fff"/>Add</button>
+     <span style={{fontSize:11.5,color:"var(--muted)"}} title="Add new items in the New Inventory section">legacy catalogue · add in New Inventory</span>
    </div>
    <div className="scroll fade" style={{flex:1,padding:20}}>
      <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:14}}>{filtered.length} theme{filtered.length!==1?"s":""}{active?" found":""}</div>
