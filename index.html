@@ -635,7 +635,20 @@ function PublicShowcase({scope}){
      {branchLabel&&<div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,padding:"5px 13px",background:"#fff",border:"1px solid #e5e5e5",borderRadius:20,fontSize:12.5,fontWeight:600,color:"#5a5a5a",boxShadow:"0 1px 4px rgba(0,0,0,.04)"}}><span style={{fontSize:13}}>📍</span>{branchLabel} Studio</div>}
    </div>
    <div style={{maxWidth:1000,margin:"0 auto",padding:"6px 0 50px"}}>
-   {boards.length===0&&<div style={{textAlign:"center",color:"#9a9a9a",padding:"70px 0",fontSize:14}}>This gallery is being prepared — check back soon.</div>}
+   {(() => {
+     // Pre-compute whether anything renders at all — covers the "boards exist but every section is empty" case.
+     const anyBlocks = boards.some(b => secs.filter(x=>x.board===b).some(s => secItems(s).length>0));
+     if (!boards.length || !anyBlocks) {
+       return <div style={{textAlign:"center",color:"#9a9a9a",padding:"70px 24px",fontSize:14,lineHeight:1.55}}>
+         <div style={{fontSize:32,marginBottom:12}}>📷</div>
+         <div style={{fontWeight:600,color:"#6a6a6a",marginBottom:4}}>This gallery is being prepared</div>
+         <div style={{fontSize:12.5,maxWidth:360,margin:"0 auto"}}>
+           {branchLabel?`We don't have references in ${branchLabel} Studio for this selection yet. Please ask our team — they'll be happy to share options.`:`Check back soon — the team is curating it.`}
+         </div>
+       </div>;
+     }
+     return null;
+   })()}
    {boards.map(b=>{const blocks=secs.filter(x=>x.board===b).sort((a,c)=>(a.sort||0)-(c.sort||0)).map(s=>({s,its:secItems(s)})).filter(x=>x.its.length);return blocks.length?<div key={b}>
      {boards.length>1&&<h2 style={{textAlign:"center",fontSize:21,fontWeight:800,margin:"28px 0 14px",letterSpacing:"-.01em"}}>{titleOf(b)}</h2>}
      {blocks.map(({s,its})=><div key={s.id} style={{marginBottom:28}}>
