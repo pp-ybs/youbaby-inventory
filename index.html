@@ -548,16 +548,37 @@ function CoverTile({label,sub,coverKey,fallback,onClick,onChanged,badge}){
  </div>;
 }
 // ---- public, no-login customer view (reads anon-safe views) ----
-function PublicLightbox({items,index,onIndex,onClose}){
- useEffect(()=>{const h=e=>{if(e.key==="Escape")onClose();else if(e.key==="ArrowRight")onIndex(Math.min(items.length-1,index+1));else if(e.key==="ArrowLeft")onIndex(Math.max(0,index-1));};window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h);},[index,items.length]);
- const it=items[index]||{};const nav={position:"absolute",top:"50%",transform:"translateY(-50%)",width:46,height:46,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.16)",color:"#fff",fontSize:26,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"};
+// Lightbox walks a FLAT list of photos (cover + extra_photos) across all items in the
+// strip — prev/next moves through every photo of every item without leaving the modal.
+// `index` = item index to open at (always lands on that item's cover).
+function PublicLightbox({items,index,onClose}){
+ // Flatten: each item -> {p, name, size, itemIdx, photoIdx, photoTotal}
+ const flat=React.useMemo(()=>items.flatMap((it,i)=>{
+   const photos=[it.img,...(Array.isArray(it.extras)?it.extras.map(e=>e&&e.p).filter(Boolean):[])].filter(Boolean);
+   return (photos.length?photos:[null]).map((p,j)=>({p,name:it.name,size:it.size,itemIdx:i,photoIdx:j,photoTotal:photos.length}));
+ }),[items]);
+ // Initial flat-index = start of items[index]
+ const startIdx=React.useMemo(()=>{ let n=0; for(let i=0;i<index;i++){ const it=items[i]||{}; const ph=[it.img,...(Array.isArray(it.extras)?it.extras.map(e=>e&&e.p).filter(Boolean):[])].filter(Boolean); n+=Math.max(1,ph.length); } return n; },[items,index]);
+ const [fIdx,setFIdx]=useState(startIdx);
+ useEffect(()=>setFIdx(startIdx),[startIdx]);
+ const cur=flat[fIdx]||{}; const total=flat.length;
+ useEffect(()=>{const h=e=>{ if(e.key==="Escape")onClose(); else if(e.key==="ArrowRight")setFIdx(i=>Math.min(total-1,i+1)); else if(e.key==="ArrowLeft")setFIdx(i=>Math.max(0,i-1)); }; window.addEventListener("keydown",h); return()=>window.removeEventListener("keydown",h); },[total]);
+ // Touch swipe for mobile
+ const touch=useRef({x:0});
+ const onTouchStart=e=>{ const t=e.touches&&e.touches[0]; if(t) touch.current.x=t.clientX; };
+ const onTouchEnd=e=>{ const t=e.changedTouches&&e.changedTouches[0]; if(!t) return; const dx=t.clientX-touch.current.x; if(Math.abs(dx)>30) setFIdx(i=>dx<0?Math.min(total-1,i+1):Math.max(0,i-1)); };
+ const nav={position:"absolute",top:"50%",transform:"translateY(-50%)",width:46,height:46,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.16)",color:"#fff",fontSize:26,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"};
  return <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,.94)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
    <button onClick={onClose} aria-label="Close" style={{position:"absolute",top:12,right:14,width:42,height:42,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.16)",color:"#fff",fontSize:21,cursor:"pointer"}}>✕</button>
-   {it.img?<img src={it.img} onClick={e=>e.stopPropagation()} style={{maxWidth:"94vw",maxHeight:"80vh",objectFit:"contain",borderRadius:10,boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}/>:<div style={{color:"#fff"}}>No image</div>}
-   {(it.name||it.size)&&<div style={{color:"#fff",marginTop:16,fontSize:15,fontWeight:600,textAlign:"center",padding:"0 16px"}}>{it.name}{it.size?" · "+it.size:""}</div>}
-   {index>0&&<button onClick={e=>{e.stopPropagation();onIndex(index-1);}} aria-label="Previous" style={{...nav,left:8}}>‹</button>}
-   {index<items.length-1&&<button onClick={e=>{e.stopPropagation();onIndex(index+1);}} aria-label="Next" style={{...nav,right:8}}>›</button>}
-   <div style={{position:"absolute",bottom:14,color:"rgba(255,255,255,.7)",fontSize:12}}>{index+1} / {items.length}</div>
+   <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onClick={e=>e.stopPropagation()} style={{display:"flex",alignItems:"center",justifyContent:"center",maxWidth:"94vw",maxHeight:"80vh"}}>
+     {cur.p?<img src={cur.p} style={{maxWidth:"94vw",maxHeight:"80vh",objectFit:"contain",borderRadius:10,boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}/>:<div style={{color:"#fff"}}>No image</div>}
+   </div>
+   {(cur.name||cur.size||cur.photoTotal>1)&&<div style={{color:"#fff",marginTop:16,fontSize:15,fontWeight:600,textAlign:"center",padding:"0 16px"}}>{cur.name}{cur.size?" · "+cur.size:""}{cur.photoTotal>1?<span style={{marginLeft:8,fontWeight:400,opacity:.7,fontSize:12.5}}>· photo {cur.photoIdx+1} of {cur.photoTotal}</span>:null}</div>}
+   {/* Dots indicator for the current item's photos (when multi-image) */}
+   {cur.photoTotal>1&&<div style={{display:"flex",gap:5,marginTop:10}}>{Array.from({length:cur.photoTotal}).map((_,k)=><span key={k} style={{width:k===cur.photoIdx?16:7,height:7,borderRadius:4,background:k===cur.photoIdx?"#fff":"rgba(255,255,255,.4)",transition:"width .15s"}}/>)}</div>}
+   {fIdx>0&&<button onClick={e=>{e.stopPropagation();setFIdx(i=>Math.max(0,i-1));}} aria-label="Previous" style={{...nav,left:8}}>‹</button>}
+   {fIdx<total-1&&<button onClick={e=>{e.stopPropagation();setFIdx(i=>Math.min(total-1,i+1));}} aria-label="Next" style={{...nav,right:8}}>›</button>}
+   <div style={{position:"absolute",bottom:14,color:"rgba(255,255,255,.7)",fontSize:12}}>{fIdx+1} / {total}</div>
  </div>;
 }
 // Customer-facing showcase tile — adapts its frame to the photo's orientation
@@ -603,26 +624,35 @@ function PublicShowcase({scope}){
    return pool.slice(0,24).map(i=>({img:i.photo_url,extras:Array.isArray(i.extra_photos)?i.extra_photos:[],name:i.name,size:i.size}));};
  const secItems=s=>s.dyn?dyn(s,s.board):links.filter(l=>l.section_id===s.id).map(l=>({img:l.photo_url,extras:Array.isArray(l.extra_photos)?l.extra_photos:[],name:l.name,size:l.size}));
  const titleOf=b=>{const p=parse(b);return [p.session,p.gender].filter(Boolean).join(" · ")||p.loc||"Our work";};
+ // Resolve the studio/branch this preview link is for (taken from the top-level scope OR the only board's loc).
+ const scopeLoc=scope?parse(scope).loc:null;
+ const allLocs=[...new Set(boards.map(b=>parse(b).loc).filter(Boolean))];
+ const branchLabel=scopeLoc||(allLocs.length===1?allLocs[0]:null);
  return <div style={{minHeight:"100vh",background:"#fafafa",fontFamily:font,color:"#1a1a1a"}}>
    <div style={{textAlign:"center",padding:"34px 18px 12px"}}>
      <div style={{fontSize:11.5,letterSpacing:".24em",textTransform:"uppercase",color:"#a0a0a0",fontWeight:700}}>You Baby Studio</div>
      {scope&&<div style={{fontSize:26,fontWeight:800,marginTop:7,letterSpacing:"-.02em"}}>{titleOf(scope)}</div>}
+     {branchLabel&&<div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,padding:"5px 13px",background:"#fff",border:"1px solid #e5e5e5",borderRadius:20,fontSize:12.5,fontWeight:600,color:"#5a5a5a",boxShadow:"0 1px 4px rgba(0,0,0,.04)"}}><span style={{fontSize:13}}>📍</span>{branchLabel} Studio</div>}
    </div>
-   <div style={{maxWidth:1000,margin:"0 auto",padding:"6px 14px 50px"}}>
+   <div style={{maxWidth:1000,margin:"0 auto",padding:"6px 0 50px"}}>
    {boards.length===0&&<div style={{textAlign:"center",color:"#9a9a9a",padding:"70px 0",fontSize:14}}>This gallery is being prepared — check back soon.</div>}
    {boards.map(b=>{const blocks=secs.filter(x=>x.board===b).sort((a,c)=>(a.sort||0)-(c.sort||0)).map(s=>({s,its:secItems(s)})).filter(x=>x.its.length);return blocks.length?<div key={b}>
      {boards.length>1&&<h2 style={{textAlign:"center",fontSize:21,fontWeight:800,margin:"28px 0 14px",letterSpacing:"-.01em"}}>{titleOf(b)}</h2>}
      {blocks.map(({s,its})=><div key={s.id} style={{marginBottom:28}}>
-       <div style={{fontSize:17,fontWeight:700,marginBottom:s.note?2:10}}>{s.title}</div>
-       {s.note&&<div style={{fontSize:12.5,color:"#8a8a8a",marginBottom:10}}>{s.note}</div>}
-       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10}}>
-         {its.map((it,idx)=><PubTile key={idx} it={it} onClick={()=>setBox({list:its,index:idx})}/>)}
+       <div style={{padding:"0 14px",display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,marginBottom:s.note?2:10}}>
+         <div style={{fontSize:17,fontWeight:700}}>{s.title}</div>
+         {its.length>2&&<div style={{fontSize:11,color:"#a0a0a0",fontWeight:500}}>{its.length} items · swipe ›</div>}
+       </div>
+       {s.note&&<div style={{padding:"0 14px",fontSize:12.5,color:"#8a8a8a",marginBottom:10}}>{s.note}</div>}
+       {/* Horizontal-scroll strip per section — Instagram-style; snaps to each card on mobile */}
+       <div style={{display:"flex",gap:10,overflowX:"auto",scrollSnapType:"x mandatory",WebkitOverflowScrolling:"touch",padding:"4px 14px 12px",scrollbarWidth:"thin"}}>
+         {its.map((it,idx)=><div key={idx} style={{flex:"0 0 158px",scrollSnapAlign:"start"}}><PubTile it={it} onClick={()=>setBox({list:its,index:idx})}/></div>)}
        </div>
      </div>)}
    </div>:null;})}
    </div>
    <div style={{textAlign:"center",padding:"20px 0 44px",color:"#bcbcbc",fontSize:11.5}}>You Baby Studio · Dubai · Abu Dhabi · Doha · Al Quoz</div>
-   {box&&<PublicLightbox items={box.list} index={box.index} onIndex={i=>setBox(b=>({...b,index:i}))} onClose={()=>setBox(null)}/>}
+   {box&&<PublicLightbox items={box.list} index={box.index} onClose={()=>setBox(null)}/>}
  </div>;
 }
 function Showcase({themes,onOpen,onItemsChanged}){
