@@ -336,16 +336,16 @@ function Catalog({themes,onToggle,onOpen,onAdd,state}){
    </div></div>;
 }
 function Categories({themes,go}){
- const data=CATS.map(c=>{const ts=themes.filter(t=>t.category===c);return{c,n:ts.length,on:ts.filter(t=>t.display).length,ph:ts.filter(t=>imgUrl(t)).length,pop:ts.reduce((s,t)=>s+sc(t),0)}});
+ const data=SESSION_CATS.map(c=>{const ts=themes.filter(t=>t.category===c);return{c,n:ts.length,on:ts.filter(t=>t.display).length,ph:ts.filter(t=>imgUrl(t)).length,pop:ts.reduce((s,t)=>s+sc(t),0)}});
  return <div className="scroll fade" style={{flex:1,padding:"26px 30px"}}>
    <h1 style={{fontSize:26,fontWeight:700,letterSpacing:"-.01em"}}>Session types</h1>
-   <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:22}}>The 5 shoot categories your themes are organised under</p>
+   <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:22}}>Tap a session to open the Catalog filtered to it</p>
    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:16}}>
      {data.map(({c,n,on,ph,pop})=><div key={c} onClick={()=>go(c)} style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",padding:22,boxShadow:"var(--shadow)",cursor:"pointer",transition:"transform .15s,box-shadow .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="var(--shadow-h)"}} onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="var(--shadow)"}}>
        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}><span style={{width:38,height:38,borderRadius:10,background:CAT_COLOR[c]+"1e",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.layers} s={19} c={CAT_COLOR[c]}/></span><Icon d={I.chev} s={18} c="var(--muted)"/></div>
        <div style={{fontWeight:700,fontSize:17}}>{c}</div>
        <div style={{fontSize:34,fontWeight:700,color:CAT_COLOR[c],lineHeight:1.1,marginTop:6,letterSpacing:"-.02em"}}>{n}</div>
-       <div style={{fontSize:11.5,color:"var(--muted)",marginBottom:14}}>themes</div>
+       <div style={{fontSize:11.5,color:"var(--muted)",marginBottom:14}}>items</div>
        <div style={{display:"flex",gap:14,fontSize:11.5,color:"var(--soft)",borderTop:"1px solid var(--line)",paddingTop:12}}><span style={{display:"flex",alignItems:"center",gap:5}}><Icon d={I.globe} s={13} c="#2f9e54"/>{on} live</span><span style={{display:"flex",alignItems:"center",gap:5}}><Icon d={I.image} s={13} c="#5577d6"/>{ph} photos</span><span style={{display:"flex",alignItems:"center",gap:5}}><Icon d={I.cursor} s={13} c="var(--gold)"/>{pop}</span></div>
      </div>)}
    </div></div>;
@@ -768,8 +768,8 @@ function InvEdit({item,onClose,onSaved}){
      </div></div></div>;
 }
 
-function NewInventory(){
- const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("new"),[catF,setCatF]=useState(""),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState(""),[sizeF,setSizeF]=useState(""),[newF,setNewF]=useState(false);
+function NewInventory({initCat=""}){
+ const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("new"),[catF,setCatF]=useState(initCat),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState(""),[sizeF,setSizeF]=useState(""),[newF,setNewF]=useState(false);
  const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sb.from("inv_item").select("*,inv_item_location(location,quantity,status)").order("created_at",{ascending:false});if(error)setErr(error.message);setRows(data||[]);};
  useEffect(()=>{load()},[]);
  if(rows===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
@@ -897,6 +897,7 @@ function App(){
  const [session,setSession]=useState(sb?undefined:null);
  useEffect(()=>{if(!sb)return;sb.auth.getSession().then(({data})=>setSession(data.session));const {data:sub}=sb.auth.onAuthStateChange((_e,s)=>setSession(s));return ()=>sub.subscription.unsubscribe()},[]);
  const [view,setView]=useState("dashboard");
+ const [catInit,setCatInit]=useState("");
  const [sel,setSel]=useState(null); const [form,setForm]=useState(null); // form = {} for new, theme for edit
  const [q,setQ]=useState(""),[cat,setCat]=useState(""),[br,setBr2]=useState(""),[gen,setGen]=useState(""),[disp,setDisp]=useState(""),[onlyPhoto,setOnlyPhoto]=useState(false),[sort,setSort]=useState("pop"),[mode,setMode]=useState("grid");
  useEffect(()=>{(async()=>{
@@ -919,7 +920,8 @@ function App(){
    if(source==="cloud"&&sb){const {error}=await sb.from("themes").upsert(row);if(error){setThemes(()=>{persist(prev);return prev});notify("Couldn't save theme: "+error.message);}}
  };
  const delTheme=async t=>{const prev=themes;setThemes(ts=>{const n=ts.filter(x=>x.id!==t.id);persist(n);return n});setSel(null);if(source==="cloud"&&sb){const {error}=await sb.from("themes").delete().eq("id",t.id);if(error){setThemes(()=>{persist(prev);return prev});notify("Couldn't delete: "+error.message);}}};
- const openCat=c=>{setCat(c);setView("catalog")}; const openBr=b=>{setBr2(b);setView("catalog")};
+ const openCat=c=>{setCatInit(c);setView("catalog")}; const openBr=b=>{setBr2(b);setView("catalog")};
+ const navTo=id=>{if(id==="catalog")setCatInit("");setView(id)};
  const go=x=>{if(x&&x.__cat)openCat(x.__cat);else if(typeof x==="string")openCat(x);else setSel(x)};
  const selLive=sel?allThemes.find(t=>t.id===sel.id)||sel:null;
  const catState={q,setQ,cat,setCat,br,setBr:setBr2,gen,setGen,disp,setDisp,onlyPhoto,setOnlyPhoto,sort,setSort,mode,setMode};
@@ -927,10 +929,10 @@ function App(){
  if(sb&&session===undefined) return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
  if(sb&&!session) return <LoginScreen/>;
  return <div style={{display:"flex",height:"100vh",overflow:"hidden"}}>
-   <Sidebar view={view} setView={setView} themes={allThemes} setBr={openBr} source={source} signOut={signOut} email={session&&session.user&&session.user.email}/>
+   <Sidebar view={view} setView={navTo} themes={allThemes} setBr={openBr} source={source} signOut={signOut} email={session&&session.user&&session.user.email}/>
    <main style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:"var(--bg)"}}>
      {view==="dashboard"&&<Dashboard themes={allThemes} go={go}/>}
-     {view==="catalog"&&<NewInventory/>}
+     {view==="catalog"&&<NewInventory initCat={catInit}/>}
      {view==="showcase"&&<Showcase themes={allThemes} onOpen={setSel}/>}
      {view==="categories"&&<Categories themes={allThemes} go={openCat}/>}
    </main>
