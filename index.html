@@ -25,6 +25,7 @@ window.YBS_DATA={"themes": [{"id": "YBS-CA-0001", "name": "Duckies", "category":
   --ok:#22b573; --ok-soft:#e3f6ec; --warn:#f0a23c; --warn-soft:#fdeed6;
   --danger:#ff5a5f; --danger-soft:#ffe9ea;
   --purple:#7c4dff; --purple-soft:#efe9ff;
+  --side-bg:#14151b; --side-line:#262833; --side-ink:#f4f5f8; --side-muted:#888c9b; --side-active:#23252f;
   --r:18px; --shadow:0 1px 2px rgba(28,30,52,.04),0 12px 30px rgba(28,30,52,.06);
   --shadow-h:0 2px 8px rgba(28,30,52,.07),0 20px 48px rgba(28,30,52,.1);
 }
@@ -1080,22 +1081,22 @@ function NewInventory({initCat=""}){
 const NAV=[{id:"dashboard",label:"Home",icon:I.home},{id:"catalog",label:"Catalog",icon:I.grid},{id:"showcase",label:"Website Showcase",icon:I.globe},{id:"categories",label:"Categories",icon:I.layers},{id:"settings",label:"Settings",icon:I.gear}];
 const SOON=[{label:"Customers",icon:I.users}];
 function Sidebar({view,setView,themes,setBr,source,signOut,email,dohaCount,setInvLoc,locCounts={}}){
- return <aside className="app-side" style={{width:236,background:"var(--panel)",borderRight:"1px solid var(--line)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh"}}>
-   <div style={{padding:"20px 18px 16px",borderBottom:"1px solid var(--line)",display:"flex",alignItems:"center",gap:11}}>
+ return <aside className="app-side" style={{width:236,background:"var(--side-bg)",borderRight:"1px solid var(--side-line)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh"}}>
+   <div style={{padding:"20px 18px 16px",borderBottom:"1px solid var(--side-line)",display:"flex",alignItems:"center",gap:11}}>
      <div style={{width:38,height:38,borderRadius:12,background:"linear-gradient(135deg,#ff6468,#f0a23c)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:15,flexShrink:0,boxShadow:"0 4px 12px rgba(255,100,104,.35)"}}>YB</div>
-     <div><div style={{fontSize:15,fontWeight:700,lineHeight:1.1}}>You Baby Studio</div>
-       <div style={{marginTop:4,display:"inline-flex",alignItems:"center",gap:5,fontSize:9.5,fontWeight:600,color:source==="cloud"?"var(--ok)":"var(--muted)"}}><Dot c={source==="cloud"?"var(--ok)":"#b0b0ba"} s={6}/>{source==="cloud"?"Live · Supabase":"Local data"}</div></div></div>
+     <div><div style={{fontSize:15,fontWeight:700,lineHeight:1.1,color:"var(--side-ink)"}}>You Baby Studio</div>
+       <div style={{marginTop:4,display:"inline-flex",alignItems:"center",gap:5,fontSize:9.5,fontWeight:600,color:source==="cloud"?"#3ad07f":"var(--side-muted)"}}><Dot c={source==="cloud"?"#3ad07f":"#6a6e7c"} s={6}/>{source==="cloud"?"Live · Supabase":"Local data"}</div></div></div>
    <nav style={{flex:1,padding:"12px 10px",overflowY:"auto"}} className="scroll">
-     {NAV.map(n=>{const a=view===n.id;return <button key={n.id} onClick={()=>setView(n.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"10px 12px",borderRadius:12,marginBottom:3,textAlign:"left",background:a?"var(--accent-soft)":"transparent",color:a?"var(--accent)":"var(--soft)",fontWeight:a?700:500,fontSize:13.5,transition:"all .12s"}}><Icon d={n.icon} s={17} c={a?"var(--accent)":"var(--muted)"}/>{n.label}</button>})}
-     <div style={{fontSize:9.5,fontWeight:700,color:"var(--muted)",letterSpacing:".16em",margin:"18px 12px 8px"}}>COMING NEXT</div>
-     {SOON.map(n=><div key={n.label} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 12px",color:"var(--muted)",fontSize:13.5,opacity:.7}}><Icon d={n.icon} s={17} c="var(--muted)"/>{n.label}<span style={{marginLeft:"auto",fontSize:9,background:"var(--gold-soft)",color:"var(--gold)",padding:"1px 7px",borderRadius:10,fontWeight:700}}>SOON</span></div>)}
+     {NAV.map(n=>{const a=view===n.id;return <button key={n.id} onClick={()=>setView(n.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"10px 12px",borderRadius:11,marginBottom:3,textAlign:"left",background:a?"var(--side-active)":"transparent",color:a?"#fff":"var(--side-muted)",fontWeight:a?700:500,fontSize:13.5,transition:"all .12s"}}><Icon d={n.icon} s={17} c={a?"#fff":"var(--side-muted)"}/>{n.label}</button>})}
+     <div style={{fontSize:9.5,fontWeight:700,color:"var(--side-muted)",letterSpacing:".16em",margin:"18px 12px 8px"}}>COMING NEXT</div>
+     {SOON.map(n=><div key={n.label} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 12px",color:"var(--side-muted)",fontSize:13.5,opacity:.65}}><Icon d={n.icon} s={17} c="var(--side-muted)"/>{n.label}<span style={{marginLeft:"auto",fontSize:9,background:"rgba(240,162,60,.18)",color:"#f0a23c",padding:"1px 7px",borderRadius:10,fontWeight:700}}>SOON</span></div>)}
    </nav>
-   <div style={{padding:"14px 18px 20px",borderTop:"1px solid var(--line)"}}>
-     <div style={{fontSize:9.5,fontWeight:700,color:"var(--muted)",letterSpacing:".16em",marginBottom:11}}>LOCATIONS</div>
-     {BR.map(b=>{const c=themes.filter(t=>(t.branches||[]).includes(b)).length;return <div key={b} onClick={()=>setBr(b)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"var(--soft)"}}><Dot c={BR_COLOR[b]}/>{b}</span><span style={{fontSize:12.5,fontWeight:700,color:BR_COLOR[b]}}>{c}</span></div>})}
-     {signOut&&<div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--line)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-       {email&&<span title={email} style={{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{email}</span>}
-       <button onClick={signOut} title="Sign out" style={{flexShrink:0,marginLeft:"auto",fontSize:11.5,fontWeight:600,color:"var(--soft)",border:"1px solid var(--line2)",borderRadius:8,padding:"5px 11px"}}>Sign out</button></div>}
+   <div style={{padding:"14px 18px 20px",borderTop:"1px solid var(--side-line)"}}>
+     <div style={{fontSize:9.5,fontWeight:700,color:"var(--side-muted)",letterSpacing:".16em",marginBottom:11}}>LOCATIONS</div>
+     {BR.map(b=>{const c=themes.filter(t=>(t.branches||[]).includes(b)).length;return <div key={b} onClick={()=>setBr(b)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"var(--side-muted)"}}><Dot c={BR_COLOR[b]}/>{b}</span><span style={{fontSize:12.5,fontWeight:700,color:BR_COLOR[b]}}>{c}</span></div>})}
+     {signOut&&<div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--side-line)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+       {email&&<span title={email} style={{fontSize:11,color:"var(--side-muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{email}</span>}
+       <button onClick={signOut} title="Sign out" style={{flexShrink:0,marginLeft:"auto",fontSize:11.5,fontWeight:600,color:"var(--side-muted)",border:"1px solid var(--side-line)",borderRadius:8,padding:"5px 11px"}}>Sign out</button></div>}
    </div></aside>;
 }
 
