@@ -165,6 +165,32 @@ const I={
  key:"M14 2a6 6 0 0 0-5.7 7.9L2 16.2V21h4.8l.9-.9V18h2v-2h2l.4-.4A6 6 0 1 0 14 2z M16.5 6.5h.01",
  shirt:"M16 2l4 3-3 3-1-1v15H8V7L7 8 4 5l4-3 2 2h4z",
  tag:"M20.6 13.4 12 22l-9-9V3h10z M7.5 7.5h.01",
+ // Session-type icons (line / stroke style, 24×24)
+ baby:"M12 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2 M9 6h.01 M15 6h.01 M10.5 7.5a2 2 0 0 0 3 0",
+ cake:"M3 21h18 M5 21V11h14v10 M7 11V8a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v3 M12 6V3 M11 3h2 M9 14h.01 M12 14h.01 M15 14h.01",
+ belly:"M12 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6z M9 10c-3 1-4 4-4 6 0 3 2 5 5 5h4c3 0 5-2 5-5 0-2-1-5-4-6 M16 14a4 4 0 0 1-8 0",
+ balloon:"M12 13a5 5 0 0 0 5-5 5 5 0 0 0-10 0 5 5 0 0 0 5 5z M9.5 7a2.5 2.5 0 0 1 2.5-2.5 M11 13l-1 2 2 1 2-1-1-2 M12 15v3",
+ toddler:"M12 7a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M9 22v-6h6v6 M9 13l-2-3 2-1 M15 13l2-3-2-1",
+ child:"M12 8a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z M8 22v-7l-2-2 2-3h8l2 3-2 2v7 M10 22v-5h4v5",
+ frame:"M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M3 16l5-5 4 4 3-3 6 6 M14 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z",
+ prop:"M4 11h16v9H4z M9 4h6v7H9z M12 4v7 M4 15h16",
+ wrap:"M3 12a9 9 0 1 1 18 0 9 9 0 0 1-18 0z M7 12a5 5 0 0 1 10 0 M12 8a4 4 0 0 1 0 8",
+ basket:"M3 9h18l-2 12H5L3 9z M8 9V5a4 4 0 0 1 8 0v4 M8 13v4 M12 13v4 M16 13v4",
+ backdrop:"M3 4h18v14H3z M3 18l4-5 4 3 4-4 6 6 M3 22h18",
+ accessory:"M12 6a4 4 0 1 0 0-4 4 4 0 0 0 0 4z M9 5l-7 14h6l4-6 4 6h6L15 5",
+};
+// Map session_type → registry icon. Falls back to `tag` for unknown.
+const SESSION_ICON={
+ "Newborn":I.baby,"Infant":I.toddler,"Sitter":I.toddler,
+ "Cake Smash":I.cake,"Maternity":I.belly,"Children":I.child,"Gender Reveal":I.balloon,
+};
+// Map item kind → registry icon (used inside drilldown buckets and item placeholders).
+const KIND_ICON={
+ outfit:I.shirt,prop:I.prop,wrap:I.wrap,basket:I.basket,
+ backdrop:I.backdrop,accessory:I.accessory,fabric:I.frame,other:I.tag,
+};
+const BUCKET_ICON={
+ theme:I.frame,outfit:I.shirt,other:I.prop,setups:I.frame,outfits:I.shirt,props:I.prop,
 };
 const Icon=({d,s=18,c="currentColor",sw=2,fill="none",style})=>
  <svg width={s} height={s} viewBox="0 0 24 24" fill={fill} stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={style}>
@@ -179,10 +205,12 @@ function Toggle({on,onChange,size=20}){
  return <button onClick={e=>{e.stopPropagation();onChange(!on)}} style={{width:size*1.8,height:size,borderRadius:size,background:on?"var(--ok)":"#d6d6dd",position:"relative",transition:"background .18s",flexShrink:0}}>
    <span style={{position:"absolute",top:2,left:on?size*0.8+2:2,width:size-4,height:size-4,borderRadius:"50%",background:"#fff",transition:"left .18s",boxShadow:"0 1px 3px rgba(0,0,0,.2)"}}/></button>;
 }
-function Placeholder({cat,size=42}){
+function Placeholder({cat,kind,size=42}){
  const c=CAT_COLOR[cat]||"#bbb";
+ // Pick the most specific icon we have: kind (outfit/prop/etc.) > session_type > generic image
+ const icon=(kind&&KIND_ICON[String(kind).toLowerCase()])||SESSION_ICON[cat]||I.image;
  return <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,background:`linear-gradient(135deg,${c}12,${c}04)`}}>
-   <Icon d={I.image} s={size*0.5} c={c+"90"} sw={1.5}/><span style={{fontSize:11,color:c+"c0",fontWeight:600}}>No photo</span></div>;
+   <Icon d={icon} s={size*0.55} c={c+"a8"} sw={1.5}/><span style={{fontSize:11,color:c+"c0",fontWeight:600}}>No photo</span></div>;
 }
 const Stat=({icon,label,value,sub,color="var(--gold)"})=>
  <div style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",padding:"17px 19px",boxShadow:"var(--shadow)"}}>
@@ -380,7 +408,7 @@ function Card({t,onClick,onToggle}){
  return <div onClick={onClick} className="fade" style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",overflow:"hidden",cursor:"pointer",boxShadow:"var(--shadow)",transition:"transform .16s,box-shadow .16s",display:"flex",flexDirection:"column"}}
    onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="var(--shadow-h)"}} onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="var(--shadow)"}}>
    <div style={{position:"relative",width:"100%",aspectRatio:"4/3",background:"var(--panel2)"}}>
-     {src?<img src={src} loading="lazy" alt={t.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Placeholder cat={t.category}/>}
+     {src?<img src={src} loading="lazy" alt={t.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Placeholder cat={t.category} kind={t._row&&t._row.kind}/>}
      <span style={{position:"absolute",top:9,left:9}}><Chip label={t.category} color={CAT_COLOR[t.category]} solid sm/></span>
      <span style={{position:"absolute",top:9,right:9,display:"inline-flex",alignItems:"center",gap:4,background:"#000000a8",color:"#fff",borderRadius:8,padding:"2px 9px",fontSize:11,fontWeight:600,backdropFilter:"blur(4px)"}}><Icon d={I.cursor} s={11} c="#f3c64a" fill="#f3c64a" sw={0}/>{sc(t)}</span>
    </div>
@@ -398,7 +426,7 @@ function Row({t,onClick,onToggle}){
  const src=imgUrl(t);
  return <div onClick={onClick} className="fade" style={{display:"flex",alignItems:"center",gap:14,padding:"9px 14px",background:"var(--panel)",border:"1px solid var(--line)",borderRadius:8,cursor:"pointer",transition:"background .12s"}}
    onMouseEnter={e=>e.currentTarget.style.background="var(--panel2)"} onMouseLeave={e=>e.currentTarget.style.background="var(--panel)"}>
-   <div style={{width:46,height:46,borderRadius:9,overflow:"hidden",flexShrink:0,background:"var(--panel2)"}}>{src?<img src={src} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Placeholder cat={t.category} size={26}/>}</div>
+   <div style={{width:46,height:46,borderRadius:9,overflow:"hidden",flexShrink:0,background:"var(--panel2)"}}>{src?<img src={src} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Placeholder cat={t.category} kind={t._row&&t._row.kind} size={26}/>}</div>
    <div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.name}</div><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{t.id}</div></div>
    <Chip label={t.category} color={CAT_COLOR[t.category]} sm/>
    {t.gender&&<span style={{fontSize:11,fontWeight:600,color:"var(--soft)",width:42,textAlign:"center"}}>{t.gender}</span>}
@@ -415,7 +443,7 @@ function Drawer({t,onClose,onToggle,onEdit,onDelete}){
  return <div style={{position:"fixed",inset:0,background:"#1a1a2410",backdropFilter:"blur(2px)",zIndex:100,display:"flex",justifyContent:"flex-end"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
    <div className="din scroll" style={{width:480,maxWidth:"94vw",height:"100%",background:"var(--panel)",boxShadow:"-20px 0 60px rgba(20,20,30,.14)",overflowY:"auto"}}>
      <div style={{position:"relative",width:"100%",aspectRatio:"4/3",background:"var(--panel2)"}}>
-       {src?<img src={src} alt={t.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Placeholder cat={t.category} size={66}/>}
+       {src?<img src={src} alt={t.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Placeholder cat={t.category} kind={t._row&&t._row.kind} size={66}/>}
        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"#fff",borderRadius:"50%",width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"var(--shadow)"}}><Icon d={I.x} s={17}/></button>
        <span style={{position:"absolute",top:14,left:14}}><Chip label={t.category} color={CAT_COLOR[t.category]} solid/></span></div>
      <div style={{padding:"22px 24px"}}>
@@ -1652,7 +1680,11 @@ function NewInventory({initCat=""}){
      if(drillCat){const cl=isElecView?ELEC_CATS:SESSION_CATS;const cof=isElecView?elecCat:(r=>r.session_type);const setC=isElecView?setEcatF:setCatF;
        const cats=cl.filter(c=>rows.some(r=>m(r,isElecView?"ecat":"cat")&&cof(r)===c));
        if(!cats.length) return <div style={{color:"var(--muted)",fontSize:13,padding:"30px 0"}}>Nothing here{loc?" in "+loc:""} yet.</div>;
-       return tgrid(cats.map(c=>{const items=rows.filter(r=>m(r,isElecView?"ecat":"cat")&&cof(r)===c);const ic=itemIcon(items[0]||{item_group:groupF,subcategory:""});return tile(c,()=>setC(c),ic.d,ic.c,c,items.length+" item"+(items.length!==1?"s":""));}));}
+       return tgrid(cats.map(c=>{const items=rows.filter(r=>m(r,isElecView?"ecat":"cat")&&cof(r)===c);
+         // Session-type drill tiles get the dedicated session icon (Newborn → baby, Cake Smash → cake, …).
+         // Electronics drill tiles keep itemIcon (camera/lens/bolt/…) since they're typed by subcategory.
+         const sIcon=!isElecView&&SESSION_ICON[c]; const ic=sIcon?{d:sIcon,c:CAT_COLOR[c]||"#7c8291"}:itemIcon(items[0]||{item_group:groupF,subcategory:""});
+         return tile(c,()=>setC(c),ic.d,ic.c,c,items.length+" item"+(items.length!==1?"s":""));}));}
      // Level 2b (session only) — Themes & setups / Outfits / Items
      if(drillBucket){const cntB=key=>rows.filter(r=>m(r,"bucket")&&(key==="theme"?r.type==="theme":key==="outfit"?(r.type==="item"&&r.kind==="outfit"):(r.type==="item"&&r.kind!=="outfit"))).length;
        return tgrid(BUCKETS.map(([key,label,icd])=>{const n=cntB(key);return tile(key,()=>setBucketF(key),icd,"#7c8291",label,n+" item"+(n!==1?"s":""));}));}
