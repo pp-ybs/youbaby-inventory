@@ -339,17 +339,17 @@ function Showcase({themes,onOpen}){
  const title=gen?`Baby ${gen} Set-ups`:"Our Photo Set-ups";
  return <div className="scroll fade" style={{flex:1,overflow:"auto"}}>
    <div style={{maxWidth:1080,margin:"0 auto",padding:"40px 30px 60px"}}>
-     <div style={{textAlign:"center",marginBottom:30}}>
-       {hero&&<div style={{width:150,height:150,borderRadius:"50%",overflow:"hidden",margin:"0 auto 22px",boxShadow:"var(--shadow-h)"}}><img src={imgUrl(hero)} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>}
-       <h1 className="pop" style={{fontSize:46,fontWeight:700,lineHeight:1.05,color:"var(--ink)"}}>{title}{loc&&<><br/>{loc}</>}</h1>
-       <p className="pop" style={{fontSize:16,fontWeight:300,color:"#6a6c78",maxWidth:560,margin:"16px auto 0",lineHeight:1.6}}>Below you'll find a reference of the set-ups we offer. These are references and may vary slightly per session.</p>
-       <div style={{display:"flex",gap:10,justifyContent:"center",marginTop:24,flexWrap:"wrap"}}>
+     <div style={{textAlign:"center",marginBottom:34}}>
+       {hero&&<div style={{width:104,height:104,borderRadius:"50%",overflow:"hidden",margin:"0 auto 18px",boxShadow:"var(--shadow-h)",border:"4px solid var(--panel)"}}><img src={imgUrl(hero)} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>}
+       <h1 style={{fontSize:32,fontWeight:800,lineHeight:1.1,color:"var(--ink)",letterSpacing:"-.02em"}}>{title}{loc&&<> · {loc}</>}</h1>
+       <p style={{fontSize:14.5,fontWeight:400,color:"var(--muted)",maxWidth:520,margin:"12px auto 0",lineHeight:1.55}}>A reference of the set-ups we offer. Looks may vary slightly per session.</p>
+       <div style={{display:"flex",gap:9,justifyContent:"center",marginTop:22,flexWrap:"wrap"}}>
          <select value={gen} onChange={e=>setGen(e.target.value)} style={{width:"auto"}}><option value="">All babies</option>{GENDERS.map(g=><option key={g} value={g}>Baby {g}</option>)}</select>
          <select value={loc} onChange={e=>setLoc(e.target.value)} style={{width:"auto"}}><option value="">All studios</option>{BR.map(b=><option key={b}>{b}</option>)}</select>
        </div>
      </div>
      {pool.length===0?<div style={{textAlign:"center",padding:"60px",color:"var(--muted)"}}>No set-ups match — try different filters.</div>
-       :CATS.map(c=><ShowRow key={c} title={c} sub={`${pool.filter(t=>t.category===c).length} set-ups`} items={pool.filter(t=>t.category===c)} onOpen={onOpen}/>)}
+       :SESSION_CATS.filter(c=>pool.some(t=>t.category===c)).map(c=><ShowRow key={c} title={c} sub={`${pool.filter(t=>t.category===c).length} set-ups`} items={pool.filter(t=>t.category===c)} onOpen={onOpen}/>)}
    </div></div>;
 }
 
