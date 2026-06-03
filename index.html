@@ -52,7 +52,7 @@ const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null;
 
 const CATS=['Cake Smash','Sitter','Maternity','Infant','Newborn'];
-const CAT_COLOR={'Cake Smash':'#e06b94','Sitter':'#5a93d6','Maternity':'#a47cd1','Infant':'#48b08c','Newborn':'#d59a3f','Children':'#e0a06b','Christmas':'#cf6b6b'};
+const CAT_COLOR={'Cake Smash':'#e06b94','Sitter':'#5a93d6','Maternity':'#a47cd1','Infant':'#48b08c','Newborn':'#d59a3f','Children':'#e0a06b','Christmas':'#cf6b6b','Gender Reveal':'#6fb1c9'};
 const BR=['DXB','AD','Doha','Al Quoz'];
 const BR_COLOR={'DXB':'#bd9b43','AD':'#5577d6','Doha':'#d2734a','Al Quoz':'#8a6fd1'};
 const CONDS=['Excellent','Good','Fair','Poor','Damaged'];
@@ -358,7 +358,7 @@ const DITYPES=["setup","outfit","fabric","background","prop","accessory","backdr
 const PROP_TYPES=["backdrop","background","prop","accessory","other"];
 const PROP_GROUP={backdrop:"Backdrops",background:"Backgrounds",prop:"Props",accessory:"Accessories",other:"Other"};
 // shoot types an item can be used for (usable_for)
-const SHOOT_TYPES=["Maternity","Newborn","Sitter","Infant","Cake Smash","Children"];
+const SHOOT_TYPES=["Maternity","Newborn","Sitter","Infant","Cake Smash","Children","Gender Reveal"];
 const dTC=t=>t==="fabric"||t==="background"||t==="backdrop"?"#a47cd1":t==="wrap"?"#5a93d6":(t==="prop"||t==="accessory"||t==="basket")?"#48b08c":t==="outfit"?"#e06b94":t==="setup"?"#cf8a1e":"#9a9ca8";
 function DohaEdit({item,onSave,onClose,allItems=[],links=[],onLink,onUnlink}){
  const [f,setF]=useState({...item});
@@ -560,21 +560,21 @@ function ItemsProps(){
 }
 
 // ---- New unified inventory (inv_item): Add wizard + browse ----
-const CAT_CODE={"Cake Smash":"CS",Newborn:"NB",Infant:"IN",Maternity:"MA",Sitter:"SI",Children:"CH",Christmas:"XM"};
+const CAT_CODE={"Cake Smash":"CS",Newborn:"NB",Infant:"IN",Maternity:"MA",Sitter:"SI",Children:"CH","Gender Reveal":"GR",Christmas:"XM"};
 const KIND_CODE={outfit:"OF",fabric:"FB",prop:"PR",backdrop:"BD",wrap:"WR",basket:"BS",accessory:"AC",other:"IT",setup:"SET"};
 const ITEM_KINDS=["outfit","fabric","prop","backdrop","wrap","basket","accessory","other"];
-const SESSION_CATS=["Newborn","Infant","Sitter","Cake Smash","Children","Maternity","Christmas"];
+const SESSION_CATS=["Newborn","Infant","Sitter","Cake Smash","Children","Maternity","Gender Reveal","Christmas"];
 const GENDERS_T=["Girl","Boy","Twins","Neutral"];
 // per-category Style (subcategory) options + which categories skip gender
 const STYLE_OPTS={Maternity:["Classic Black","Classic White","Fabrics","Elegant","Exclusive Setups","Private Collection","Outdoor","New"]};
-const NO_GENDER=["Maternity"];
+const NO_GENDER=["Maternity","Gender Reveal"];
 // which item kinds are offered per session type
-const KIND_BY_CAT={Maternity:["outfit","backdrop","accessory"],"Cake Smash":["outfit","prop","backdrop","accessory"],Newborn:["outfit","wrap","basket","prop","backdrop","accessory"],Infant:["outfit","basket","prop","backdrop","accessory"],Sitter:["outfit","prop","backdrop","accessory"],Children:["outfit","prop","backdrop","accessory"],Christmas:["outfit","wrap","prop","backdrop","accessory"]};
+const KIND_BY_CAT={Maternity:["outfit","backdrop","accessory"],"Cake Smash":["outfit","prop","backdrop","accessory"],Newborn:["outfit","wrap","basket","prop","backdrop","accessory"],Infant:["outfit","basket","prop","backdrop","accessory"],Sitter:["outfit","prop","backdrop","accessory"],Children:["outfit","prop","backdrop","accessory"],"Gender Reveal":["prop"],Christmas:["outfit","wrap","prop","backdrop","accessory"]};
 const GENERAL_KINDS=["prop","accessory","backdrop","other"];
 const SIZE_OPTS=["S","M","L","XL","One size"];
 // size options per session type (baby sessions use age, maternity uses dress sizes)
 const SIZE_BY_CAT={Maternity:["S","M","L","XL","One size"],"Cake Smash":["1 year","12-18m","One size"],Infant:["1-3m","3-6m","One size"],Sitter:["6-9m","9-12m","One size"],Children:["3-4y","5-6y","7-8y","9-11y","One size"]};
-const PROP_SUBTYPES=["flowers","toys","balloons","number","cake stand","banner","other"];
+const PROP_SUBTYPES=["flowers","toys","balloons","number","cake stand","banner","confetti","paint","box","smoke","other"];
 const SUBTYPE_OPTS={prop:PROP_SUBTYPES,basket:["Bed","Sofa","Basket"],accessory:["bonnet","headband","hat","crown","bow tie","veil"]};
 const SUBTYPE_PH={prop:"e.g. flowers, toys, number…",basket:"e.g. Bed, Sofa, Basket",accessory:"e.g. bonnet, headband, hat"};
 function SizePicker({value,onChange,opts=SIZE_OPTS}){
