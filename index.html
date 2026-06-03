@@ -568,6 +568,12 @@ const GENDERS_T=["Girl","Boy","Twins","Neutral"];
 // per-category Style (subcategory) options + which categories skip gender
 const STYLE_OPTS={Maternity:["Classic Black","Classic White","Fabrics","Elegant","Exclusive Setups","Private Collection","Outdoor","New"]};
 const NO_GENDER=["Maternity"];
+const SIZE_OPTS=["S","M","L","XL","One size"];
+function SizePicker({value,onChange}){
+ const cur=(value||"").split(",").map(s=>s.trim()).filter(Boolean);
+ const toggle=s=>{const next=cur.includes(s)?cur.filter(x=>x!==s):[...cur,s];onChange(next.join(", "));};
+ return <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{SIZE_OPTS.map(s=>{const on=cur.includes(s);return <button type="button" key={s} onClick={()=>toggle(s)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${on?"var(--ink)":"var(--line2)"}`,background:on?"var(--ink)":"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{s}</button>})}</div>;
+}
 const codePrefix=(cat,seg)=>(CAT_CODE[cat]||((cat||"XX").replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase()||"XX"))+"-"+seg;
 async function nextCode(cat,seg){const p=codePrefix(cat,seg)+"-";if(!sb)return p+"001";const {data}=await sb.from("inv_item").select("code").like("code",p+"%");let mx=0;(data||[]).forEach(r=>{const m=/(\d+)\s*$/.exec(r.code||"");if(m)mx=Math.max(mx,parseInt(m[1],10))});return p+String(mx+1).padStart(3,"0");}
 function Barcode({value,height=46}){const ref=useRef(null);useEffect(()=>{if(ref.current&&window.JsBarcode&&value){try{window.JsBarcode(ref.current,value,{format:"CODE128",height,fontSize:13,margin:6,displayValue:true});}catch(e){}}},[value,height]);return <svg ref={ref} style={{maxWidth:"100%"}}/>;}
@@ -617,7 +623,7 @@ function AddInvItem({onClose,onSaved}){
          {STYLE_OPTS[f.session_type]
            ? <div><span style={lab}>{f.type==="item"?"5":"4"} · STYLE</span><select value={f.subcategory} onChange={e=>set("subcategory",e.target.value)}><option value="">—</option>{STYLE_OPTS[f.session_type].map(s=><option key={s}>{s}</option>)}</select></div>
            : <div><span style={lab}>{f.type==="item"?"5":"4"} · GENDER</span><select value={f.gender} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS_T.map(g=><option key={g}>{g}</option>)}</select></div>}
-         <div><span style={lab}>{f.type==="item"?"6":"5"} · SIZE</span><input value={f.size} onChange={e=>set("size",e.target.value)} placeholder="One size / M–L / 9–12 m"/></div>
+         <div style={{gridColumn:"1/-1"}}><span style={lab}>{f.type==="item"?"6":"5"} · SIZE</span>{f.kind==="fabric"?<span style={{fontSize:12,color:"var(--muted)"}}>All sizes (fabric)</span>:<SizePicker value={f.size} onChange={v=>set("size",v)}/>}</div>
          <div><span style={lab}>CONDITION</span><select value={f.condition} onChange={e=>set("condition",e.target.value)}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>
          <div style={{gridColumn:"1/-1"}}><span style={lab}>NAME / DESCRIPTION *</span><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Brown Corduroy Overalls"/></div>
          <div><span style={lab}>COLOR</span><input value={f.color} onChange={e=>set("color",e.target.value)}/></div>
@@ -673,7 +679,7 @@ function InvEdit({item,onClose,onSaved}){
          {isMat
            ? <div><span style={lab}>STYLE</span><select value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)}><option value="">—</option>{STYLE_OPTS[f.session_type].map(s=><option key={s}>{s}</option>)}</select></div>
            : <div><span style={lab}>GENDER</span><select value={f.gender||""} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS_T.map(g=><option key={g}>{g}</option>)}</select></div>}
-         <div><span style={lab}>SIZE</span><input value={f.size||""} onChange={e=>set("size",e.target.value)} placeholder="One size / M–L"/></div>
+         <div style={{gridColumn:"1/-1"}}><span style={lab}>SIZE</span>{f.kind==="fabric"?<span style={{fontSize:12,color:"var(--muted)"}}>All sizes (fabric)</span>:<SizePicker value={f.size||""} onChange={v=>set("size",v)}/>}</div>
          <div><span style={lab}>CONDITION</span><select value={f.condition||"Good"} onChange={e=>set("condition",e.target.value)}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>
          <div style={{gridColumn:"1/-1"}}><span style={lab}>PHOTO</span><PhotoField value={f.photo_url||""} onChange={v=>set("photo_url",v)} prefix="inv"/></div>
          <div style={{gridColumn:"1/-1"}}><span style={lab}>NOTES</span><textarea rows={2} value={f.notes||""} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical"}}/></div>
