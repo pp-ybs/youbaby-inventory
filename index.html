@@ -719,13 +719,13 @@ function InvEdit({item,onClose,onSaved}){
 }
 
 function NewInventory(){
- const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("new");
+ const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("new"),[catF,setCatF]=useState(""),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState("");
  const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sb.from("inv_item").select("*,inv_item_location(location,quantity,status)").order("created_at",{ascending:false});if(error)setErr(error.message);setRows(data||[]);};
  useEffect(()=>{load()},[]);
  if(rows===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
  const locOf=r=>(r.inv_item_location||[]).map(x=>x.location);
  const selOf=r=>(r.inv_item_location||[]).reduce((s,x)=>s+(x.times_selected||0),0);
- const filtered=rows.filter(r=>(!typeF||r.type===typeF)&&(!loc||locOf(r).includes(loc))&&(!q||((r.name||"")+" "+(r.code||"")).toLowerCase().includes(q.trim().toLowerCase())))
+ const filtered=rows.filter(r=>(!groupF||(r.item_group||"shoot")===groupF)&&(!catF||r.session_type===catF)&&(!kindF||r.kind===kindF)&&(!typeF||r.type===typeF)&&(!loc||locOf(r).includes(loc))&&(!q||((r.name||"")+" "+(r.code||"")+" "+(r.subcategory||"")).toLowerCase().includes(q.trim().toLowerCase())))
    .sort((a,b)=>sort==="popular"?(loc?((b.inv_item_location||[]).find(x=>x.location===loc)?.times_selected||0)-((a.inv_item_location||[]).find(x=>x.location===loc)?.times_selected||0):selOf(b)-selOf(a)):(new Date(b.created_at)-new Date(a.created_at)));
  const card=r=><div key={r.id} onClick={()=>setEdit(r)} className="fade" style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",overflow:"hidden",boxShadow:"var(--shadow)",cursor:"pointer",display:"flex",flexDirection:"column"}}>
    <div style={{position:"relative",width:"100%",aspectRatio:"4/3",background:"var(--panel2)"}}>
@@ -746,13 +746,24 @@ function NewInventory(){
      <button onClick={()=>setAdd(true)} style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,background:"var(--ink)",color:"#fff",padding:"9px 15px",borderRadius:10,fontWeight:600,fontSize:13}}><Icon d={I.plus} s={15} c="#fff"/>Add item</button></div>
    <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:18}}>One card per real thing · multi-location · auto barcode. (New structure — being filled in.)</p>
    {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8,marginBottom:14}}>{err}</div>}
+   {(()=>{const groups=[...new Set(rows.map(r=>r.item_group||"shoot"))];const GL={shoot:"Shoot session",supplies:"General",electronics:"Electronics"};return groups.length>1?<div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+     <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>GROUP</span>
+     <button onClick={()=>setGroupF("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!groupF?"var(--ink)":"var(--line2)"}`,background:!groupF?"var(--ink)":"var(--panel)",color:!groupF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
+     {groups.map(g=><button key={g} onClick={()=>setGroupF(groupF===g?"":g)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${groupF===g?"var(--ink)":"var(--line2)"}`,background:groupF===g?"var(--ink)":"var(--panel)",color:groupF===g?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{GL[g]||g}</button>)}
+   </div>:null})()}
    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
      <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>LOCATION</span>
      <button onClick={()=>setLoc("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!loc?"var(--ink)":"var(--line2)"}`,background:!loc?"var(--ink)":"var(--panel)",color:!loc?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
      {BR.map(b=>{const n=rows.filter(r=>locOf(r).includes(b)).length;return <button key={b} onClick={()=>setLoc(loc===b?"":b)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${loc===b?(BR_COLOR[b]||"var(--ink)"):"var(--line2)"}`,background:loc===b?(BR_COLOR[b]||"var(--ink)"):"var(--panel)",color:loc===b?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.5}}>{b} ({n})</button>})}
    </div>
+   <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+     <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>SESSION</span>
+     <button onClick={()=>setCatF("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!catF?"var(--ink)":"var(--line2)"}`,background:!catF?"var(--ink)":"var(--panel)",color:!catF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
+     {SESSION_CATS.filter(c=>rows.some(r=>r.session_type===c)).map(c=>{const n=rows.filter(r=>r.session_type===c).length;return <button key={c} onClick={()=>setCatF(catF===c?"":c)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${catF===c?(CAT_COLOR[c]||"var(--ink)"):"var(--line2)"}`,background:catF===c?(CAT_COLOR[c]||"var(--ink)"):"var(--panel)",color:catF===c?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{c} ({n})</button>})}
+   </div>
    <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:22}}>
-     <select value={typeF} onChange={e=>setTypeF(e.target.value)} style={{width:"auto"}}><option value="">All (themes + items)</option><option value="theme">Themes</option><option value="item">Items</option></select>
+     <select value={typeF} onChange={e=>setTypeF(e.target.value)} style={{width:"auto"}}><option value="">All (setups + items)</option><option value="theme">Setups</option><option value="item">Items</option></select>
+     <select value={kindF} onChange={e=>setKindF(e.target.value)} style={{width:"auto"}}><option value="">All kinds</option>{[...new Set(rows.map(r=>r.kind).filter(Boolean))].sort().map(k=><option key={k}>{k}</option>)}</select>
      <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}><option value="new">Newest</option><option value="popular">Most selected{loc?" (in "+loc+")":""}</option></select>
      <div style={{position:"relative",flex:1,minWidth:180}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name / code…" style={{paddingLeft:34}}/></div>
    </div>
