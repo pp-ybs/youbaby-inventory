@@ -1365,6 +1365,21 @@ function InvEdit({item,onClose,onSaved}){
  const [links,setLinks]=useState([]);      // component links where this item is the parent
  const [all,setAll]=useState([]);
  const [busy,setBusy]=useState(false),[err,setErr]=useState(""),[del,setDel]=useState(false),[xfer,setXfer]=useState({from:"",to:"",qty:1});
+ const [genBusy,setGenBusy]=useState(false),[genMsg,setGenMsg]=useState("");
+ const generatePhoto=async()=>{
+   if(genBusy||!item.id) return;
+   const isAsset=item.item_group!=="shoot";
+   if(f.photo_url){ if(!window.confirm("Replace the current photo with an AI-generated one?")) return; }
+   setGenBusy(true); setGenMsg("");
+   try{
+     const res=await fetch(SB_URL+"/functions/v1/generate-photo",{method:"POST",headers:{"content-type":"application/json","apikey":SB_KEY,"authorization":"Bearer "+SB_KEY},body:JSON.stringify({item_id:item.id,overwrite:!!f.photo_url})});
+     const j=await res.json().catch(()=>({ok:false,reason:"bad_response"}));
+     if(!j.ok){ setGenMsg(j.reason==="no_api_key"?"Auto-photo needs OPENAI_API_KEY set in Supabase secrets.":("Couldn't generate: "+(j.message||j.reason||"unknown"))); return; }
+     setF(p=>({...p,photo_url:j.photo_url}));
+     setGenMsg("");
+   }catch(e){ setGenMsg(String(e?.message||e)); }
+   setGenBusy(false);
+ };
  const remove=async()=>{setBusy(true);setErr("");if(sb){const {error}=await sb.from("inv_item").delete().eq("id",item.id);if(error){setErr("Couldn't delete: "+error.message);setBusy(false);return;}}onSaved&&onSaved();};
  const archive=async()=>{const na=!f.archived;setBusy(true);setErr("");if(sb){const {error}=await sb.from("inv_item").update({archived:na,archived_at:na?new Date().toISOString():null}).eq("id",item.id);if(error){setErr("Couldn't "+(na?"archive":"restore")+": "+error.message);setBusy(false);return;}}onSaved&&onSaved();};
  const doXfer=()=>{const {from,to}=xfer,q=Number(xfer.qty)||0;if(!from||!to||from===to||q<=0)return;setLocs(p=>{const fq=Math.max(0,(Number((p[from]||{}).qty)||0)-q);const nf={...(p[from]||{}),qty:fq,on:fq>0?(p[from]||{}).on:false};const ex=p[to]||{};const nt={on:true,qty:(Number(ex.qty)||0)+q,times:ex.times||0,cond:ex.cond||(p[from]||{}).cond||"Good",date:ex.date||today()};return {...p,[from]:nf,[to]:nt};});setXfer({from:"",to:"",qty:1});};
@@ -1411,7 +1426,20 @@ function InvEdit({item,onClose,onSaved}){
      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 24px",borderBottom:"1px solid var(--line)",position:"sticky",top:0,background:"var(--panel)",zIndex:1}}>
        <div><span style={{fontWeight:700,fontSize:16}}>Edit · {f.code}</span>{f.archived&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,color:"#8a6d1e",background:"#f5eccf",borderRadius:8,padding:"2px 8px"}}>ARCHIVED</span>}<div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{isAsset?(f.subcategory||"Asset")+(f.op_status?" · "+f.op_status:""):(f.type==="theme"?"Theme":f.kind)+" · "+f.session_type}</div></div>
        <button onClick={onClose} style={{padding:4}}><Icon d={I.x} s={19} c="var(--muted)"/></button></div>
-     {f.photo_url&&<div style={{padding:"16px 24px 0"}}><div style={{position:"relative"}}><img src={f.photo_url} style={{width:"100%",maxHeight:360,objectFit:"contain",borderRadius:8,border:"1px solid var(--line)",background:"var(--panel2)"}} onError={e=>e.target.style.display="none"}/><button type="button" onClick={()=>set("photo_url","")} title="Remove photo" style={{position:"absolute",top:8,right:8,width:30,height:30,borderRadius:"50%",background:"#fff",border:"1px solid var(--line2)",boxShadow:"var(--shadow)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon d={I.x} s={16} c="var(--danger)"/></button></div></div>}
+     <div style={{padding:"16px 24px 0"}}>
+       {f.photo_url
+         ? <div style={{position:"relative"}}>
+             <img src={f.photo_url} style={{width:"100%",maxHeight:360,objectFit:"contain",borderRadius:8,border:"1px solid var(--line)",background:"var(--panel2)"}} onError={e=>e.target.style.display="none"}/>
+             <button type="button" onClick={()=>set("photo_url","")} title="Remove photo" style={{position:"absolute",top:8,right:8,width:30,height:30,borderRadius:"50%",background:"#fff",border:"1px solid var(--line2)",boxShadow:"var(--shadow)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon d={I.x} s={16} c="var(--danger)"/></button>
+             <button type="button" onClick={generatePhoto} disabled={genBusy} title="Replace with an AI-generated photo" style={{position:"absolute",bottom:8,right:8,padding:"6px 11px",borderRadius:8,border:"none",background:genBusy?"rgba(255,255,255,.85)":"linear-gradient(135deg,#3e7bfa,#7c4dff)",color:genBusy?"var(--muted)":"#fff",fontSize:11.5,fontWeight:700,cursor:genBusy?"default":"pointer",boxShadow:"0 2px 8px rgba(62,123,250,.35)"}}>{genBusy?"Generating…":"✨ Regenerate"}</button>
+           </div>
+         : <div style={{width:"100%",borderRadius:8,border:"1.5px dashed var(--line2)",background:"linear-gradient(135deg,var(--accent-soft),#f3edff)",padding:"22px 16px",display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
+             <Icon d={I.image} s={34} c="var(--accent)" sw={1.4}/>
+             <div style={{fontSize:13,color:"var(--soft)",textAlign:"center",lineHeight:1.45}}>No cover photo yet. Use AI to generate one from the name &amp; type, or upload from below.</div>
+             <button type="button" onClick={generatePhoto} disabled={genBusy} style={{padding:"9px 16px",borderRadius:8,border:"none",background:genBusy?"var(--panel2)":"linear-gradient(135deg,#3e7bfa,#7c4dff)",color:genBusy?"var(--muted)":"#fff",fontSize:12.5,fontWeight:700,cursor:genBusy?"default":"pointer",boxShadow:genBusy?"none":"0 2px 10px rgba(62,123,250,.35)"}}>{genBusy?"Generating…":"✨ Generate with AI"}</button>
+           </div>}
+       {genMsg&&<div style={{marginTop:8,fontSize:12,padding:"8px 11px",borderRadius:8,background:"#fbecea",color:"var(--danger)",border:"1px solid #f3b8b3"}}>{genMsg}</div>}
+     </div>
      <div style={{padding:"20px 22px 24px",display:"flex",flexDirection:"column",gap:15}}>
        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
          <div style={{gridColumn:"1/-1"}}><span style={lab}>Name *</span><input value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
