@@ -70,6 +70,28 @@ One card = one real thing. The **same dress in 3 studios = 1 card**, present in 
 3. **Themes are multi-location too** (same "available in these studios" logic as items).
 4. **No usage log for now** — just the `times_selected` counter (drives dynamic Popular).
 
+## 8b. Popularity & filtering
+- **Per-location selection count** — `inv_item_location.times_selected` (added). Each studio counts its own.
+- **Total** = sum across that item's locations.
+- Later: the **booking system** feeds these counters per branch (so "Popular" reflects real demand).
+- Browse can **sort/filter by Popular** (overall or within a chosen studio) + **New** (recent).
+
+## 8c. Per-category structure (DRAFT — to confirm one by one)
+Pattern: **Maternity** is mostly standalone items; **Cake Smash / Newborn / Infant / Sitter** are a
+**Setup (theme) composed of items** via `inv_theme_item` (setup → its outfit/wrap/props/backdrop).
+
+| Category | Theme/Setup? | Item kinds | Setup links to |
+|---|---|---|---|
+| **Maternity** | rare (mostly standalone) | Outfit (dress), **Fabric**, Backdrop, Accessory | (optional) dress + backdrop |
+| **Cake Smash** | yes | Setup, Outfit, **Prop** (flowers/toys/balloons/numbers), Backdrop, Accessory | setup → outfit + props + backdrop |
+| **Newborn** | yes | Setup, **Wrap**, Prop, Outfit, Accessory (hats/headbands), Backdrop | setup → wrap + outfit + props + accessories |
+| **Infant** | yes | Setup, Outfit, Prop, Backdrop, Accessory | setup → outfit + props + backdrop |
+| **Sitter** | yes | Setup, Outfit, Prop, Backdrop, Accessory | setup → outfit + props + backdrop |
+| **Christmas** (seasonal) | yes | Setup, Outfit, Wrap, Prop, Accessory, Backdrop | setup → outfit/wrap/props |
+
+Ways to filter/check: Location · Category · Type (theme/item) · Kind · Gender · Size · On-website ·
+Popular (sort) · New · Status (available/booked…).
+
 ## 9. Build order
 1. ✅ **Schema created** — `inv_item`, `inv_item_location`, `inv_theme_item` (RLS: authenticated). Live `themes`/`doha_inventory` untouched.
 2. ⏭ **Add wizard** in the exact hierarchy above (Type → Kind → Location(s) → Category → Gender → Size → details) — this is what Leah uses to add.

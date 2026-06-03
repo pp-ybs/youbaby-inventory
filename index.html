@@ -561,8 +561,8 @@ function ItemsProps(){
 
 // ---- New unified inventory (inv_item): Add wizard + browse ----
 const CAT_CODE={"Cake Smash":"CS",Newborn:"NB",Infant:"IN",Maternity:"MA",Sitter:"SI",Christmas:"XM"};
-const KIND_CODE={outfit:"OF",prop:"PR",backdrop:"BD",wrap:"WR",accessory:"AC",other:"IT",setup:"SET"};
-const ITEM_KINDS=["outfit","prop","backdrop","wrap","accessory","other"];
+const KIND_CODE={outfit:"OF",fabric:"FB",prop:"PR",backdrop:"BD",wrap:"WR",accessory:"AC",other:"IT",setup:"SET"};
+const ITEM_KINDS=["outfit","fabric","prop","backdrop","wrap","accessory","other"];
 const SESSION_CATS=["Newborn","Infant","Sitter","Cake Smash","Maternity","Christmas"];
 const GENDERS_T=["Girl","Boy","Twins","Neutral"];
 const codePrefix=(cat,seg)=>(CAT_CODE[cat]||((cat||"XX").replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase()||"XX"))+"-"+seg;
