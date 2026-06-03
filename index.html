@@ -1024,7 +1024,7 @@ function AddInvItem({onClose,onSaved,init={}}){
        <div style={{fontSize:12.5,color:"var(--muted)",textAlign:"center"}}>{saved.name} · {saved.session_type}{saved.kind?" · "+saved.kind:" · theme"} · {(saved._locs||[]).map(l=>l.location).join(", ")}</div>
        <div style={{display:"flex",gap:10}}><button onClick={reset} style={{padding:"11px 22px",background:"var(--ink)",color:"#fff",borderRadius:8,fontWeight:600}}>Add another</button><button onClick={onClose} style={{padding:"11px 20px",border:"1px solid var(--line2)",borderRadius:8,fontWeight:600}}>Done</button></div>
      </div>:<div style={{padding:"20px 22px 24px",display:"flex",flexDirection:"column",gap:15}}>
-       <div><span style={lab}>1 · Group</span><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{pill(f.grp==="shoot",()=>setF(p=>({...p,grp:"shoot",sessionRel:true})),"Session item","#3e7bfa")}{pill(f.grp==="electronics",()=>setF(p=>({...p,grp:"electronics",sessionRel:false,type:"item",kind:"other"})),"Equipment","#7c4dff")}{pill(f.grp==="facility",()=>setF(p=>({...p,grp:"facility",sessionRel:false,type:"item",kind:"other"})),"Facility","#ff8f5e")}</div></div>
+       <div><span style={lab}>1 · Group</span><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{pill(f.grp==="shoot",()=>setF(p=>({...p,grp:"shoot",sessionRel:true})),"Session item","#3e7bfa")}{pill(f.grp==="electronics",()=>setF(p=>({...p,grp:"electronics",sessionRel:false,type:"item",kind:"other"})),"Equipment","#7c4dff")}{pill(f.grp==="facility",()=>setF(p=>({...p,grp:"facility",sessionRel:false,type:"item",kind:"other"})),"Consumables","#ff8f5e")}</div></div>
        <div><span style={lab}>2 · Location(s) <span style={{color:"var(--muted)",fontWeight:400}}>(tap the studios it's in)</span></span>
          <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <button type="button" key={b} onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1,times:(p[b]&&p[b].times)||0}}))} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 13px",borderRadius:8,border:`1px solid ${on?BR_COLOR[b]:"var(--line2)"}`,background:on?BR_COLOR[b]+"1c":"var(--panel)",color:on?BR_COLOR[b]:"var(--soft)",fontSize:12.5,fontWeight:on?700:600,transition:"all .12s"}}><Dot c={BR_COLOR[b]} s={7}/>{b}</button>})}</div>
          {chosen.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8,marginTop:11,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"11px 13px"}}>{chosen.map(b=><div key={b} style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
@@ -1255,7 +1255,7 @@ function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
          </div>
        </div>}
        {tab==="Specifications"&&<div>
-         <Row k="Group" v={r.item_group==="shoot"?"Session inventory":r.item_group==="facility"?"Facility":"Equipment"}/>
+         <Row k="Group" v={r.item_group==="shoot"?"Session inventory":r.item_group==="facility"?"Consumables":"Equipment"}/>
          <Row k="Category / type" v={r.subcategory||r.session_type||ucf(r.kind||"")}/>
          <Row k="Status" v={r.op_status}/>
          <Row k="Serial no" v={r.serial_no}/>
@@ -1292,7 +1292,7 @@ function NewInventory({initCat=""}){
  const togglePick=id=>setPicked(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
  const isElecView=groupF==="electronics"||groupF==="facility";
  const vm=vmode||(isElecView?"list":"grid");
- const GL={shoot:"Session inventory",electronics:"Equipment",facility:"Facility"};
+ const GL={shoot:"Session inventory",electronics:"Equipment",facility:"Consumables"};
  const catSel=isElecView?ecatF:catF;
  const needGenderCat=c=>!!c&&!NO_GENDER.includes(c);
  const BUCKETS=[["theme","Themes & setups",I.layers],["outfit","Outfits",I.shirt],["items","Items",I.box]];
@@ -1421,7 +1421,7 @@ function NewInventory({initCat=""}){
      if(!groupF){const gicon={shoot:I.layers,electronics:I.camera,facility:I.sofa};return tgrid(["shoot","electronics","facility"].map(g=>{const n=rows.filter(r=>!r.archived&&(r.item_group||"shoot")===g).length;return n?tile(g,()=>pickGroup(g),gicon[g],"#7c8291",GL[g],n+" items"):null;}));}
      // Level 1 — pick a studio
      if(drillStudio){const dataLocs=[...new Set(rows.filter(r=>m(r,"loc")).flatMap(locOf).filter(Boolean))];
-       const studios=[...BR.filter(b=>dataLocs.includes(b)),...dataLocs.filter(l=>!BR.includes(l)).sort()];
+       const studios=[...BR,...dataLocs.filter(l=>!BR.includes(l)).sort()];
        return tgrid([...studios.map(b=>{const n=rows.filter(r=>m(r,"loc")&&locOf(r).includes(b)).length;return tile(b,()=>setLoc(b),I.pin,"#7c8291",b,n+" item"+(n!==1?"s":""));}),tile("__all",()=>setBrowseAll(true),I.grid,"#7c8291","All studios",rows.filter(r=>m(r,"loc")).length+" items")]);}
      // Level 2 — pick a category
      if(drillCat){const cl=isElecView?ELEC_CATS:SESSION_CATS;const cof=isElecView?elecCat:(r=>r.session_type);const setC=isElecView?setEcatF:setCatF;
