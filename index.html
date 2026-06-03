@@ -1152,116 +1152,150 @@ function AddInvItem({onClose,onSaved,init={}}){
    setBusy(false);
  };
  const reset=()=>{setSaved(null);setLinkIds([]);setAiPreview(null);setAiMsg("");setMoreOpen(false);setF(p=>({...p,name:"",size:"",color:"",brand:"",photo_url:"",extra_photos:[],purchase_url:"",value:"",notes:""}));};
- const lab={display:"block",fontSize:11,fontWeight:700,color:"var(--muted)",letterSpacing:".02em",marginBottom:6,textTransform:"uppercase"};
- const sec={background:"var(--panel)",border:"1px solid var(--line)",borderRadius:10,padding:"14px 16px"};
- const secTitle={display:"flex",alignItems:"center",gap:8,fontSize:12,fontWeight:700,color:"var(--ink)",marginBottom:12,paddingBottom:9,borderBottom:"1px solid var(--line)"};
- const stepDot=n=><span style={{width:20,height:20,borderRadius:"50%",background:"var(--accent)",color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700}}>{n}</span>;
- const pill=(on,onClick,txt,col)=><button type="button" onClick={onClick} style={{padding:"9px 14px",borderRadius:9,border:`1.5px solid ${on?(col||"var(--ink)"):"var(--line2)"}`,background:on?(col||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:13,fontWeight:600,minHeight:38}}>{txt}</button>;
+ // ── shared style tokens ──────────────────────────────────────────────────
+ const lab={display:"block",fontSize:10.5,fontWeight:700,color:"var(--muted)",letterSpacing:".06em",marginBottom:6,textTransform:"uppercase"};
+ const labHint={color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0,marginLeft:4};
+ const inputStyle={minHeight:44,fontSize:14,padding:"10px 12px"};
+ const pill=(on,onClick,txt,col)=><button type="button" onClick={onClick} style={{padding:"9px 14px",borderRadius:9,border:`1.5px solid ${on?(col||"var(--ink)"):"var(--line2)"}`,background:on?(col||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:13,fontWeight:600,minHeight:38,transition:"all .12s"}}>{txt}</button>;
+ // Section card with a left-edge accent stripe instead of step-number dots — calmer, more scannable.
+ const Section=({title,hint,accent,right,children})=><div style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:11,padding:0,overflow:"hidden",position:"relative"}}>
+   <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:accent||"var(--accent)"}}/>
+   <div style={{display:"flex",alignItems:"center",gap:10,padding:"13px 16px 0 18px"}}>
+     <span style={{fontSize:11,fontWeight:700,color:accent||"var(--ink)",letterSpacing:".08em",textTransform:"uppercase"}}>{title}</span>
+     {hint&&<span style={{fontSize:11.5,color:"var(--muted)",fontWeight:500,flex:1}}>{hint}</span>}
+     {right}
+   </div>
+   <div style={{padding:"12px 16px 16px 18px"}}>{children}</div>
+ </div>;
  const isMobile=typeof window!=="undefined" && window.innerWidth<640;
+ // Persistent breadcrumb under the title — replaces the old in-section "Path" box.
+ const pathSegs=(()=>{ const segs=[]; segs.push(f.grp==="shoot"?"Session item":f.grp==="electronics"?"Equipment":"Consumables"); if(chosen.length) segs.push(chosen.join(", ")); if(f.sessionRel&&f.session_type) segs.push(f.session_type); if(!isAsset){ const t = f.type==="theme" ? (f.session_type==="Gender Reveal"?"Reveal":"Setup") : (f.kind?ucf(f.kind):"Item"); segs.push(t); } if(showGender&&f.gender) segs.push(f.gender); return segs; })();
+ const pathBreadcrumb=<div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",fontSize:11.5}}>{pathSegs.map((s,i)=><React.Fragment key={i}>{i>0&&<span style={{color:"var(--muted)"}}>›</span>}<span style={{fontWeight:600,color:"var(--ink)"}}>{s}</span></React.Fragment>)}{!chosen.length&&<span style={{color:"var(--muted)",fontStyle:"italic"}}>· pick a studio</span>}</div>;
+ const grpAccent=f.grp==="shoot"?"#3e7bfa":f.grp==="electronics"?"#7c4dff":"#ff8f5e";
+ // What's missing for save — used in the sticky bar
+ const missing=!f.name.trim()?"Name is required" : !chosen.length?"Pick at least one studio" : (!f.session_type&&f.sessionRel?"Pick a session type":"");
  return <div style={{position:"fixed",inset:0,background:"#1a1a2455",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:isMobile?"stretch":"center",justifyContent:"center",padding:isMobile?0:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-   <div className="scroll fade modalcard" style={{width:isMobile?"100%":640,maxWidth:"100%",maxHeight:isMobile?"100vh":"94vh",background:"var(--panel2)",borderRadius:isMobile?0:12,boxShadow:"0 30px 80px rgba(20,20,30,.25)",overflow:"auto",display:"flex",flexDirection:"column"}}>
-     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",borderBottom:"1px solid var(--line)",position:"sticky",top:0,background:"var(--panel)",zIndex:2}}>
-       <div><span style={{fontWeight:700,fontSize:16}}>Add to inventory</span><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>Code preview: <b>{codePrefix(catForCode,seg)}-###</b></div></div>
-       <button onClick={onClose} style={{padding:6,minWidth:36,minHeight:36}}><Icon d={I.x} s={20} c="var(--muted)"/></button></div>
+   <div className="scroll fade modalcard" style={{width:isMobile?"100%":660,maxWidth:"100%",maxHeight:isMobile?"100vh":"94vh",background:"var(--panel2)",borderRadius:isMobile?0:14,boxShadow:"0 30px 80px rgba(20,20,30,.25)",overflow:"auto",display:"flex",flexDirection:"column"}}>
+     {/* Sticky header — title + code preview + persistent breadcrumb */}
+     <div style={{position:"sticky",top:0,background:"var(--panel)",borderBottom:"1px solid var(--line)",zIndex:4}}>
+       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",padding:"14px 18px 8px"}}>
+         <div style={{minWidth:0,flex:1}}>
+           <div style={{fontWeight:700,fontSize:16,letterSpacing:"-.01em"}}>{init && (init.session_type||init.locs) ? `Add ${f.type==="theme"?"theme":(f.kind||"item")}` : "Add to inventory"}</div>
+           <div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>Code preview · <b style={{color:"var(--soft)"}}>{codePrefix(catForCode,seg)}-###</b></div>
+         </div>
+         <button onClick={onClose} style={{padding:8,minWidth:36,minHeight:36,borderRadius:8}}><Icon d={I.x} s={20} c="var(--muted)"/></button>
+       </div>
+       {!saved&&<div style={{padding:"4px 18px 12px",borderTop:"1px dashed var(--line)",background:"var(--panel2)",marginTop:0,paddingTop:9}}>{pathBreadcrumb}</div>}
+     </div>
+
      {saved?<div style={{padding:24,display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
        <div style={{fontSize:15,fontWeight:700,color:"var(--ok)"}}>✓ Added · {saved.code}</div>
        <div style={{background:"#fff",padding:"10px 14px",borderRadius:8,border:"1px solid var(--line)"}}><Barcode value={saved.code}/></div>
        <div style={{fontSize:12.5,color:"var(--muted)",textAlign:"center"}}>{saved.name} · {saved.session_type}{saved.kind?" · "+saved.kind:" · theme"} · {(saved._locs||[]).map(l=>l.location).join(", ")}</div>
        <div style={{display:"flex",gap:10}}><button onClick={reset} style={{padding:"12px 22px",background:"var(--ink)",color:"#fff",borderRadius:8,fontWeight:600,minHeight:46}}>Add another</button><button onClick={onClose} style={{padding:"12px 20px",border:"1px solid var(--line2)",borderRadius:8,fontWeight:600,minHeight:46}}>Done</button></div>
      </div>:<>
-       <div style={{padding:isMobile?"14px 14px 90px":"18px 18px 18px",display:"flex",flexDirection:"column",gap:12,flex:1}}>
-         {/* SECTION 1 — Where & what */}
-         <div style={sec}>
-           <div style={secTitle}>{stepDot(1)}<span>WHERE &amp; WHAT</span></div>
-           <div style={{marginBottom:14}}><span style={lab}>Group</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{pill(f.grp==="shoot",()=>setF(p=>({...p,grp:"shoot",sessionRel:true})),"Session item","#3e7bfa")}{pill(f.grp==="electronics",()=>setF(p=>({...p,grp:"electronics",sessionRel:false,type:"item",kind:"other"})),"Equipment","#7c4dff")}{pill(f.grp==="facility",()=>setF(p=>({...p,grp:"facility",sessionRel:false,type:"item",kind:"other"})),"Consumables","#ff8f5e")}</div></div>
-           <div style={{marginBottom:14}}><span style={lab}>Location(s) <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0}}>· tap the studios it's in</span></span>
-             <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <button type="button" key={b} onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1,times:(p[b]&&p[b].times)||0}}))} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:9,border:`1.5px solid ${on?BR_COLOR[b]:"var(--line2)"}`,background:on?BR_COLOR[b]+"1c":"var(--panel)",color:on?BR_COLOR[b]:"var(--soft)",fontSize:13,fontWeight:on?700:600,minHeight:38,transition:"all .12s"}}><Dot c={BR_COLOR[b]} s={8}/>{b}</button>})}</div>
-             {chosen.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8,marginTop:11,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"11px 13px"}}>{chosen.map(b=><div key={b} style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-               <span style={{display:"inline-flex",alignItems:"center",gap:6,minWidth:74,fontSize:12.5,fontWeight:700,color:"var(--ink)"}}><Dot c={BR_COLOR[b]} s={8}/>{b}</span>
-               <span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Qty <input type="number" min="1" value={locs[b].qty} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,qty:e.target.value}}))} style={{width:60,minHeight:36}}/></span>
-               {(f.type==="theme"||f.kind==="outfit")&&<span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Selected <input type="number" min="0" value={locs[b].times} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,times:e.target.value}}))} style={{width:62,minHeight:36}}/></span>}
-               {f.perLocDate&&<span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Added <input type="date" max={today()} value={locs[b].date||f.acquired_on} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,date:e.target.value}}))} style={{width:140,minHeight:36}}/></span>}
-             </div>)}</div>}</div>
-           {f.sessionRel&&<div style={{marginBottom:14}}><span style={lab}>Session type</span><TaxSelect value={f.session_type} onChange={v=>set("session_type",v)} options={SESSION_CATS} onAdd={v=>addTaxOption("session",null,v)} placeholder="New session type…" addLabel="+ Add session type…"/></div>}
-           {!isAsset&&<div style={{marginBottom:14}}><span style={lab}>Type</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{pill(f.type==="theme",()=>set("type","theme"),f.session_type==="Gender Reveal"?"Reveal":"Setup (theme)","var(--accent)")}{kinds.includes("outfit")&&pill(f.type==="item"&&f.kind==="outfit",()=>{set("type","item");set("kind","outfit");},"Outfit","#9a6fd1")}{pill(f.type==="item"&&f.kind!=="outfit",()=>{set("type","item");if(f.kind==="outfit")set("kind",(kinds.find(k=>k!=="outfit")||"prop"));},"Item","#48b08c")}</div></div>}
-           {!isAsset&&f.type==="item"&&<div style={{marginBottom:14}}><span style={lab}>Kind</span><div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>{kinds.map(k=>pill(f.kind===k,()=>set("kind",k),ucf(k),dTC(k)))}
-             {kAdd?<span style={{display:"inline-flex",gap:5,alignItems:"center"}}><input autoFocus value={kTxt} placeholder="new kind…" onChange={e=>setKTxt(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addKind();}else if(e.key==="Escape"){setKTxt("");setKAdd(false);}}} style={{width:110,minHeight:38}}/><button type="button" onMouseDown={e=>{e.preventDefault();addKind();}} style={{padding:"9px 13px",borderRadius:8,border:"none",background:"var(--ink)",color:"#fff",fontSize:12.5,fontWeight:600,minHeight:38}}>Add</button></span>
-               :<button type="button" onClick={()=>setKAdd(true)} style={{padding:"9px 13px",borderRadius:8,border:"1px dashed var(--line2)",background:"var(--panel)",color:"var(--soft)",fontSize:13,fontWeight:600,minHeight:38}}>+ Add</button>}</div></div>}
-           {showGender&&<div style={{marginBottom:14}}><span style={lab}>Gender</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{["","Boy","Girl","Neutral","Twins"].filter(g=>g===""||GENDERS_T.includes(g)).map(g=>pill(f.gender===g||(g===""&&!f.gender),()=>set("gender",g),g||"—",g==="Boy"?"#5a93d6":g==="Girl"?"#e06b94":g==="Twins"?"#9a8f80":g==="Neutral"?"#7a8447":"var(--ink)"))}</div></div>}
-           {/* Drilldown-style breadcrumb: shows the path you're building, matching the Catalog drilldown. */}
-           {(()=>{ const segs=[]; segs.push(f.grp==="shoot"?"Session item":f.grp==="electronics"?"Equipment":"Consumables"); if(chosen.length) segs.push(chosen.join(", ")); else segs.push(<span style={{color:"var(--muted)",fontStyle:"italic"}}>pick studio</span>); if(f.sessionRel){ if(f.session_type) segs.push(f.session_type); } if(!isAsset){ const t = f.type==="theme" ? (f.session_type==="Gender Reveal"?"Reveal":"Setup") : (f.kind?ucf(f.kind):"Item"); segs.push(t); } if(showGender&&f.gender) segs.push(f.gender); return <div style={{fontSize:11.5,color:"var(--soft)",background:"var(--panel2)",border:"1px dashed var(--line2)",borderRadius:8,padding:"7px 11px",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontWeight:700,color:"var(--muted)",fontSize:10,letterSpacing:".06em",textTransform:"uppercase",marginRight:4}}>Path</span>{segs.map((s,i)=><React.Fragment key={i}>{i>0&&<span style={{color:"var(--muted)"}}>›</span>}<span style={{fontWeight:600,color:"var(--ink)"}}>{s}</span></React.Fragment>)}</div>; })()}
-         </div>
+       <div style={{padding:isMobile?"12px 12px 96px":"14px 16px 16px",display:"flex",flexDirection:"column",gap:10,flex:1}}>
 
-         {/* SECTION 2 — Photos */}
-         {!isAsset&&<div style={sec}>
-           <div style={secTitle}>{stepDot(2)}<span style={{flex:1}}>PHOTOS</span>
-             <button type="button" onClick={aiSuggest} disabled={aiBusy} title={f.photo_url?"Use AI to name + tag this item":"Add a photo for the best AI suggestion (works without too)"} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"6px 11px",borderRadius:8,border:"1px solid var(--accent)",background:aiBusy?"var(--panel2)":"linear-gradient(135deg,#3e7bfa,#7c4dff)",color:aiBusy?"var(--muted)":"#fff",fontSize:11.5,fontWeight:700,cursor:aiBusy?"default":"pointer"}}>{aiBusy?"Thinking…":"✨ Suggest with AI"}</button>
+         {/* PLACEMENT — mirrors the Catalog drilldown (Group → Studio → Session → Type → Kind → Gender) */}
+         <Section title="Placement" hint="where this item lives in the catalogue" accent={grpAccent}>
+           <div style={{display:"flex",flexDirection:"column",gap:12}}>
+             <div><span style={lab}>Group</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{pill(f.grp==="shoot",()=>setF(p=>({...p,grp:"shoot",sessionRel:true})),"Session item","#3e7bfa")}{pill(f.grp==="electronics",()=>setF(p=>({...p,grp:"electronics",sessionRel:false,type:"item",kind:"other"})),"Equipment","#7c4dff")}{pill(f.grp==="facility",()=>setF(p=>({...p,grp:"facility",sessionRel:false,type:"item",kind:"other"})),"Consumables","#ff8f5e")}</div></div>
+             <div><span style={lab}>Location(s)<span style={labHint}>· tap the studios it's in</span></span>
+               <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <button type="button" key={b} onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1,times:(p[b]&&p[b].times)||0}}))} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:9,border:`1.5px solid ${on?BR_COLOR[b]:"var(--line2)"}`,background:on?BR_COLOR[b]+"1c":"var(--panel)",color:on?BR_COLOR[b]:"var(--soft)",fontSize:13,fontWeight:on?700:600,minHeight:38,transition:"all .12s"}}><Dot c={BR_COLOR[b]} s={8}/>{b}</button>})}</div>
+               {chosen.length>0&&<div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(220px,1fr))",gap:8,marginTop:10}}>{chosen.map(b=><div key={b} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"var(--panel2)",border:`1px solid ${BR_COLOR[b]}44`,borderRadius:8}}>
+                 <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:12.5,fontWeight:700,color:BR_COLOR[b],minWidth:78}}><Dot c={BR_COLOR[b]} s={8}/>{b}</span>
+                 <span style={{fontSize:11,color:"var(--muted)"}}>Qty</span><input type="number" min="1" value={locs[b].qty} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,qty:e.target.value}}))} style={{width:56,minHeight:34,fontSize:13,padding:"5px 8px"}}/>
+                 {(f.type==="theme"||f.kind==="outfit")&&<><span style={{fontSize:11,color:"var(--muted)"}}>·</span><span style={{fontSize:11,color:"var(--muted)"}}>Sel</span><input type="number" min="0" value={locs[b].times} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,times:e.target.value}}))} style={{width:54,minHeight:34,fontSize:13,padding:"5px 8px"}}/></>}
+               </div>)}</div>}</div>
+             {f.sessionRel&&<div><span style={lab}>Session type</span><TaxSelect value={f.session_type} onChange={v=>set("session_type",v)} options={SESSION_CATS} onAdd={v=>addTaxOption("session",null,v)} placeholder="New session type…" addLabel="+ Add session type…"/></div>}
+             {!isAsset&&<div><span style={lab}>Type</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{pill(f.type==="theme",()=>set("type","theme"),f.session_type==="Gender Reveal"?"Reveal":"Setup (theme)","var(--accent)")}{kinds.includes("outfit")&&pill(f.type==="item"&&f.kind==="outfit",()=>{set("type","item");set("kind","outfit");},"Outfit","#9a6fd1")}{pill(f.type==="item"&&f.kind!=="outfit",()=>{set("type","item");if(f.kind==="outfit")set("kind",(kinds.find(k=>k!=="outfit")||"prop"));},"Item","#48b08c")}</div></div>}
+             {!isAsset&&f.type==="item"&&<div><span style={lab}>Kind</span><div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>{kinds.map(k=>pill(f.kind===k,()=>set("kind",k),ucf(k),dTC(k)))}
+               {kAdd?<span style={{display:"inline-flex",gap:5,alignItems:"center"}}><input autoFocus value={kTxt} placeholder="new kind…" onChange={e=>setKTxt(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addKind();}else if(e.key==="Escape"){setKTxt("");setKAdd(false);}}} style={{width:110,minHeight:38}}/><button type="button" onMouseDown={e=>{e.preventDefault();addKind();}} style={{padding:"9px 13px",borderRadius:8,border:"none",background:"var(--ink)",color:"#fff",fontSize:12.5,fontWeight:600,minHeight:38}}>Add</button></span>
+                 :<button type="button" onClick={()=>setKAdd(true)} style={{padding:"9px 13px",borderRadius:8,border:"1px dashed var(--line2)",background:"var(--panel)",color:"var(--soft)",fontSize:13,fontWeight:600,minHeight:38}}>+ Add</button>}</div></div>}
+             {showGender&&<div><span style={lab}>Gender</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{["","Boy","Girl","Neutral","Twins"].filter(g=>g===""||GENDERS_T.includes(g)).map(g=>pill(f.gender===g||(g===""&&!f.gender),()=>set("gender",g),g||"—",g==="Boy"?"#5a93d6":g==="Girl"?"#e06b94":g==="Twins"?"#9a8f80":g==="Neutral"?"#7a8447":"var(--ink)"))}</div></div>}
            </div>
-           <div style={{marginBottom:12}}><span style={lab}>Cover photo</span><PhotoField value={f.photo_url||""} onChange={v=>set("photo_url",v)} prefix="inv"/></div>
-           <div><span style={lab}>More photos <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0}}>· extra angles or variants</span></span><Gallery photos={f.extra_photos} onChange={v=>set("extra_photos",v)} prefix="inv"/></div>
+         </Section>
+
+         {/* PHOTOS — hero treatment when photo is set; AI button is in the section header */}
+         {!isAsset&&<Section title="Photos" hint="add a cover (and extras) — AI uses these to suggest the name & tags" accent="#22a05a" right={<button type="button" onClick={aiSuggest} disabled={aiBusy} title={f.photo_url?"Use AI to name + tag this item":"Add a photo for the best AI suggestion (works without too)"} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"6px 11px",borderRadius:8,border:"none",background:aiBusy?"var(--panel2)":"linear-gradient(135deg,#3e7bfa,#7c4dff)",color:aiBusy?"var(--muted)":"#fff",fontSize:11.5,fontWeight:700,cursor:aiBusy?"default":"pointer",boxShadow:aiBusy?"none":"0 2px 8px rgba(62,123,250,.3)"}}>{aiBusy?"Thinking…":"✨ Suggest with AI"}</button>}>
+           {f.photo_url&&<div style={{position:"relative",width:"100%",aspectRatio:isMobile?"1/1":"3/2",borderRadius:10,overflow:"hidden",background:"#f0e9dd",border:"1px solid var(--line2)",marginBottom:10}}>
+             <img src={f.photo_url} style={{width:"100%",height:"100%",objectFit:"contain"}} onError={e=>{e.target.style.opacity=.3}}/>
+             <button type="button" onClick={()=>set("photo_url","")} title="Remove cover" style={{position:"absolute",top:10,right:10,width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,.95)",border:"1px solid var(--line2)",boxShadow:"0 2px 8px rgba(0,0,0,.18)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon d={I.x} s={17} c="var(--danger)"/></button>
+           </div>}
+           <div style={{marginBottom:12}}><span style={lab}>{f.photo_url?"Replace cover":"Cover photo"}</span><PhotoField value={f.photo_url||""} onChange={v=>set("photo_url",v)} prefix="inv"/></div>
+           <div><span style={lab}>More photos<span style={labHint}>· extra angles or variants</span></span><Gallery photos={f.extra_photos} onChange={v=>set("extra_photos",v)} prefix="inv"/></div>
            {aiMsg&&<div style={{marginTop:10,fontSize:12,padding:"9px 12px",borderRadius:8,background:"#fbecea",color:"var(--danger)",border:"1px solid #f3b8b3"}}>{aiMsg}</div>}
            {aiPreview&&<div style={{marginTop:12,padding:"12px 14px",borderRadius:10,background:"linear-gradient(135deg,#eaf1ff,#f3edff)",border:"1px solid #c7d6ff"}}>
-             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}><span style={{fontSize:11,fontWeight:700,color:"#3e7bfa",letterSpacing:".04em",textTransform:"uppercase"}}>✨ AI Suggestion</span><span style={{flex:1}}/><button type="button" onClick={applyAllAi} style={{padding:"5px 11px",borderRadius:7,border:"none",background:"#3e7bfa",color:"#fff",fontSize:11.5,fontWeight:700,cursor:"pointer"}}>Apply all</button><button type="button" onClick={()=>setAiPreview(null)} title="Dismiss" style={{padding:4}}><Icon d={I.x} s={14} c="var(--muted)"/></button></div>
+             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}><span style={{fontSize:11,fontWeight:700,color:"#3e7bfa",letterSpacing:".04em",textTransform:"uppercase"}}>✨ AI suggestion</span><span style={{flex:1}}/><button type="button" onClick={applyAllAi} style={{padding:"5px 11px",borderRadius:7,border:"none",background:"#3e7bfa",color:"#fff",fontSize:11.5,fontWeight:700,cursor:"pointer"}}>Apply all</button><button type="button" onClick={()=>setAiPreview(null)} title="Dismiss" style={{padding:4}}><Icon d={I.x} s={14} c="var(--muted)"/></button></div>
              {["name","color","subcategory","notes"].filter(k=>aiPreview[k]).map(k=><div key={k} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderTop:"1px solid #c7d6ff66",fontSize:12.5}}><span style={{width:80,color:"var(--muted)",fontWeight:600,textTransform:"capitalize"}}>{k==="subcategory"?"Style":k}</span><span style={{flex:1,color:"var(--ink)"}}>{aiPreview[k]}</span><button type="button" onClick={()=>applyAi(k)} style={{padding:"3px 9px",borderRadius:6,border:"1px solid #3e7bfa",background:"transparent",color:"#3e7bfa",fontSize:11,fontWeight:700,cursor:"pointer"}}>Use</button></div>)}
              {!["name","color","subcategory","notes"].some(k=>aiPreview[k])&&<div style={{fontSize:12,color:"var(--muted)"}}>No suggestions returned — try adding a photo.</div>}
            </div>}
-         </div>}
+         </Section>}
 
-         {/* SECTION 3 — Details */}
-         <div style={sec}>
-           <div style={secTitle}>{stepDot(isAsset?2:3)}<span>DETAILS</span></div>
-           <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:14}}>
-             <div style={{gridColumn:"1/-1"}}><span style={lab}>Name / description <span style={{color:"var(--danger)"}}>*</span></span><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Brown Corduroy Overalls" style={{minHeight:44,fontSize:14}}/></div>
-             {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} list="assettypesA" placeholder="e.g. Camera, Lens, Furniture" style={{minHeight:44}}/><datalist id="assettypesA">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
-             {isAsset&&<div><span style={lab}>Status</span><select value={f.op_status} onChange={e=>set("op_status",e.target.value)} style={{minHeight:44}}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
-             {isAsset&&!NO_SERIAL.has(f.subcategory)&&<div><span style={lab}>Serial no</span><input value={f.serial_no} onChange={e=>set("serial_no",e.target.value)} placeholder="serial / IMEI" style={{minHeight:44}}/></div>}
-             {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"Key holder":"Assigned to / held at"}</span><input value={f.assignee} onChange={e=>set("assignee",e.target.value)} placeholder="person or room" style={{minHeight:44}}/></div>}
-             {showStyle&&<div><span style={lab}>Style</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={STYLE_OPTS[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("style",f.session_type,v)} placeholder="New style…" addLabel="+ Add style…"/></div>}
-             {showSetupStyle&&<div><span style={lab}>Reveal type</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={SETUP_STYLE[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("setup",f.session_type,v)} placeholder="New reveal type…" addLabel="+ Add reveal type…"/></div>}
-             {showSub&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!subList.includes(v))addTaxOption(f.kind==="prop"?"propsub":"subkind",f.kind==="prop"?f.session_type:f.kind,v);}} list="subopts" placeholder={SUBTYPE_PH[f.kind]||""} style={{minHeight:44}}/><datalist id="subopts">{subList.map(s=><option key={s} value={s}/>)}</datalist></div>}
-             {showDim&&<div><span style={lab}>Dimensions</span><input value={f.dimensions||""} onChange={e=>set("dimensions",e.target.value)} placeholder="e.g. 40 × 30 cm" style={{minHeight:44}}/></div>}
-             {showSize&&<div style={{gridColumn:"1/-1"}}><span style={lab}>Size</span><SizePicker value={f.size} onChange={v=>set("size",v)} opts={sizeOpts} onAdd={v=>addTaxOption("size",f.session_type,v)}/></div>}
-             {!noCond&&<div><span style={lab}>Condition</span><select value={f.condition} onChange={e=>set("condition",e.target.value)} style={{minHeight:44}}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>}
-             {showColor&&<div style={{gridColumn:"1/-1"}}><span style={lab}>{f.type==="theme"?"Colour / palette":"Color"}</span><ColorPicker value={f.color} onChange={v=>set("color",v)}/></div>}
-             {showUsable&&<div style={{gridColumn:"1/-1"}}><span style={lab}>Usable for <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0}}>· other sessions it can be reused in</span></span><UsablePicker value={f.usable_for} onChange={v=>set("usable_for",v)}/></div>}
+         {/* DETAILS — Name first, then aligned 2-col grid of secondary fields */}
+         <Section title="Details" accent="var(--ink)">
+           <div style={{display:"flex",flexDirection:"column",gap:14}}>
+             <div><span style={lab}>Name / description <span style={{color:"var(--danger)",textTransform:"none",letterSpacing:0}}>*</span></span><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Brown Corduroy Overalls" style={{...inputStyle,fontSize:15,fontWeight:500,width:"100%",border:`1.5px solid ${f.name.trim()?"var(--line2)":"#e8c4c4"}`,borderRadius:10}}/></div>
+             <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12,alignItems:"start"}}>
+               {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} list="assettypesA" placeholder="e.g. Camera, Lens, Furniture" style={inputStyle}/><datalist id="assettypesA">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
+               {isAsset&&<div><span style={lab}>Status</span><select value={f.op_status} onChange={e=>set("op_status",e.target.value)} style={inputStyle}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
+               {isAsset&&!NO_SERIAL.has(f.subcategory)&&<div><span style={lab}>Serial no</span><input value={f.serial_no} onChange={e=>set("serial_no",e.target.value)} placeholder="serial / IMEI" style={inputStyle}/></div>}
+               {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"Key holder":"Assigned to / held at"}</span><input value={f.assignee} onChange={e=>set("assignee",e.target.value)} placeholder="person or room" style={inputStyle}/></div>}
+               {showStyle&&<div><span style={lab}>Style</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={STYLE_OPTS[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("style",f.session_type,v)} placeholder="New style…" addLabel="+ Add style…"/></div>}
+               {showSetupStyle&&<div><span style={lab}>Reveal type</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={SETUP_STYLE[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("setup",f.session_type,v)} placeholder="New reveal type…" addLabel="+ Add reveal type…"/></div>}
+               {showSub&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!subList.includes(v))addTaxOption(f.kind==="prop"?"propsub":"subkind",f.kind==="prop"?f.session_type:f.kind,v);}} list="subopts" placeholder={SUBTYPE_PH[f.kind]||""} style={inputStyle}/><datalist id="subopts">{subList.map(s=><option key={s} value={s}/>)}</datalist></div>}
+               {showDim&&<div><span style={lab}>Dimensions</span><input value={f.dimensions||""} onChange={e=>set("dimensions",e.target.value)} placeholder="e.g. 40 × 30 cm" style={inputStyle}/></div>}
+               {!noCond&&<div><span style={lab}>Condition</span><select value={f.condition} onChange={e=>set("condition",e.target.value)} style={inputStyle}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>}
+             </div>
+             {showSize&&<div><span style={lab}>Size</span><SizePicker value={f.size} onChange={v=>set("size",v)} opts={sizeOpts} onAdd={v=>addTaxOption("size",f.session_type,v)}/></div>}
+             {showColor&&<div><span style={lab}>{f.type==="theme"?"Colour / palette":"Color"}</span><ColorPicker value={f.color} onChange={v=>set("color",v)}/></div>}
+             {showUsable&&<div><span style={lab}>Usable for<span style={labHint}>· other sessions it can be reused in</span></span><UsablePicker value={f.usable_for} onChange={v=>set("usable_for",v)}/></div>}
            </div>
-         </div>
+         </Section>
 
-         {/* SECTION 4 — Links */}
-         <div style={sec}>
-           <div style={secTitle}>{stepDot(isAsset?3:4)}<span>{f.type==="theme"?"ITEMS IN THIS SETUP":"LINK TO SETUP(S)"} <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0,marginLeft:4}}>· optional</span></span></div>
+         {/* LINKS */}
+         <Section title={f.type==="theme"?"Items in this setup":"Link to setup(s)"} hint="optional" accent="#9a6fd1">
            <ItemPicker pool={cand.filter(a=>f.type==="theme"?a.type==="item":a.type==="theme")} selectedIds={linkIds} onToggle={id=>setLinkIds(l=>l.includes(id)?l.filter(x=>x!==id):[...l,id])} emptyHint={f.type==="theme"?"None yet — pick outfits / props / backdrops below.":"None yet — pick the setup(s) this belongs to."}/>
-         </div>
+         </Section>
 
-         {/* SECTION 5 — Tags & visibility */}
-         <div style={sec}>
-           <div style={secTitle}>{stepDot(isAsset?4:5)}<span>TAGS &amp; VISIBILITY</span></div>
+         {/* TAGS & VISIBILITY */}
+         <Section title="Tags & visibility" accent="#bd9b43">
            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-             {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>(shows under the New filter)</span></span></div>}
-             {(f.type==="theme"&&(f.session_type==="Cake Smash"||f.session_type==="Sitter"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("Real balloon")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Real balloon"])]:(f.static_tags||[]).filter(x=>x!=="Real balloon"))}/><span style={{fontSize:13,fontWeight:500}}>Real balloon <span style={{color:"var(--muted)",fontWeight:400}}>(off = plain theme — Cake Smash &amp; Sitter)</span></span></div>}
-             {!isAsset&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"}</span></div>}
+             {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<label style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px",cursor:"pointer"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>· shows under the New filter</span></span></label>}
+             {(f.type==="theme"&&(f.session_type==="Cake Smash"||f.session_type==="Sitter"))&&<label style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px",cursor:"pointer"}}><Toggle on={(f.static_tags||[]).includes("Real balloon")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Real balloon"])]:(f.static_tags||[]).filter(x=>x!=="Real balloon"))}/><span style={{fontSize:13,fontWeight:500}}>Real balloon <span style={{color:"var(--muted)",fontWeight:400}}>· off = plain theme (Cake Smash &amp; Sitter)</span></span></label>}
+             {!isAsset&&<label style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px",cursor:"pointer"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"} <span style={{color:"var(--muted)",fontWeight:400}}>· still needs to be added to a Showcase section to actually appear</span></span></label>}
            </div>
-         </div>
+         </Section>
 
-         {/* SECTION 6 — More (collapsible) */}
-         <div style={sec}>
-           <button type="button" onClick={()=>setMoreOpen(m=>!m)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:0,background:"none",border:"none",cursor:"pointer",color:"var(--ink)"}}>{stepDot(isAsset?5:6)}<span style={{fontSize:12,fontWeight:700,letterSpacing:".02em"}}>MORE DETAILS</span><span style={{flex:1,fontSize:11.5,color:"var(--muted)",fontWeight:500,textAlign:"left"}}>· purchase, value, date added, notes</span><span style={{fontSize:14,color:"var(--muted)"}}>{moreOpen?"▴":"▾"}</span></button>
-           {moreOpen&&<div style={{marginTop:12,paddingTop:12,borderTop:"1px solid var(--line)",display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:14}}>
-             <div><span style={lab}>Purchase link <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0}}>· optional</span></span><input value={f.purchase_url} onChange={e=>set("purchase_url",e.target.value)} placeholder="https://…" style={{minHeight:44}}/></div>
-             {showValue&&<div><span style={lab}>Value <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0}}>· optional</span></span><div style={{display:"flex",gap:6}}><input type="number" min="0" step="0.01" value={f.value} onChange={e=>set("value",e.target.value)} placeholder="e.g. 350" style={{flex:1,minWidth:0,minHeight:44}}/><select value={f.value_currency} onChange={e=>set("value_currency",e.target.value)} style={{width:84,minHeight:44}}>{["AED","QAR","USD"].map(c=><option key={c}>{c}</option>)}</select></div></div>}
-             <div><span style={lab}>Purchase date <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0}}>· optional</span></span><input type="date" max={today()} value={f.purchase_date||""} onChange={e=>set("purchase_date",e.target.value)} style={{minHeight:44}}/></div>
-             <div style={{gridColumn:"1/-1"}}><span style={lab}>Date added <span style={{color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0}}>· real date, used for usage stats</span></span><div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><input type="date" max={today()} value={f.acquired_on} onChange={e=>set("acquired_on",e.target.value)} disabled={f.perLocDate} style={{opacity:f.perLocDate?.45:1,width:170,minHeight:44}}/><label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--soft)",cursor:"pointer"}}><input type="checkbox" checked={f.perLocDate} onChange={e=>set("perLocDate",e.target.checked)}/>Different date per location</label></div></div>
-             <div style={{gridColumn:"1/-1"}}><span style={lab}>Notes</span><textarea rows={3} value={f.notes} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical",minHeight:80}}/></div>
+         {/* MORE (collapsible) */}
+         <div style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:11,padding:0,overflow:"hidden",position:"relative"}}>
+           <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:"var(--muted)"}}/>
+           <button type="button" onClick={()=>setMoreOpen(m=>!m)} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"13px 16px 13px 18px",background:"none",border:"none",cursor:"pointer",color:"var(--ink)",textAlign:"left"}}>
+             <span style={{fontSize:11,fontWeight:700,color:"var(--muted)",letterSpacing:".08em",textTransform:"uppercase"}}>More details</span>
+             <span style={{flex:1,fontSize:11.5,color:"var(--muted)",fontWeight:500}}>· purchase, value, date added, notes</span>
+             <span style={{fontSize:14,color:"var(--muted)"}}>{moreOpen?"▴":"▾"}</span>
+           </button>
+           {moreOpen&&<div style={{padding:"4px 16px 16px 18px",borderTop:"1px solid var(--line)",display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12,alignItems:"start"}}>
+             <div><span style={lab}>Purchase link<span style={labHint}>· optional</span></span><input value={f.purchase_url} onChange={e=>set("purchase_url",e.target.value)} placeholder="https://…" style={inputStyle}/></div>
+             {showValue&&<div><span style={lab}>Value<span style={labHint}>· optional</span></span><div style={{display:"flex",gap:6}}><input type="number" min="0" step="0.01" value={f.value} onChange={e=>set("value",e.target.value)} placeholder="e.g. 350" style={{...inputStyle,flex:1,minWidth:0}}/><select value={f.value_currency} onChange={e=>set("value_currency",e.target.value)} style={{...inputStyle,width:84}}>{["AED","QAR","USD"].map(c=><option key={c}>{c}</option>)}</select></div></div>}
+             <div><span style={lab}>Purchase date<span style={labHint}>· optional</span></span><input type="date" max={today()} value={f.purchase_date||""} onChange={e=>set("purchase_date",e.target.value)} style={inputStyle}/></div>
+             <div style={{gridColumn:"1/-1"}}><span style={lab}>Date added<span style={labHint}>· real date, used for usage stats</span></span><div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><input type="date" max={today()} value={f.acquired_on} onChange={e=>set("acquired_on",e.target.value)} disabled={f.perLocDate} style={{...inputStyle,opacity:f.perLocDate?.45:1,width:170}}/><label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--soft)",cursor:"pointer"}}><input type="checkbox" checked={f.perLocDate} onChange={e=>set("perLocDate",e.target.checked)}/>Different date per location</label></div></div>
+             <div style={{gridColumn:"1/-1"}}><span style={lab}>Notes</span><textarea rows={3} value={f.notes} onChange={e=>set("notes",e.target.value)} style={{...inputStyle,resize:"vertical",minHeight:80}}/></div>
            </div>}
          </div>
 
          {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"10px 13px",borderRadius:8,border:"1px solid #f3b8b3"}}>{err}</div>}
        </div>
-       {/* Sticky save bar */}
-       <div style={{position:isMobile?"fixed":"sticky",bottom:0,left:0,right:0,padding:"12px 16px",background:"var(--panel)",borderTop:"1px solid var(--line)",display:"flex",gap:10,justifyContent:"flex-end",zIndex:3,boxShadow:isMobile?"0 -3px 16px rgba(0,0,0,.14)":"none"}}>
-         {!valid&&<span style={{flex:1,alignSelf:"center",fontSize:11.5,color:"var(--muted)"}}>{!f.name.trim()?"Name is required.":(!chosen.length?"Pick at least one studio.":(!f.session_type&&f.sessionRel?"Pick a session type.":""))}</span>}
-         <button onClick={onClose} style={{padding:"12px 18px",border:"1px solid var(--line2)",borderRadius:8,fontWeight:600,minHeight:46,background:"var(--panel)"}}>Cancel</button>
-         <button onClick={save} disabled={!valid||busy} style={{padding:"12px 22px",background:valid&&!busy?"var(--ink)":"#bcbcc4",color:"#fff",borderRadius:8,fontWeight:700,cursor:valid&&!busy?"pointer":"not-allowed",minHeight:46}}>{busy?"Saving…":"Save + generate code"}</button>
+
+       {/* Sticky save bar with live status — what's missing OR the path summary */}
+       <div style={{position:isMobile?"fixed":"sticky",bottom:0,left:0,right:0,padding:"12px 16px",background:"var(--panel)",borderTop:"1px solid var(--line)",display:"flex",gap:10,alignItems:"center",zIndex:3,boxShadow:isMobile?"0 -3px 16px rgba(0,0,0,.14)":"none"}}>
+         <div style={{flex:1,minWidth:0,fontSize:11.5,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+           {missing
+             ? <><span style={{color:"var(--danger)",fontWeight:600}}>●</span><span style={{color:"var(--soft)"}}>{missing}</span></>
+             : <><span style={{color:"var(--ok)",fontWeight:600}}>✓</span><span style={{color:"var(--soft)"}}>Saving as:</span><span style={{fontWeight:600,color:"var(--ink)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{pathSegs.join(" › ")}</span></>}
+         </div>
+         <button onClick={onClose} style={{padding:"12px 16px",border:"1px solid var(--line2)",borderRadius:8,fontWeight:600,minHeight:46,background:"var(--panel)",flexShrink:0}}>Cancel</button>
+         <button onClick={save} disabled={!valid||busy} style={{padding:"12px 22px",background:valid&&!busy?"var(--ink)":"#bcbcc4",color:"#fff",borderRadius:8,fontWeight:700,cursor:valid&&!busy?"pointer":"not-allowed",minHeight:46,flexShrink:0}}>{busy?"Saving…":"Save"}</button>
        </div>
      </>}
    </div></div>;
