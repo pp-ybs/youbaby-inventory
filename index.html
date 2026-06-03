@@ -754,11 +754,11 @@ function NewInventory(){
      <button onClick={()=>setAdd(true)} style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,background:"var(--ink)",color:"#fff",padding:"9px 15px",borderRadius:10,fontWeight:600,fontSize:13}}><Icon d={I.plus} s={15} c="#fff"/>Add item</button></div>
    <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:18}}>One card per real thing · multi-location · auto barcode. (New structure — being filled in.)</p>
    {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8,marginBottom:14}}>{err}</div>}
-   {(()=>{const GL={shoot:"Shoot session",supplies:"General",electronics:"Electronics"};const groups=[...new Set(rows.map(r=>r.item_group||"shoot"))];return groups.length>1?<div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+   {(()=>{const GL={shoot:"Shoot Inventory",electronics:"Electronics",supplies:"Reusables"};const groups=["shoot","electronics","supplies"];return <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
      <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>GROUP</span>
      <button onClick={()=>setGroupF("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!groupF?"var(--ink)":"var(--line2)"}`,background:!groupF?"var(--ink)":"var(--panel)",color:!groupF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
-     {groups.map(g=>{const n=cnt("group",r=>(r.item_group||"shoot")===g);return <button key={g} onClick={()=>setGroupF(groupF===g?"":g)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${groupF===g?"var(--ink)":"var(--line2)"}`,background:groupF===g?"var(--ink)":"var(--panel)",color:groupF===g?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4}}>{GL[g]||g} ({n})</button>})}
-   </div>:null})()}
+     {groups.map(g=>{const n=cnt("group",r=>(r.item_group||"shoot")===g);return <button key={g} onClick={()=>n&&setGroupF(groupF===g?"":g)} title={n?"":"nothing here yet"} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${groupF===g?"var(--ink)":"var(--line2)"}`,background:groupF===g?"var(--ink)":"var(--panel)",color:groupF===g?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.45,cursor:n?"pointer":"default"}}>{GL[g]} ({n})</button>})}
+   </div>})()}
    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
      <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>LOCATION</span>
      <button onClick={()=>setLoc("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!loc?"var(--ink)":"var(--line2)"}`,background:!loc?"var(--ink)":"var(--panel)",color:!loc?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
