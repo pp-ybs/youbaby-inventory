@@ -12,11 +12,11 @@ clean schema and migrate existing data in (347 themes + 911 Doha items). Nothing
 ## 2. Top split: Theme vs Item
 - **Theme** = a put-together look/setup we post on the website (e.g. "Jungle Cake Smash").
   A theme can be **composed of items** (this backdrop + this outfit + these props).
-- **Item** = an individual physical thing. **Kinds:**
-  - Outfit · Prop · Backdrop/Background · Wrap · Accessory
-  - **Electronics** (e.g. camera, lens)
-  - **Reusable** (consumables Leah uses/tracks daily)
-  - Other
+- **Item** = an individual physical thing. **Kinds (in scope now):** Outfit · Prop ·
+  Backdrop/Background · Wrap · Accessory · Other.
+  - **Electronics & Reusable** — same structure, added **later** (not in scope now).
+- **Both Theme and Item carry locations** — a theme can exist in several studios too
+  (same multi-location logic as items).
 
 ## 3. Entry hierarchy (what Leah picks, in order)
 ```
@@ -25,7 +25,7 @@ Type            → Theme | Item
 Location(s)     → Dubai | Abu Dhabi | Doha | Al Quoz   (multi-select, qty per branch)
 Category        → Newborn | Infant | Sitter | Cake Smash | Maternity | (seasonal e.g. Christmas)
 Gender          → Girl | Boy | Twins | Neutral
-Size            → One size | (pick from size list)
+Size            → free text (e.g. "One size", "M–L", "9–12 months")
 Details         → name, photo(s), condition, color/brand, notes
 ```
 One card = one real thing. The **same dress in 3 studios = 1 card**, present in 3 locations
@@ -64,16 +64,16 @@ One card = one real thing. The **same dress in 3 studios = 1 card**, present in 
   `on_website` → `website_display`; `times_used` → `times_selected`. IDs preserved as `code`.
 - `doha_outfit_links` (21) → `theme_item`.
 
-## 8. Open points to confirm
-1. Item kinds list (Outfit / Prop / Backdrop / Wrap / Electronics / Reusable / Accessory / Other) — complete?
-2. Size — fixed picklist (per kind/category) or free text?
-3. Are **Themes** also branch-specific (theme exists at certain studios), or are themes global and only Items carry locations?
-4. Do reusables/electronics need a daily **usage log** (each use recorded), or just a running counter?
+## 8. Decisions (locked)
+1. **Kinds now:** setups/themes, outfits, backdrops, accessories, props, wraps. Electronics & Reusable later.
+2. **Size = free text.**
+3. **Themes are multi-location too** (same "available in these studios" logic as items).
+4. **No usage log for now** — just the `times_selected` counter (drives dynamic Popular).
 
-## 9. Build order (once approved)
-1. Create schema (`item`, `item_location`, `theme_item`; extend `popularity` locations).
-2. Rebuild the **Add wizard** in the exact hierarchy above.
+## 9. Build order
+1. ✅ **Schema created** — `inv_item`, `inv_item_location`, `inv_theme_item` (RLS: authenticated). Live `themes`/`doha_inventory` untouched.
+2. ⏭ **Add wizard** in the exact hierarchy above (Type → Kind → Location(s) → Category → Gender → Size → details) — this is what Leah uses to add.
 3. QR/barcode generation + printable label.
-4. Dynamic New/Popular + static tags in browse.
-5. Migrate existing themes + Doha inventory into the new model.
+4. Browse/edit on the new model; dynamic New/Popular + static tags.
+5. Migrate existing themes (347) + Doha inventory (911) into the new model; retire old tables after verifying.
 6. One-page guide for Leah.
