@@ -1188,7 +1188,8 @@ function AddInvItem({onClose,onSaved,init={}}){
  useEffect(()=>{if(f.type==="item"&&!kinds.includes(f.kind))set("kind",kinds[0]||"other")},[f.session_type,f.sessionRel,f.type]);
  const showStyle=f.sessionRel&&STYLE_OPTS[f.session_type]&&f.type==="item"&&f.kind==="outfit";
  const showGender=f.sessionRel&&!NO_GENDER.includes(f.session_type)&&(f.type==="theme"||(f.type==="item"&&(f.kind==="outfit"||f.kind==="accessory")));
- const showSize=f.type==="item"&&f.kind==="outfit"&&f.session_type!=="Newborn";
+ // Outfit size now lives PER-LOCATION (inv_item_location.size), so the global SizePicker is hidden for outfits.
+ const showSize=false;
  const sizeOpts=SIZE_BY_CAT[f.session_type]||SIZE_OPTS;
  const showSub=f.type==="item"&&!!SUBTYPE_OPTS[f.kind];
  const subList=f.kind==="prop"?(PROP_SUBTYPES_BY_CAT[f.session_type]||PROP_SUBTYPES):(SUBTYPE_OPTS[f.kind]||[]);
@@ -1218,7 +1219,7 @@ function AddInvItem({onClose,onSaved,init={}}){
      const code=await nextCode(catForCode,seg);
      const row={code,item_group:f.grp||(f.sessionRel?"shoot":"supplies"),type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.sessionRel?f.session_type:null,subcategory:f.subcategory||null,gender:(!f.sessionRel||NO_GENDER.includes(f.session_type))?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:isAsset?(f.op_status||"Available"):null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:f.condition,website_display:!!f.website_display,notes:f.notes||null};
      const {data,error}=await sb.from("inv_item").insert({...row,times_selected:chosen.reduce((s,b)=>s+(Number(locs[b].times)||0),0)}).select().single();if(error)throw error;
-     const locRows=chosen.map(b=>({item_id:data.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:f.condition,acquired_on:(f.perLocDate?(locs[b].date||f.acquired_on):f.acquired_on)||null}));
+     const locRows=chosen.map(b=>({item_id:data.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:f.condition,size:f.kind==="outfit"?(locs[b].size||null):null,acquired_on:(f.perLocDate?(locs[b].date||f.acquired_on):f.acquired_on)||null}));
      if(locRows.length){const {error:e2}=await sb.from("inv_item_location").insert(locRows);if(e2)throw e2;}
      if(linkIds.length)await sb.from("inv_theme_item").insert(linkIds.map(cid=>f.type==="theme"?({theme_id:data.id,component_item_id:cid}):({theme_id:cid,component_item_id:data.id})));
      setSaved({...data,_locs:locRows});onSaved&&onSaved(data);
@@ -1232,8 +1233,8 @@ function AddInvItem({onClose,onSaved,init={}}){
  const inputStyle={minHeight:44,fontSize:14,padding:"10px 12px"};
  const pill=(on,onClick,txt,col)=><button type="button" onClick={onClick} style={{padding:"9px 14px",borderRadius:9,border:`1.5px solid ${on?(col||"var(--ink)"):"var(--line2)"}`,background:on?(col||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:13,fontWeight:600,minHeight:38,transition:"all .12s"}}>{txt}</button>;
  // Section card with a left-edge accent stripe instead of step-number dots — calmer, more scannable.
- const Section=({title,hint,accent,right,children})=><div style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:11,padding:0,overflow:"hidden",position:"relative"}}>
-   <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:accent||"var(--accent)"}}/>
+ const Section=({title,hint,accent,right,children})=><div style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:11,padding:0,overflow:"visible",position:"relative"}}>
+   <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:accent||"var(--accent)",borderTopLeftRadius:11,borderBottomLeftRadius:11}}/>
    <div style={{display:"flex",alignItems:"center",gap:10,padding:"13px 16px 0 18px"}}>
      <span style={{fontSize:11,fontWeight:700,color:accent||"var(--ink)",letterSpacing:".08em",textTransform:"uppercase"}}>{title}</span>
      {hint&&<span style={{fontSize:11.5,color:"var(--muted)",fontWeight:500,flex:1}}>{hint}</span>}
@@ -1280,6 +1281,7 @@ function AddInvItem({onClose,onSaved,init={}}){
                  <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:12.5,fontWeight:700,color:BR_COLOR[b],minWidth:78}}><Dot c={BR_COLOR[b]} s={8}/>{b}</span>
                  <span style={{fontSize:11,color:"var(--muted)"}}>Qty</span><input type="number" min="1" value={locs[b].qty} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,qty:e.target.value}}))} style={{width:56,minHeight:34,fontSize:13,padding:"5px 8px"}}/>
                  {(f.type==="theme"||f.kind==="outfit")&&<><span style={{fontSize:11,color:"var(--muted)"}}>·</span><span style={{fontSize:11,color:"var(--muted)"}}>Sel</span><input type="number" min="0" value={locs[b].times} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,times:e.target.value}}))} style={{width:54,minHeight:34,fontSize:13,padding:"5px 8px"}}/></>}
+                 {f.kind==="outfit"&&<><span style={{fontSize:11,color:"var(--muted)"}}>·</span><span style={{fontSize:11,color:"var(--muted)"}}>Size</span><select value={locs[b].size||""} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,size:e.target.value}}))} style={{minHeight:34,fontSize:13,padding:"4px 6px",width:"auto"}}><option value="">—</option>{sizeOpts.map(s=><option key={s} value={s}>{s}</option>)}</select></>}
                </div>)}</div>}</div>
              {f.sessionRel&&<div><span style={lab}>Session type</span><TaxSelect value={f.session_type} onChange={v=>set("session_type",v)} options={SESSION_CATS} onAdd={v=>addTaxOption("session",null,v)} placeholder="New session type…" addLabel="+ Add session type…"/></div>}
              {!isAsset&&<div><span style={lab}>Type</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{pill(f.type==="theme",()=>set("type","theme"),f.session_type==="Gender Reveal"?"Reveal":"Setup (theme)","var(--accent)")}{kinds.includes("outfit")&&pill(f.type==="item"&&f.kind==="outfit",()=>{set("type","item");set("kind","outfit");},"Outfit","#9a6fd1")}{pill(f.type==="item"&&f.kind!=="outfit",()=>{set("type","item");if(f.kind==="outfit")set("kind",(kinds.find(k=>k!=="outfit")||"prop"));},"Item","#48b08c")}</div></div>}
@@ -1342,8 +1344,8 @@ function AddInvItem({onClose,onSaved,init={}}){
          </Section>
 
          {/* MORE (collapsible) */}
-         <div style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:11,padding:0,overflow:"hidden",position:"relative"}}>
-           <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:"var(--muted)"}}/>
+         <div style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:11,padding:0,overflow:"visible",position:"relative"}}>
+           <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:"var(--muted)",borderTopLeftRadius:11,borderBottomLeftRadius:11}}/>
            <button type="button" onClick={()=>setMoreOpen(m=>!m)} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"13px 16px 13px 18px",background:"none",border:"none",cursor:"pointer",color:"var(--ink)",textAlign:"left"}}>
              <span style={{fontSize:11,fontWeight:700,color:"var(--muted)",letterSpacing:".08em",textTransform:"uppercase"}}>More details</span>
              <span style={{flex:1,fontSize:11.5,color:"var(--muted)",fontWeight:500}}>· purchase, value, date added, notes</span>
@@ -1402,7 +1404,7 @@ function InvEdit({item,onClose,onSaved}){
  const set=(k,v)=>setF(p=>({...p,[k]:v}));
  useEffect(()=>{(async()=>{if(!sb)return;
    const {data:l}=await sb.from("inv_item_location").select("*").eq("item_id",item.id);
-   const m={};(l||[]).forEach(r=>{m[r.location]={on:true,qty:r.quantity,times:r.times_selected||0,cond:r.condition||item.condition||"Good",date:r.acquired_on||(item.created_at?item.created_at.slice(0,10):"")}});setLocs(m);
+   const m={};(l||[]).forEach(r=>{m[r.location]={on:true,qty:r.quantity,times:r.times_selected||0,cond:r.condition||item.condition||"Good",size:r.size||item.size||"",date:r.acquired_on||(item.created_at?item.created_at.slice(0,10):"")}});setLocs(m);
    if(item.type==="theme"){const {data:tl}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",item.id);setLinks((tl||[]).map(x=>x.component_item_id));}
    else{const {data:tl}=await sb.from("inv_theme_item").select("theme_id").eq("component_item_id",item.id);setLinks((tl||[]).map(x=>x.theme_id));}
    const {data:av}=await sb.from("inv_item").select("id,code,name,kind,type,photo_url,session_type").neq("id",item.id).order("name");setAll(av||[]);
@@ -1412,7 +1414,8 @@ function InvEdit({item,onClose,onSaved}){
  const showStyle=STYLE_OPTS[f.session_type]&&f.type==="item"&&f.kind==="outfit";
  const showGender=!NO_GENDER.includes(f.session_type)&&(f.type==="theme"||(f.type==="item"&&(f.kind==="outfit"||f.kind==="accessory")));
  const isAsset=f.item_group==="electronics"||f.item_group==="supplies";
- const showSize=!isAsset&&f.type==="item"&&f.kind==="outfit"&&f.session_type!=="Newborn";
+ // Outfit size now lives PER-LOCATION (inv_item_location.size), so the global SizePicker is hidden for outfits.
+ const showSize=false;
  const sizeOptsE=SIZE_BY_CAT[f.session_type]||SIZE_OPTS;
  const showSub=f.type==="item"&&!!SUBTYPE_OPTS[f.kind];
  const subList=f.kind==="prop"?(PROP_SUBTYPES_BY_CAT[f.session_type]||PROP_SUBTYPES):(SUBTYPE_OPTS[f.kind]||[]);
@@ -1431,7 +1434,7 @@ function InvEdit({item,onClose,onSaved}){
      const on=BR.filter(b=>locs[b]&&locs[b].on),off=BR.filter(b=>!(locs[b]&&locs[b].on));
      const itemCond=on.length?(locs[on[0]].cond||f.condition||"Good"):(f.condition||"Good");
      await sb.from("inv_item").update({code,name:f.name,type:f.type,kind:f.type==="item"?f.kind:null,session_type:f.session_type,subcategory:f.subcategory||null,gender:NO_GENDER.includes(f.session_type)?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:f.op_status||null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:itemCond,notes:f.notes||null,website_display:!!f.website_display,times_selected:totalSel}).eq("id",item.id);
-     if(on.length)await sb.from("inv_item_location").upsert(on.map(b=>({item_id:item.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:(locs[b].cond||"Good"),acquired_on:locs[b].date||null})));
+     if(on.length)await sb.from("inv_item_location").upsert(on.map(b=>({item_id:item.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:(locs[b].cond||"Good"),size:f.kind==="outfit"?(locs[b].size||null):null,acquired_on:locs[b].date||null})));
      for(const b of off)await sb.from("inv_item_location").delete().eq("item_id",item.id).eq("location",b);
      onSaved&&onSaved();
    }catch(e){setErr(e.message||String(e));}setBusy(false);};
@@ -1491,6 +1494,7 @@ function InvEdit({item,onClose,onSaved}){
            <span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Qty <input type="number" min="0" value={locs[b].qty} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],qty:e.target.value}}))} style={{width:52}}/></span>
            {!noCond&&<span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11.5,color:"var(--soft)"}}><Dot c={COND_COLOR[locs[b].cond||"Good"]} s={8}/><select value={locs[b].cond||"Good"} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],cond:e.target.value}}))} style={{padding:"4px 6px",fontSize:11.5,width:"auto"}}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></span>}
            {(f.type==="theme"||f.kind==="outfit")&&<span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Selected <input type="number" min="0" value={locs[b].times} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],times:e.target.value}}))} style={{width:58}}/></span>}
+           {f.kind==="outfit"&&<span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Size <select value={locs[b].size||""} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],size:e.target.value}}))} style={{padding:"4px 6px",fontSize:11.5,width:"auto"}}><option value="">—</option>{sizeOptsE.map(s=><option key={s} value={s}>{s}</option>)}</select></span>}
            <span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Added <input type="date" max={today()} value={locs[b].date||""} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],date:e.target.value}}))} style={{width:136}}/></span>
          </div>)}</div>}
          {(()=>{const onLocs=Object.values(locs).filter(x=>x&&x.on);const acqE=onLocs.map(x=>x.date).filter(Boolean).sort()[0]||(item.created_at?item.created_at.slice(0,10):"");const rate=onLocs.reduce((s,x)=>s+(Number(x.times)||0)/Math.max(1,monthsSince(x.date||item.created_at)),0);return acqE&&<div style={{fontSize:11,color:"var(--muted)",marginTop:8}}>First added {fmtDate(acqE)} · in use {ageLabel(acqE)}{(f.type==="theme"||f.kind==="outfit")?` · ${totalSel} selected`:""}</div>;})()}
