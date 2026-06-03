@@ -706,8 +706,8 @@ async function nextCode(cat,seg){const p=codePrefix(cat,seg)+"-";if(!sb)return p
 function Barcode({value,height=46}){const ref=useRef(null);useEffect(()=>{if(ref.current&&window.JsBarcode&&value){try{window.JsBarcode(ref.current,value,{format:"CODE128",height,fontSize:13,margin:6,displayValue:true});}catch(e){}}},[value,height]);return <svg ref={ref} style={{maxWidth:"100%"}}/>;}
 
 function AddInvItem({onClose,onSaved}){
- const [f,setF]=useState({grp:"shoot",sessionRel:true,type:"item",kind:"outfit",session_type:"Newborn",gender:"",subcategory:"",size:"",dimensions:"",name:"",color:"",condition:"Good",serial_no:"",assignee:"",op_status:"Working",value:"",value_currency:"AED",purchase_date:"",acquired_on:today(),perLocDate:false,photo_url:"",purchase_url:"",usable_for:[],static_tags:[],website_display:false,notes:""});
- const OPSTATUS=["Working","Not working","In service","For sale","Spare"];
+ const [f,setF]=useState({grp:"shoot",sessionRel:true,type:"item",kind:"outfit",session_type:"Newborn",gender:"",subcategory:"",size:"",dimensions:"",name:"",color:"",condition:"Good",serial_no:"",assignee:"",op_status:"Available",value:"",value_currency:"AED",purchase_date:"",acquired_on:today(),perLocDate:false,photo_url:"",purchase_url:"",usable_for:[],static_tags:[],website_display:false,notes:""});
+ const OPSTATUS=["Available","In use","In repair","Retired","For sale"];
  const [locs,setLocs]=useState({});
  const [linkIds,setLinkIds]=useState([]),[cand,setCand]=useState([]);
  useEffect(()=>{if(sb)sb.from("inv_item").select("id,code,name,kind,type").order("name").then(({data})=>setCand(data||[]))},[]);
@@ -728,7 +728,7 @@ function AddInvItem({onClose,onSaved}){
  const showSetupStyle=f.type==="theme"&&!!SETUP_STYLE[f.session_type];
  const showDim=f.type==="item"&&f.kind==="basket";
  const isAsset=!f.sessionRel;
- const noCond=(f.subcategory||"").toLowerCase().includes("balloon")||(isAsset&&f.subcategory==="Key");
+ const noCond=(f.subcategory||"").toLowerCase().includes("balloon")||isAsset;
  const showValue=f.type!=="theme"&&!(isAsset&&NO_VALUE.has(f.subcategory));
  const showColor=!isAsset&&(f.type==="theme"||f.type==="item");
  const showUsable=!isAsset&&f.type==="item"&&(f.kind==="prop"||f.kind==="backdrop");
@@ -737,7 +737,7 @@ function AddInvItem({onClose,onSaved}){
    if(!valid||busy)return;setBusy(true);setErr("");
    try{
      const code=await nextCode(catForCode,seg);
-     const row={code,item_group:f.grp||(f.sessionRel?"shoot":"supplies"),type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.sessionRel?f.session_type:null,subcategory:f.subcategory||null,gender:(!f.sessionRel||NO_GENDER.includes(f.session_type))?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:isAsset?(f.op_status||"Working"):null,origin:f.origin||null,photo_url:f.photo_url||null,purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:f.condition,website_display:!!f.website_display,notes:f.notes||null};
+     const row={code,item_group:f.grp||(f.sessionRel?"shoot":"supplies"),type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.sessionRel?f.session_type:null,subcategory:f.subcategory||null,gender:(!f.sessionRel||NO_GENDER.includes(f.session_type))?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:isAsset?(f.op_status||"Available"):null,origin:f.origin||null,photo_url:f.photo_url||null,purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:f.condition,website_display:!!f.website_display,notes:f.notes||null};
      const {data,error}=await sb.from("inv_item").insert({...row,times_selected:chosen.reduce((s,b)=>s+(Number(locs[b].times)||0),0)}).select().single();if(error)throw error;
      const locRows=chosen.map(b=>({item_id:data.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:f.condition,acquired_on:(f.perLocDate?(locs[b].date||f.acquired_on):f.acquired_on)||null}));
      if(locRows.length){const {error:e2}=await sb.from("inv_item_location").insert(locRows);if(e2)throw e2;}
@@ -836,11 +836,11 @@ function InvEdit({item,onClose,onSaved}){
  const subList=f.kind==="prop"?(PROP_SUBTYPES_BY_CAT[f.session_type]||PROP_SUBTYPES):(SUBTYPE_OPTS[f.kind]||[]);
  const showSetupStyle=f.type==="theme"&&!!SETUP_STYLE[f.session_type];
  const showDim=f.type==="item"&&f.kind==="basket";
- const noCond=(f.subcategory||"").toLowerCase().includes("balloon")||(isAsset&&f.subcategory==="Key");
+ const noCond=(f.subcategory||"").toLowerCase().includes("balloon")||isAsset;
  const showValue=f.type!=="theme"&&!(isAsset&&NO_VALUE.has(f.subcategory));
  const showColor=!isAsset&&(f.type==="theme"||f.type==="item");
  const showUsable=!isAsset&&f.type==="item"&&(f.kind==="prop"||f.kind==="backdrop");
- const OPSTATUS=["Working","Not working","In service","For sale","Spare"];
+ const OPSTATUS=["Available","In use","In repair","Retired","For sale"];
  const totalSel=BR.reduce((s,b)=>s+(locs[b]&&locs[b].on?(Number(locs[b].times)||0):0),0);
  const save=async()=>{if(busy)return;setBusy(true);setErr("");
    try{
@@ -870,7 +870,7 @@ function InvEdit({item,onClose,onSaved}){
          {!isAsset&&<div><span style={lab}>Category</span><select value={f.session_type||""} onChange={e=>set("session_type",e.target.value)}>{SESSION_CATS.map(c=><option key={c}>{c}</option>)}</select></div>}
          {!isAsset&&f.type==="item"&&<div><span style={lab}>Kind</span><select value={f.kind||""} onChange={e=>set("kind",e.target.value)}>{kindsE.map(k=><option key={k}>{k}</option>)}</select></div>}
          {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)} list="assettypesE" placeholder="e.g. Camera, Lens, Furniture"/><datalist id="assettypesE">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
-         {isAsset&&<div><span style={lab}>Status</span><select value={f.op_status||"Working"} onChange={e=>set("op_status",e.target.value)}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
+         {isAsset&&<div><span style={lab}>Status</span><select value={f.op_status||"Available"} onChange={e=>set("op_status",e.target.value)}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
          {isAsset&&!NO_SERIAL.has(f.subcategory)&&<div><span style={lab}>Serial no</span><input value={f.serial_no||""} onChange={e=>set("serial_no",e.target.value)} placeholder="serial / IMEI"/></div>}
          {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"KEY HOLDER":"ASSIGNED TO / HELD AT"}</span><input value={f.assignee||""} onChange={e=>set("assignee",e.target.value)} placeholder="person or room"/></div>}
          {isAsset&&f.subcategory!=="Key"&&<div><span style={lab}>Origin <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><input value={f.origin||""} onChange={e=>set("origin",e.target.value)} placeholder="e.g. brand / source"/></div>}
@@ -997,7 +997,7 @@ function NewInventory({initCat=""}){
      </div>
      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,flexShrink:0}}>
        <span style={{fontSize:10.5,fontWeight:700,color:kc,background:kc+"18",borderRadius:20,padding:"3px 11px",whiteSpace:"nowrap"}}>{klabel}</span>
-       {r.op_status&&r.op_status!=="Working"&&<span style={{fontSize:9.5,fontWeight:700,borderRadius:20,padding:"2px 9px",whiteSpace:"nowrap",color:r.op_status==="Not working"?"#d2473f":"#8a6d1e",background:r.op_status==="Not working"?"#ffe2e1":"#f5ecd6"}}>{r.op_status}</span>}
+       {r.op_status&&r.op_status!=="Available"&&<span style={{fontSize:9.5,fontWeight:700,borderRadius:20,padding:"2px 9px",whiteSpace:"nowrap",color:r.op_status==="In repair"?"#cf7a1e":r.op_status==="Retired"?"#8a8d9a":r.op_status==="For sale"?"#7c4dff":"#3e7bfa",background:r.op_status==="In repair"?"#fbead6":r.op_status==="Retired"?"#ececf0":r.op_status==="For sale"?"#efe9ff":"#eaf1ff"}}>{r.op_status}</span>}
      </div>
    </div>;};
  return <div ref={scrollRef} className="scroll fade" style={{flex:1,padding:"26px 30px",position:"relative"}}>
@@ -1224,35 +1224,43 @@ function InvDashboard({rows,onOpen,go}){
  const archived=rows.length-active.length;
  const valTot={};active.forEach(r=>{if(r.value!=null&&r.value!=="")valTot[r.value_currency||"AED"]=(valTot[r.value_currency||"AED"]||0)+Number(r.value||0);});
  const valStr=Object.entries(valTot).map(([c,n])=>c+" "+n.toLocaleString()).join(" · ")||"—";
- const condCount={};active.forEach(r=>(r.inv_item_location||[]).forEach(l=>{if(l.condition)condCount[l.condition]=(condCount[l.condition]||0)+1;}));
- const attention=active.filter(r=>(r.inv_item_location||[]).some(l=>l.condition==="Poor"||l.condition==="Damaged"));
- const perStudio=BR.map(b=>({b,n:active.filter(r=>(r.inv_item_location||[]).some(l=>l.location===b)).length,qty:active.reduce((s,r)=>s+(r.inv_item_location||[]).filter(l=>l.location===b).reduce((a,l)=>a+(l.quantity||0),0),0)}));
+ const branchSel=(r,b)=>(r.inv_item_location||[]).find(l=>l.location===b)?.times_selected||0;
+ const attention=active.filter(r=>r.op_status==="In repair"||(r.inv_item_location||[]).some(l=>l.condition==="Poor"||l.condition==="Damaged"));
+ const forSale=active.filter(r=>r.op_status==="For sale");
+ const noPhoto=active.filter(r=>!r.photo_url);
+ const perStudio=BR.map(b=>({b,n:active.filter(r=>(r.inv_item_location||[]).some(l=>l.location===b)).length,qty:active.reduce((s,r)=>s+(r.inv_item_location||[]).filter(l=>l.location===b).reduce((a,l)=>a+(l.quantity||0),0),0)})).filter(s=>s.n>0);
  const used=active.filter(tracksUse);
  const top=[...used].sort((a,b)=>invSel(b)-invSel(a)).filter(r=>invSel(r)>0).slice(0,6);
  const unused=used.filter(r=>invSel(r)===0);
- const oldest=[...active].filter(r=>acqOf(r)).sort((a,b)=>(acqOf(a)||"").localeCompare(acqOf(b)||"")).slice(0,6);
- const row=(r,right)=><div key={r.id} onClick={()=>onOpen&&onOpen(r)} className="fade" style={{display:"flex",alignItems:"center",gap:10,padding:"6px 8px",borderRadius:9,cursor:"pointer",background:"var(--panel2)"}}>
+ const popByBranch=BR.map(b=>({b,list:[...used].filter(r=>branchSel(r,b)>0).sort((x,y)=>branchSel(y,b)-branchSel(x,b)).slice(0,5)})).filter(x=>x.list.length);
+ const row=(r,right,rc)=><div key={r.id} onClick={()=>onOpen&&onOpen(r)} className="trow fade" style={{display:"flex",alignItems:"center",gap:10,padding:"6px 8px",borderRadius:9,cursor:"pointer"}}>
    <div style={{width:34,height:34,borderRadius:9,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:r.photo_url?"var(--line)":itemIcon(r).c+"16"}}>{r.photo_url?<img src={r.photo_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon d={itemIcon(r).d} s={17} c={itemIcon(r).c} sw={1.7}/>}</div>
-   <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name||r.code}</div><div style={{fontSize:10.5,color:"var(--muted)"}}>{r.session_type}{r.kind?" · "+r.kind:""}</div></div>
-   <div style={{fontSize:11,fontWeight:600,color:"var(--soft)",whiteSpace:"nowrap"}}>{right}</div></div>;
- const panel={background:"var(--panel)",border:"1px solid var(--line)",borderRadius:14,padding:"15px 17px",flex:"1 1 280px",minWidth:260};
- const h={fontSize:13,fontWeight:700,color:"var(--ink)",marginBottom:10,display:"flex",alignItems:"center",gap:7};
+   <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name||r.code}</div><div style={{fontSize:10.5,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{[r.session_type,r.subcategory||r.kind].filter(Boolean).join(" · ")}</div></div>
+   <div style={{fontSize:11,fontWeight:700,color:rc||"var(--soft)",whiteSpace:"nowrap"}}>{right}</div></div>;
+ const panel={background:"var(--panel)",border:"1px solid var(--line)",borderRadius:16,padding:"16px 18px",flex:"1 1 280px",minWidth:250,boxShadow:"var(--shadow)"};
+ const h={fontSize:13.5,fontWeight:700,color:"var(--ink)",marginBottom:12,display:"flex",alignItems:"center",gap:7};
  return <div className="scroll fade" style={{flex:1,padding:"26px 30px",overflow:"auto"}}>
-  <h1 style={{fontSize:26,fontWeight:700,letterSpacing:"-.01em"}}>Overview</h1>
-  <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:18}}>Live snapshot of the whole inventory{archived?` · ${archived} archived`:""}.</p>
+  <h1 style={{fontSize:25,fontWeight:800,letterSpacing:"-.02em"}}>Overview</h1>
+  <p style={{color:"var(--muted)",fontSize:13,marginTop:2,marginBottom:18}}>What's happening across your studios{archived?` · ${archived} archived`:""}.</p>
   <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:14}}>
    <StatCard label="Items" value={active.length} sub={setups+" setups · "+items+" items"}/>
    <StatCard label="Total value" value={valStr} sub="declared, per currency"/>
-   <StatCard label="Needs attention" value={attention.length} sub="Poor or Damaged copies" color={attention.length?"#d2473f":"var(--ink)"}/>
-   <StatCard label="Dead stock" value={unused.length} sub="setups/outfits, 0 selections" color={unused.length?"#cf8a1e":"var(--ink)"}/>
+   <StatCard label="Needs attention" value={attention.length} sub="damaged or in repair" color={attention.length?"#ff5a5f":"var(--ink)"}/>
+   <StatCard label="Dead stock" value={unused.length} sub="setups/outfits never used" color={unused.length?"#f0a23c":"var(--ink)"}/>
   </div>
+  {popByBranch.length>0&&<div style={{...panel,flex:"1 1 100%",marginBottom:14}}><div style={h}><Icon d={I.star} s={15} c="#f3c64a" fill="#f3c64a" sw={0}/>Popular setups by studio</div>
+   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:16}}>{popByBranch.map(({b,list})=><div key={b}><div style={{display:"flex",alignItems:"center",gap:7,marginBottom:7,fontSize:12,fontWeight:700,color:BR_COLOR[b]}}><Dot c={BR_COLOR[b]} s={8}/>{b}</div><div style={{display:"flex",flexDirection:"column",gap:3}}>{list.map(r=>row(r,branchSel(r,b)+"×","var(--gold)"))}</div></div>)}</div></div>}
   <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:14}}>
-   <div style={panel}><div style={h}>Condition <span style={{color:"var(--muted)",fontWeight:400}}>(copies)</span></div>{CONDS.map(c=>{const n=condCount[c]||0;return <div key={c} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}><Dot c={COND_COLOR[c]} s={9}/><span style={{fontSize:12,color:"var(--soft)",flex:1}}>{c}</span><span style={{fontSize:12,fontWeight:600}}>{n}</span></div>})}</div>
-   <div style={panel}><div style={h}>By studio</div>{perStudio.map(s=><div key={s.b} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}><Dot c={BR_COLOR[s.b]} s={9}/><span style={{fontSize:12,color:"var(--soft)",flex:1}}>{s.b}</span><span style={{fontSize:12,fontWeight:600}}>{s.n} <span style={{color:"var(--muted)",fontWeight:400}}>· {s.qty} qty</span></span></div>)}</div>
-   <div style={panel}><div style={h}><Icon d={I.star} s={15} c="#f3c64a"/>Most used</div><div style={{display:"flex",flexDirection:"column",gap:5}}>{top.length?top.map(r=>row(r,invSel(r)+" selected")):<span style={{fontSize:12,color:"var(--muted)"}}>No usage recorded yet.</span>}</div></div>
+   <div style={panel}><div style={h}>Equipment status</div>{["Available","In repair","For sale","Retired"].map(s=>{const n=active.filter(r=>r.op_status===s).length;const c=s==="Available"?"#22b573":s==="In repair"?"#f0a23c":s==="For sale"?"#7c4dff":"#9aa0b0";return <div key={s} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><Dot c={c} s={9}/><span style={{fontSize:12,color:"var(--soft)",flex:1}}>{s}</span><span style={{fontSize:12,fontWeight:700}}>{n}</span></div>})}</div>
+   <div style={panel}><div style={h}>By studio</div>{perStudio.map(s=><div key={s.b} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><Dot c={BR_COLOR[s.b]} s={9}/><span style={{fontSize:12,color:"var(--soft)",flex:1}}>{s.b}</span><span style={{fontSize:12,fontWeight:700}}>{s.n} <span style={{color:"var(--muted)",fontWeight:400}}>· {s.qty} qty</span></span></div>)}</div>
+   <div style={panel}><div style={h}><Icon d={I.star} s={15} c="#f3c64a"/>Most used overall</div><div style={{display:"flex",flexDirection:"column",gap:4}}>{top.length?top.map(r=>row(r,invSel(r)+"×","var(--gold)")):<span style={{fontSize:12,color:"var(--muted)"}}>No usage recorded yet.</span>}</div></div>
   </div>
-  {attention.length>0&&<div style={{...panel,marginBottom:14,flex:"1 1 100%"}}><div style={h}><Dot c="#d2473f" s={9}/>Needs attention <span style={{color:"var(--muted)",fontWeight:400}}>— repair or replace ({attention.length})</span></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:7}}>{attention.map(r=>row(r,(r.inv_item_location||[]).filter(l=>l.condition==="Poor"||l.condition==="Damaged").map(l=>l.location+" "+l.condition).join(", ")))}</div></div>}
-  {unused.length>0&&<div style={{...panel,flex:"1 1 100%"}}><div style={h}><Dot c="#cf8a1e" s={9}/>Dead stock <span style={{color:"var(--muted)",fontWeight:400}}>— setups/outfits never selected ({unused.length})</span></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:7}}>{unused.map(r=>row(r,ageLabel(acqOf(r))+" old"))}</div></div>}
+  {attention.length>0&&<div style={{...panel,marginBottom:14,flex:"1 1 100%"}}><div style={h}><Dot c="#ff5a5f" s={9}/>Worth a look <span style={{color:"var(--muted)",fontWeight:400}}>— damaged / in repair ({attention.length})</span></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:6}}>{attention.map(r=>row(r,r.op_status==="In repair"?"In repair":((r.inv_item_location||[]).filter(l=>l.condition==="Poor"||l.condition==="Damaged").map(l=>l.condition)[0]||""),"#ff5a5f"))}</div></div>}
+  {(forSale.length>0||noPhoto.length>0)&&<div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:14}}>
+   {forSale.length>0&&<div style={panel}><div style={h}><Dot c="#7c4dff" s={9}/>For sale ({forSale.length})</div><div style={{display:"flex",flexDirection:"column",gap:4}}>{forSale.slice(0,6).map(r=>row(r,r.value!=null?(r.value_currency||"")+" "+r.value:"","#7c4dff"))}</div></div>}
+   {noPhoto.length>0&&<div style={panel}><div style={h}>Missing a photo</div><div style={{fontSize:24,fontWeight:800}}>{noPhoto.length}</div><div style={{fontSize:11.5,color:"var(--muted)",marginTop:2}}>items without an image</div></div>}
+  </div>}
+  {unused.length>0&&<div style={{...panel,flex:"1 1 100%"}}><div style={h}><Dot c="#f0a23c" s={9}/>Dead stock <span style={{color:"var(--muted)",fontWeight:400}}>— setups/outfits never selected ({unused.length})</span></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:6}}>{unused.slice(0,18).map(r=>row(r,ageLabel(acqOf(r))))}</div></div>}
  </div>;
 }
 function App(){
