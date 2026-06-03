@@ -178,11 +178,14 @@ const I={
  basket:"M3 9h18l-2 12H5L3 9z M8 9V5a4 4 0 0 1 8 0v4 M8 13v4 M12 13v4 M16 13v4",
  backdrop:"M3 4h18v14H3z M3 18l4-5 4 3 4-4 6 6 M3 22h18",
  accessory:"M12 6a4 4 0 1 0 0-4 4 4 0 0 0 0 4z M9 5l-7 14h6l4-6 4 6h6L15 5",
+ tree:"M12 2 7 9h3l-4 6h4l-5 7h14l-5-7h4l-4-6h3z M11 22v-2h2v2",
+ gift:"M3 8h18v4H3z M3 12v9h18v-9 M12 8v13 M19 5a3 3 0 0 0-3-3c-2.5 0-4 3-4 3s-1.5-3-4-3a3 3 0 0 0 0 6h14a3 3 0 0 0 0-6",
 };
 // Map session_type → registry icon. Falls back to `tag` for unknown.
 const SESSION_ICON={
  "Newborn":I.baby,"Infant":I.toddler,"Sitter":I.toddler,
  "Cake Smash":I.cake,"Maternity":I.belly,"Children":I.child,"Gender Reveal":I.balloon,
+ "Christmas":I.tree,
 };
 // Map item kind → registry icon (used inside drilldown buckets and item placeholders).
 const KIND_ICON={
@@ -1055,10 +1058,10 @@ function ItemsProps(){
 }
 
 // ---- New unified inventory (inv_item): Add wizard + browse ----
-let CAT_CODE={"Cake Smash":"CS",Newborn:"NB",Infant:"IN",Maternity:"MA",Sitter:"SI",Children:"CH","Gender Reveal":"GR"};
+let CAT_CODE={"Cake Smash":"CS",Newborn:"NB",Infant:"IN",Maternity:"MA",Sitter:"SI",Children:"CH","Gender Reveal":"GR",Christmas:"XM"};
 const KIND_CODE={outfit:"OF",fabric:"FB",prop:"PR",backdrop:"BD",wrap:"WR",basket:"BS",accessory:"AC",other:"IT",setup:"SET"};
 const ITEM_KINDS=["outfit","fabric","prop","backdrop","wrap","basket","accessory","other"];
-let SESSION_CATS=["Newborn","Infant","Sitter","Cake Smash","Children","Maternity","Gender Reveal"];
+let SESSION_CATS=["Newborn","Infant","Sitter","Cake Smash","Children","Maternity","Gender Reveal","Christmas"];
 const GENDERS_T=["Girl","Boy","Twins","Unisex"];
 // a unisex / general item shows up under every gender (Boy, Girl AND Twins)
 const UNISEX_G=g=>!g||g==="Unisex"||g==="Neutral"||g==="Unisex / Neutral";
@@ -1067,7 +1070,7 @@ const genHit=(g,tile)=>g===tile||UNISEX_G(g);
 let STYLE_OPTS={Maternity:["Classic Black","Classic White","Fabrics","Elegant","Exclusive Setups","Private Collection","Outdoor"]};
 let NO_GENDER=["Maternity","Gender Reveal"];
 // which item kinds are offered per session type
-let KIND_BY_CAT={Maternity:["outfit","backdrop","accessory"],"Cake Smash":["outfit","prop","backdrop","accessory"],Newborn:["outfit","wrap","basket","prop","backdrop","accessory"],Infant:["outfit","basket","prop","backdrop","accessory"],Sitter:["outfit","prop","backdrop","accessory"],Children:["outfit","prop","backdrop","accessory"],"Gender Reveal":["prop"]};
+let KIND_BY_CAT={Maternity:["outfit","backdrop","accessory"],"Cake Smash":["outfit","prop","backdrop","accessory"],Newborn:["outfit","wrap","basket","prop","backdrop","accessory"],Infant:["outfit","basket","prop","backdrop","accessory"],Sitter:["outfit","prop","backdrop","accessory"],Children:["outfit","prop","backdrop","accessory"],"Gender Reveal":["prop"],Christmas:["outfit","prop","backdrop","accessory","wrap"]};
 const GENERAL_KINDS=["prop","accessory","backdrop","other"];
 const SIZE_OPTS=["S","M","L","XL","XXL","One size"];
 // size options per session type (baby sessions use age, maternity uses dress sizes)
@@ -1240,7 +1243,7 @@ function AddInvItem({onClose,onSaved,init={}}){
  </div>;
  const isMobile=typeof window!=="undefined" && window.innerWidth<640;
  // Persistent breadcrumb under the title — replaces the old in-section "Path" box.
- const pathSegs=(()=>{ const segs=[]; segs.push(f.grp==="shoot"?"Session item":f.grp==="electronics"?"Equipment":"Consumables"); if(chosen.length) segs.push(chosen.join(", ")); if(f.sessionRel&&f.session_type) segs.push(f.session_type); if(!isAsset){ const t = f.type==="theme" ? (f.session_type==="Gender Reveal"?"Reveal":"Setup") : (f.kind?ucf(f.kind):"Item"); segs.push(t); } if(showGender&&f.gender) segs.push(f.gender); return segs; })();
+ const pathSegs=(()=>{ const segs=[]; segs.push(f.grp==="shoot"?"Session inventory":f.grp==="electronics"?"Equipment":"Consumables"); if(chosen.length) segs.push(chosen.join(", ")); if(f.sessionRel&&f.session_type) segs.push(f.session_type); if(!isAsset){ const t = f.type==="theme" ? (f.session_type==="Gender Reveal"?"Reveal":"Setup") : (f.kind?ucf(f.kind):"Item"); segs.push(t); } if(showGender&&f.gender) segs.push(f.gender); return segs; })();
  const pathBreadcrumb=<div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",fontSize:11.5}}>{pathSegs.map((s,i)=><React.Fragment key={i}>{i>0&&<span style={{color:"var(--muted)"}}>›</span>}<span style={{fontWeight:600,color:"var(--ink)"}}>{s}</span></React.Fragment>)}{!chosen.length&&<span style={{color:"var(--muted)",fontStyle:"italic"}}>· pick a studio</span>}</div>;
  const grpAccent=f.grp==="shoot"?"#3e7bfa":f.grp==="electronics"?"#7c4dff":"#ff8f5e";
  // What's missing for save — used in the sticky bar
@@ -1270,7 +1273,7 @@ function AddInvItem({onClose,onSaved,init={}}){
          {/* PLACEMENT — mirrors the Catalog drilldown (Group → Studio → Session → Type → Kind → Gender) */}
          <Section title="Placement" hint="where this item lives in the catalogue" accent={grpAccent}>
            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-             <div><span style={lab}>Group</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{pill(f.grp==="shoot",()=>setF(p=>({...p,grp:"shoot",sessionRel:true})),"Session item","#3e7bfa")}{pill(f.grp==="electronics",()=>setF(p=>({...p,grp:"electronics",sessionRel:false,type:"item",kind:"other"})),"Equipment","#7c4dff")}{pill(f.grp==="facility",()=>setF(p=>({...p,grp:"facility",sessionRel:false,type:"item",kind:"other"})),"Consumables","#ff8f5e")}</div></div>
+             <div><span style={lab}>Group</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{pill(f.grp==="shoot",()=>setF(p=>({...p,grp:"shoot",sessionRel:true})),"Session inventory","#3e7bfa")}{pill(f.grp==="electronics",()=>setF(p=>({...p,grp:"electronics",sessionRel:false,type:"item",kind:"other"})),"Equipment","#7c4dff")}{pill(f.grp==="facility",()=>setF(p=>({...p,grp:"facility",sessionRel:false,type:"item",kind:"other"})),"Consumables","#ff8f5e")}</div></div>
              <div><span style={lab}>Location(s)<span style={labHint}>· tap the studios it's in</span></span>
                <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <button type="button" key={b} onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1,times:(p[b]&&p[b].times)||0}}))} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:9,border:`1.5px solid ${on?BR_COLOR[b]:"var(--line2)"}`,background:on?BR_COLOR[b]+"1c":"var(--panel)",color:on?BR_COLOR[b]:"var(--soft)",fontSize:13,fontWeight:on?700:600,minHeight:38,transition:"all .12s"}}><Dot c={BR_COLOR[b]} s={8}/>{b}</button>})}</div>
                {chosen.length>0&&<div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(220px,1fr))",gap:8,marginTop:10}}>{chosen.map(b=><div key={b} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"var(--panel2)",border:`1px solid ${BR_COLOR[b]}44`,borderRadius:8}}>
@@ -1325,9 +1328,9 @@ function AddInvItem({onClose,onSaved,init={}}){
          </Section>
 
          {/* LINKS */}
-         <Section title={f.type==="theme"?"Items in this setup":"Link to setup(s)"} hint="optional" accent="#9a6fd1">
+         {!isAsset&&<Section title={f.type==="theme"?"Items in this setup":"Link to setup(s)"} hint="optional" accent="#9a6fd1">
            <ItemPicker pool={cand.filter(a=>f.type==="theme"?a.type==="item":a.type==="theme")} selectedIds={linkIds} onToggle={id=>setLinkIds(l=>l.includes(id)?l.filter(x=>x!==id):[...l,id])} emptyHint={f.type==="theme"?"None yet — pick outfits / props / backdrops below.":"None yet — pick the setup(s) this belongs to."}/>
-         </Section>
+         </Section>}
 
          {/* TAGS & VISIBILITY */}
          <Section title="Tags & visibility" accent="#bd9b43">
@@ -1500,9 +1503,9 @@ function InvEdit({item,onClose,onSaved}){
            <button type="button" onClick={doXfer} disabled={!xfer.from||!xfer.to} style={{padding:"5px 12px",borderRadius:8,border:"1px solid var(--line2)",background:"var(--panel)",color:"var(--soft)",fontWeight:600,fontSize:11.5,cursor:xfer.from&&xfer.to?"pointer":"default",opacity:xfer.from&&xfer.to?1:.5}}>Move</button>
            <span style={{fontSize:10.5}}>(applied when you Save)</span>
          </div></div>
-       <div><span style={lab}>{f.type==="theme"?"ITEMS IN THIS SETUP":"LINKED TO SETUP(S)"} <span style={{color:"var(--muted)",fontWeight:400}}>({f.type==="theme"?"outfit / backdrop / props":"the setup(s) this belongs to"})</span></span>
+       {!isAsset&&<div><span style={lab}>{f.type==="theme"?"ITEMS IN THIS SETUP":"LINKED TO SETUP(S)"} <span style={{color:"var(--muted)",fontWeight:400}}>({f.type==="theme"?"outfit / backdrop / props":"the setup(s) this belongs to"})</span></span>
          <ItemPicker pool={all.filter(a=>item.type==="theme"?a.type==="item":a.type==="theme")} selectedIds={links} onToggle={id=>toggleLink(id)} emptyHint={item.type==="theme"?"None yet — pick outfits / props / backdrops below.":"None yet — pick the setup(s) this belongs to."}/>
-       </div>
+       </div>}
        {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>(shows under the New filter)</span></span></div>}
        {(f.type==="theme"&&(f.session_type==="Cake Smash"||f.session_type==="Sitter"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("Real balloon")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Real balloon"])]:(f.static_tags||[]).filter(x=>x!=="Real balloon"))}/><span style={{fontSize:13,fontWeight:500}}>Real balloon <span style={{color:"var(--muted)",fontWeight:400}}>(off = plain theme — Cake Smash &amp; Sitter)</span></span></div>}
        {!isAsset&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"}</span></div>}
