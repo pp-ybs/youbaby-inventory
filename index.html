@@ -698,7 +698,9 @@ function InvEdit({item,onClose,onSaved}){
  const totalSel=BR.reduce((s,b)=>s+(locs[b]&&locs[b].on?(Number(locs[b].times)||0):0),0);
  const save=async()=>{if(busy)return;setBusy(true);setErr("");
    try{
-     await sb.from("inv_item").update({name:f.name,type:f.type,kind:f.type==="item"?f.kind:null,session_type:f.session_type,subcategory:f.subcategory||null,gender:NO_GENDER.includes(f.session_type)?null:(f.gender||null),size:f.size||null,color:f.color||null,photo_url:f.photo_url||null,purchase_url:f.purchase_url||null,usable_for:f.usable_for||[],condition:f.condition,notes:f.notes||null,website_display:!!f.website_display,times_selected:totalSel}).eq("id",item.id);
+     const segE=f.type==="theme"?"SET":(KIND_CODE[f.kind]||"IT");const catE=f.session_type||"GEN";
+     let code=f.code;if(code&&!code.startsWith(codePrefix(catE,segE)+"-"))code=await nextCode(catE,segE);
+     await sb.from("inv_item").update({code,name:f.name,type:f.type,kind:f.type==="item"?f.kind:null,session_type:f.session_type,subcategory:f.subcategory||null,gender:NO_GENDER.includes(f.session_type)?null:(f.gender||null),size:f.size||null,color:f.color||null,photo_url:f.photo_url||null,purchase_url:f.purchase_url||null,usable_for:f.usable_for||[],condition:f.condition,notes:f.notes||null,website_display:!!f.website_display,times_selected:totalSel}).eq("id",item.id);
      const on=BR.filter(b=>locs[b]&&locs[b].on),off=BR.filter(b=>!(locs[b]&&locs[b].on));
      if(on.length)await sb.from("inv_item_location").upsert(on.map(b=>({item_id:item.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0})));
      for(const b of off)await sb.from("inv_item_location").delete().eq("item_id",item.id).eq("location",b);
