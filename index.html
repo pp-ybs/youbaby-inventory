@@ -195,7 +195,7 @@ const Stat=({icon,label,value,sub,color="var(--gold)"})=>
 // ---- photo upload (to Supabase Storage, in-app) ----
 function PhotoField({value,onChange,prefix}){
  const [busy,setBusy]=useState(false),[err,setErr]=useState("");
- const inp=useRef();
+ const inp=useRef(),cam=useRef();
  const pick=async e=>{
    const file=e.target.files&&e.target.files[0]; if(!file)return;
    if(!sb){setErr("No connection — can't upload");return;}
@@ -207,15 +207,17 @@ function PhotoField({value,onChange,prefix}){
      if(up.error)throw up.error;
      onChange(sb.storage.from('app').getPublicUrl(path).data.publicUrl);
    }catch(ex){setErr((ex&&ex.message)||"Upload failed");}
-   setBusy(false); if(inp.current)inp.current.value="";
+   setBusy(false); if(inp.current)inp.current.value=""; if(cam.current)cam.current.value="";
  };
  return <div>
-   <div style={{display:"flex",gap:8}}>
-     <input value={value||""} onChange={e=>onChange(e.target.value)} placeholder="https://…  or click Upload →" style={{flex:1}}/>
+   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+     <input value={value||""} onChange={e=>onChange(e.target.value)} placeholder="https://…  or click Upload →" style={{flex:1,minWidth:160}}/>
      {value&&<button type="button" onClick={()=>onChange("")} title="Remove photo" style={{whiteSpace:"nowrap",padding:"9px 13px",border:"1px solid var(--line2)",borderRadius:8,fontWeight:600,fontSize:13,background:"var(--panel)",color:"var(--danger)",display:"inline-flex",alignItems:"center",gap:6}}><Icon d={I.x} s={15} c="var(--danger)"/>Remove</button>}
+     <button type="button" onClick={()=>cam.current&&cam.current.click()} disabled={busy} title="Take a photo (mobile)" style={{whiteSpace:"nowrap",padding:"9px 13px",border:"1px solid var(--line2)",borderRadius:8,fontWeight:600,fontSize:13,background:"var(--panel)",color:"var(--ink)",display:"inline-flex",alignItems:"center",gap:6}}><span style={{fontSize:14}}>📷</span>Camera</button>
      <button type="button" onClick={()=>inp.current&&inp.current.click()} disabled={busy} style={{whiteSpace:"nowrap",padding:"9px 15px",border:"1px solid var(--line2)",borderRadius:8,fontWeight:600,fontSize:13,background:busy?"var(--panel2)":"var(--panel)",color:"var(--ink)",display:"inline-flex",alignItems:"center",gap:6}}><Icon d={I.image} s={15}/>{busy?"Uploading…":"Upload"}</button>
    </div>
    <input ref={inp} type="file" accept="image/*" onChange={pick} style={{display:"none"}}/>
+   <input ref={cam} type="file" accept="image/*" capture="environment" onChange={pick} style={{display:"none"}}/>
    {err&&<div style={{fontSize:11.5,color:"var(--danger)",marginTop:6}}>{err}</div>}
  </div>;
 }
@@ -224,7 +226,7 @@ function PhotoField({value,onChange,prefix}){
 function Gallery({photos,onChange,prefix}){
  const arr=Array.isArray(photos)?photos:[];
  const [busy,setBusy]=useState(false),[err,setErr]=useState("");
- const inp=useRef();
+ const inp=useRef(),cam=useRef();
  const add=async e=>{
    const files=e.target.files&&Array.from(e.target.files); if(!files||!files.length)return;
    if(!sb){setErr("No connection — can't upload");return;}
@@ -254,9 +256,105 @@ function Gallery({photos,onChange,prefix}){
        <input value={e.n||""} onChange={ev=>note(i,ev.target.value)} placeholder="note…" style={{marginTop:5,fontSize:11,padding:"5px 7px"}}/>
      </div>)}
      <button type="button" onClick={()=>inp.current&&inp.current.click()} disabled={busy} style={{width:92,height:92,borderRadius:8,border:"1.5px dashed var(--line2)",background:"var(--panel2)",color:"var(--soft)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:5,fontSize:11.5,fontWeight:600,cursor:"pointer"}}><Icon d={I.image} s={18}/>{busy?"Uploading…":"+ Add"}</button>
+     <button type="button" onClick={()=>cam.current&&cam.current.click()} disabled={busy} title="Take a photo (mobile)" style={{width:92,height:92,borderRadius:8,border:"1.5px dashed var(--line2)",background:"var(--panel2)",color:"var(--soft)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,fontSize:11.5,fontWeight:600,cursor:"pointer"}}><span style={{fontSize:20}}>📷</span>{busy?"Uploading…":"Camera"}</button>
    </div>
    <input ref={inp} type="file" accept="image/*" multiple onChange={add} style={{display:"none"}}/>
+   <input ref={cam} type="file" accept="image/*" capture="environment" onChange={add} style={{display:"none"}}/>
    {err&&<div style={{fontSize:11.5,color:"var(--danger)",marginTop:6}}>{err}</div>}
+ </div>;
+}
+
+// ---- colour palette picker (multi-select chips, persisted as comma-joined string for back-compat) ----
+const COLOR_PALETTE=[["White","#f5f5f5","#d8d8d8"],["Cream","#f4ecd8","#e0d6b8"],["Beige","#dec8a4","#c2ad84"],["Tan","#c9a479","#a8855a"],["Brown","#7a5230","#5a3a20"],["Black","#1a1a1a","#1a1a1a"],["Grey","#9aa0b0","#7a808f"],["Pink","#ffb6c1","#e88aa1"],["Blush","#f6c3c8","#dba1a8"],["Red","#d6504a","#a83a35"],["Peach","#fbbf94","#e89c70"],["Orange","#f08a4d","#c66a30"],["Yellow","#f4d35e","#d4b340"],["Gold","#d4a02a","#a87f15"],["Green","#7ba27a","#5a8159"],["Sage","#aabd9a","#849a73"],["Mint","#aedcc0","#82baa0"],["Olive","#7a8447","#5a6332"],["Blue","#7da3c2","#557fa0"],["Navy","#2c4356","#1a2d3d"],["Teal","#4f9c95","#356e69"],["Lilac","#c4a5d6","#a283ba"],["Lavender","#9a8fc7","#7a6fab"],["Multi","linear-gradient(135deg,#ffb6c1,#aedcc0,#7da3c2)","#888"]];
+function ColorPicker({value,onChange}){
+ const cur=String(value||"").split(/[,&]+/).map(s=>s.trim()).filter(Boolean);
+ const has=c=>cur.some(x=>x.toLowerCase()===c.toLowerCase());
+ const toggle=c=>{ const next=has(c)?cur.filter(x=>x.toLowerCase()!==c.toLowerCase()):[...cur,c]; onChange(next.join(", ")); };
+ const [adding,setAdding]=useState(false),[txt,setTxt]=useState("");
+ const addCustom=()=>{ const v=txt.trim(); if(v&&!has(v)){onChange([...cur,v].join(", "));} setTxt(""); setAdding(false); };
+ const customs=cur.filter(c=>!COLOR_PALETTE.some(p=>p[0].toLowerCase()===c.toLowerCase()));
+ return <div>
+   <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+     {COLOR_PALETTE.map(([name,bg,bd])=>{const on=has(name);return <button type="button" key={name} onClick={()=>toggle(name)} title={name} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 10px 4px 4px",borderRadius:20,border:`1.5px solid ${on?"var(--ink)":"var(--line2)"}`,background:on?"var(--ink)":"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:11.5,fontWeight:600,cursor:"pointer"}}><span style={{width:16,height:16,borderRadius:"50%",background:bg,border:`1px solid ${bd}`,flexShrink:0,display:"inline-block"}}/>{name}</button>})}
+     {customs.map(c=><button type="button" key={c} onClick={()=>toggle(c)} title="Remove" style={{display:"inline-flex",alignItems:"center",gap:5,padding:"4px 9px",borderRadius:20,border:"1.5px solid var(--ink)",background:"var(--ink)",color:"#fff",fontSize:11.5,fontWeight:600,cursor:"pointer"}}>{c} ×</button>)}
+     {adding?<span style={{display:"inline-flex",gap:5,alignItems:"center"}}><input autoFocus value={txt} placeholder="colour…" onChange={e=>setTxt(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addCustom();}else if(e.key==="Escape"){setTxt("");setAdding(false);}}} style={{width:96,height:28,padding:"0 8px",fontSize:11.5}}/><button type="button" onMouseDown={e=>{e.preventDefault();addCustom();}} style={{padding:"4px 10px",borderRadius:8,border:"none",background:"var(--ink)",color:"#fff",fontSize:11.5,fontWeight:600}}>Add</button></span>:<button type="button" onClick={()=>setAdding(true)} style={{padding:"4px 12px",borderRadius:20,border:"1px dashed var(--line2)",background:"var(--panel)",color:"var(--soft)",fontSize:11.5,fontWeight:600}}>+ Custom</button>}
+   </div>
+ </div>;
+}
+
+// ---- visual item picker (replaces the plain <select> in setup linking) ----
+// `pool` = candidate items, `selectedIds` = current links. Shows selected items
+// as thumbnail chips (constructor-style) and candidates as a searchable mini-grid.
+function ItemPicker({pool,selectedIds,onToggle,emptyHint}){
+ const [q,setQ]=useState("");
+ const selected=(selectedIds||[]).map(id=>(pool||[]).find(a=>a.id===id)).filter(Boolean);
+ const ql=q.trim().toLowerCase();
+ const cands=(pool||[]).filter(a=>!(selectedIds||[]).includes(a.id) && (!ql || ((a.name||"")+" "+(a.code||"")+" "+(a.kind||"")+" "+(a.session_type||"")).toLowerCase().includes(ql)));
+ const Thumb=({it,onRemove})=>{const u=it.photo_url||"";return <div style={{width:78,position:"relative"}}>
+   <div style={{width:78,height:78,borderRadius:8,overflow:"hidden",background:"var(--panel2)",border:"1px solid var(--line2)"}}>{u?<img src={u} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:18,fontWeight:700}}>{(it.name||it.code||"?").substring(0,1).toUpperCase()}</div>}</div>
+   <div style={{fontSize:10.5,fontWeight:600,marginTop:4,lineHeight:1.25,maxHeight:28,overflow:"hidden"}}>{it.name||it.code}</div>
+   <div style={{fontSize:9.5,color:"var(--muted)",marginTop:1}}>{it.kind||(it.type==="theme"?"setup":"")}</div>
+   {onRemove&&<button type="button" onClick={onRemove} title="Remove" style={{position:"absolute",top:-7,right:-7,width:22,height:22,borderRadius:"50%",background:"#fff",border:"1px solid var(--line2)",boxShadow:"var(--shadow)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon d={I.x} s={13} c="var(--danger)"/></button>}
+ </div>;};
+ return <div>
+   <div style={{display:"flex",flexWrap:"wrap",gap:10,marginBottom:8,padding:selected.length?"10px":"0",background:selected.length?"var(--panel2)":"transparent",border:selected.length?"1px solid var(--line)":"none",borderRadius:8}}>
+     {selected.length?selected.map(it=><Thumb key={it.id} it={it} onRemove={()=>onToggle(it.id)}/>):<span style={{fontSize:12,color:"var(--muted)",padding:"4px 2px"}}>{emptyHint||"None yet — pick items below to build this setup."}</span>}
+   </div>
+   <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search items by name / code / kind…" style={{marginBottom:8}}/>
+   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(108px,1fr))",gap:9,maxHeight:260,overflowY:"auto",padding:2}}>
+     {cands.slice(0,80).map(a=><button type="button" key={a.id} onClick={()=>onToggle(a.id)} style={{padding:6,border:"1px solid var(--line2)",borderRadius:8,background:"var(--panel)",cursor:"pointer",textAlign:"left",display:"flex",flexDirection:"column",gap:4}} onMouseEnter={e=>e.currentTarget.style.borderColor="var(--accent)"} onMouseLeave={e=>e.currentTarget.style.borderColor="var(--line2)"}>
+       <div style={{width:"100%",aspectRatio:"1/1",borderRadius:6,overflow:"hidden",background:"var(--panel2)"}}>{a.photo_url?<img src={a.photo_url} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:18,fontWeight:700}}>{(a.name||a.code||"?").substring(0,1).toUpperCase()}</div>}</div>
+       <div style={{fontSize:11,fontWeight:600,lineHeight:1.25,maxHeight:28,overflow:"hidden"}}>{a.name||a.code}</div>
+       <div style={{fontSize:9.5,color:"var(--muted)"}}>{a.kind||(a.type==="theme"?"setup":"")}{a.session_type?" · "+a.session_type:""}</div>
+     </button>)}
+     {!cands.length&&<div style={{gridColumn:"1/-1",fontSize:12,color:"var(--muted)",textAlign:"center",padding:"16px 0"}}>{ql?"No matches.":"No more candidates."}</div>}
+   </div>
+ </div>;
+}
+
+// ---- barcode scanner modal (uses native BarcodeDetector; manual fallback otherwise) ----
+function ScanModal({onClose,onFound}){
+ const videoRef=useRef(),[err,setErr]=useState(""),[code,setCode]=useState(""),[scanning,setScanning]=useState(true);
+ const supported=typeof window!=="undefined" && "BarcodeDetector" in window;
+ useEffect(()=>{
+   if(!supported){ setErr("Camera scanning isn't supported on this browser. Type the item code below — e.g. NB-SET-011."); setScanning(false); return; }
+   let stream,raf,stopped=false;
+   (async()=>{
+     try{
+       stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+       if(videoRef.current){ videoRef.current.srcObject=stream; await videoRef.current.play(); }
+       const det=new window.BarcodeDetector({formats:["code_128","qr_code","ean_13","code_39","code_93","data_matrix"]});
+       const tick=async()=>{
+         if(stopped) return;
+         try{ const codes=await det.detect(videoRef.current); if(codes&&codes.length){ const v=String(codes[0].rawValue||"").trim(); if(v){ stopped=true; onFound(v); return; } } }catch(e){}
+         raf=requestAnimationFrame(tick);
+       };
+       tick();
+     }catch(e){ setErr((e&&e.message)||"Couldn't access camera."); setScanning(false); }
+   })();
+   return ()=>{ stopped=true; if(raf) cancelAnimationFrame(raf); if(stream) stream.getTracks().forEach(t=>t.stop()); };
+ },[supported]);
+ const submit=()=>{ const v=code.trim(); if(v) onFound(v); };
+ return <div style={{position:"fixed",inset:0,background:"#0006",backdropFilter:"blur(4px)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+   <div style={{width:420,maxWidth:"95vw",background:"var(--panel)",borderRadius:12,overflow:"hidden",boxShadow:"0 30px 80px rgba(20,20,30,.4)"}}>
+     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 18px",borderBottom:"1px solid var(--line)"}}>
+       <div style={{fontWeight:700,fontSize:15}}>Scan item barcode</div>
+       <button onClick={onClose} style={{padding:4}}><Icon d={I.x} s={18} c="var(--muted)"/></button>
+     </div>
+     {scanning?<div style={{position:"relative",background:"#000",aspectRatio:"4/3"}}>
+       <video ref={videoRef} muted playsInline style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+       <div style={{position:"absolute",inset:"20% 12%",border:"2px solid #fff8",borderRadius:12,boxShadow:"0 0 0 99px rgba(0,0,0,.45)"}}/>
+       <div style={{position:"absolute",left:0,right:0,bottom:8,textAlign:"center",color:"#fff",fontSize:12,textShadow:"0 1px 4px #000a"}}>Point the camera at the item label</div>
+     </div>:null}
+     <div style={{padding:"14px 18px"}}>
+       {err&&<div style={{fontSize:12.5,color:"var(--danger)",marginBottom:10}}>{err}</div>}
+       <div style={{fontSize:11,color:"var(--muted)",fontWeight:700,marginBottom:5}}>Or type the code manually</div>
+       <div style={{display:"flex",gap:8}}>
+         <input autoFocus={!supported} value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="e.g. NB-SET-011" onKeyDown={e=>e.key==="Enter"&&submit()} style={{flex:1}}/>
+         <button type="button" onClick={submit} style={{padding:"9px 16px",border:"none",borderRadius:8,background:"var(--ink)",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>Look up</button>
+       </div>
+     </div>
+   </div>
  </div>;
 }
 
@@ -420,12 +518,24 @@ function PublicLightbox({items,index,onIndex,onClose}){
 }
 // Customer-facing showcase tile — adapts its frame to the photo's orientation
 // (portrait 3/4 vs landscape 4/3), detected on image load. Defaults to portrait.
+// Multi-image: shows the cover by default; swipe / tap dots cycles through extras.
 function PubTile({it,onClick}){
- const [por,setPor]=useState(true);
+ const photos=[it.img,...(Array.isArray(it.extras)?it.extras.map(e=>e&&e.p).filter(Boolean):[])].filter(Boolean);
+ const [idx,setIdx]=useState(0),[por,setPor]=useState(true);
+ const cur=photos[idx]||null,n=photos.length;
+ const touch=useRef({x:0,t:0});
+ const onTouchStart=e=>{const t=e.touches&&e.touches[0]; if(t){touch.current={x:t.clientX,t:Date.now()};}};
+ const onTouchEnd=e=>{const t=e.changedTouches&&e.changedTouches[0]; if(!t||n<2) return; const dx=t.clientX-touch.current.x; if(Math.abs(dx)>30){ e.stopPropagation(); e.preventDefault(); setIdx(i=>dx<0?Math.min(n-1,i+1):Math.max(0,i-1)); }};
+ const step=(e,delta)=>{e.stopPropagation();setIdx(i=>Math.max(0,Math.min(n-1,i+delta)));};
  return <button onClick={onClick} style={{padding:0,border:"none",background:"none",cursor:"pointer",textAlign:"left"}}>
-   <div style={{position:"relative",width:"100%",aspectRatio:por?"3/4":"4/3",borderRadius:12,overflow:"hidden",background:"#ececec",boxShadow:"0 1px 5px rgba(0,0,0,.07)"}}>
-     {it.img?<img src={it.img} loading="lazy" onLoad={e=>{const im=e.target;if(im.naturalWidth&&im.naturalHeight)setPor(im.naturalHeight>=im.naturalWidth);}} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:"#c4c4c4",fontSize:12}}>No image</div>}
+   <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{position:"relative",width:"100%",aspectRatio:por?"3/4":"4/3",borderRadius:12,overflow:"hidden",background:"#ececec",boxShadow:"0 1px 5px rgba(0,0,0,.07)"}}>
+     {cur?<img src={cur} loading="lazy" onLoad={e=>{const im=e.target;if(im.naturalWidth&&im.naturalHeight)setPor(im.naturalHeight>=im.naturalWidth);}} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:"#c4c4c4",fontSize:12}}>No image</div>}
      {it.size&&<span style={{position:"absolute",top:7,right:7,fontSize:9.5,fontWeight:700,background:"rgba(0,0,0,.55)",color:"#fff",borderRadius:6,padding:"2px 7px"}}>{it.size}</span>}
+     {n>1&&<>
+       {idx>0&&<button onClick={e=>step(e,-1)} aria-label="Previous photo" style={{position:"absolute",left:6,top:"50%",transform:"translateY(-50%)",width:28,height:28,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.85)",color:"#1a1a1a",fontSize:17,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 4px rgba(0,0,0,.2)"}}>‹</button>}
+       {idx<n-1&&<button onClick={e=>step(e,1)} aria-label="Next photo" style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",width:28,height:28,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.85)",color:"#1a1a1a",fontSize:17,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 4px rgba(0,0,0,.2)"}}>›</button>}
+       <div style={{position:"absolute",left:0,right:0,bottom:7,display:"flex",justifyContent:"center",gap:4,pointerEvents:"none"}}>{photos.map((_,k)=><span key={k} style={{width:k===idx?14:6,height:6,borderRadius:3,background:k===idx?"#fff":"rgba(255,255,255,.6)",transition:"width .15s",boxShadow:"0 1px 2px rgba(0,0,0,.25)"}}/>)}</div>
+     </>}
    </div>
    {it.name&&<div style={{fontSize:12.5,fontWeight:600,marginTop:6,padding:"0 2px",lineHeight:1.3}}>{it.name}</div>}
  </button>;
@@ -446,8 +556,8 @@ function PublicShowcase({scope}){
    let pool=items.filter(i=>(i.branches||[]).includes(p.loc)&&i.session_type===p.session&&(!gv||genHit(i.gender,gv))&&(p.kind==="Outfits"?i.kind==="outfit":p.kind==="Themes & setups"?i.type==="theme":true));
    const isNew=i=>Array.isArray(i.static_tags)&&i.static_tags.includes("New");
    if(s.rule==="popular")pool=[...pool].sort((a,b)=>(b.times_selected||0)-(a.times_selected||0));else pool=[...pool.filter(isNew),...pool.filter(i=>!isNew(i))];
-   return pool.slice(0,24).map(i=>({img:i.photo_url,name:i.name,size:i.size}));};
- const secItems=s=>s.dyn?dyn(s,s.board):links.filter(l=>l.section_id===s.id).map(l=>({img:l.photo_url,name:l.name,size:l.size}));
+   return pool.slice(0,24).map(i=>({img:i.photo_url,extras:Array.isArray(i.extra_photos)?i.extra_photos:[],name:i.name,size:i.size}));};
+ const secItems=s=>s.dyn?dyn(s,s.board):links.filter(l=>l.section_id===s.id).map(l=>({img:l.photo_url,extras:Array.isArray(l.extra_photos)?l.extra_photos:[],name:l.name,size:l.size}));
  const titleOf=b=>{const p=parse(b);return [p.session,p.gender].filter(Boolean).join(" · ")||p.loc||"Our work";};
  return <div style={{minHeight:"100vh",background:"#fafafa",fontFamily:font,color:"#1a1a1a"}}>
    <div style={{textAlign:"center",padding:"34px 18px 12px"}}>
@@ -973,7 +1083,7 @@ function AddInvItem({onClose,onSaved,init={}}){
  const OPSTATUS=["Available","In use","In repair","Retired","For sale"];
  const [locs,setLocs]=useState(()=>{const m={};(init.locs||[]).forEach(b=>{if(BR.includes(b))m[b]={on:true,qty:1,times:0};});return m;});
  const [linkIds,setLinkIds]=useState([]),[cand,setCand]=useState([]);
- useEffect(()=>{if(sb)sb.from("inv_item").select("id,code,name,kind,type").order("name").then(({data})=>setCand(data||[]))},[]);
+ useEffect(()=>{if(sb)sb.from("inv_item").select("id,code,name,kind,type,photo_url,session_type").order("name").then(({data})=>setCand(data||[]))},[]);
  const [busy,setBusy]=useState(false),[err,setErr]=useState(""),[saved,setSaved]=useState(null);
  const [kAdd,setKAdd]=useState(false),[kTxt,setKTxt]=useState("");
  const set=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -1052,7 +1162,7 @@ function AddInvItem({onClose,onSaved,init={}}){
          {showSize&&<div style={{gridColumn:"1/-1"}}><span style={lab}>Size</span><SizePicker value={f.size} onChange={v=>set("size",v)} opts={sizeOpts} onAdd={v=>addTaxOption("size",f.session_type,v)}/></div>}
          {!noCond&&<div><span style={lab}>Condition</span><select value={f.condition} onChange={e=>set("condition",e.target.value)}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>}
          <div style={{gridColumn:"1/-1"}}><span style={lab}>Name / description *</span><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Brown Corduroy Overalls"/></div>
-         {showColor&&<div><span style={lab}>{f.type==="theme"?"Colour / palette":"Color"}</span><input value={f.color} onChange={e=>set("color",e.target.value)} placeholder={f.type==="theme"?"e.g. green & brown":""}/></div>}
+         {showColor&&<div style={{gridColumn:"1/-1"}}><span style={lab}>{f.type==="theme"?"Colour / palette":"Color"}</span><ColorPicker value={f.color} onChange={v=>set("color",v)}/></div>}
          {showUsable&&<div style={{gridColumn:"1/-1"}}><span style={lab}>Usable for <span style={{color:"var(--muted)",fontWeight:400}}>(other sessions it can be reused in)</span></span><UsablePicker value={f.usable_for} onChange={v=>set("usable_for",v)}/></div>}
          <div style={{gridColumn:"1/-1"}}><span style={lab}>Photo <span style={{color:"var(--muted)",fontWeight:400}}>(cover)</span></span><PhotoField value={f.photo_url||""} onChange={v=>set("photo_url",v)} prefix="inv"/></div>
          <div style={{gridColumn:"1/-1"}}><span style={lab}>More photos <span style={{color:"var(--muted)",fontWeight:400}}>(extra angles / variants — add or remove as needed)</span></span><Gallery photos={f.extra_photos} onChange={v=>set("extra_photos",v)} prefix="inv"/></div>
@@ -1063,8 +1173,7 @@ function AddInvItem({onClose,onSaved,init={}}){
          <div style={{gridColumn:"1/-1"}}><span style={lab}>Notes</span><textarea rows={2} value={f.notes} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical"}}/></div>
        </div>
        <div><span style={lab}>{f.type==="theme"?"LINK ITEMS IN THIS SETUP":"LINK TO SETUP(S)"} <span style={{color:"var(--muted)",fontWeight:400}}>(optional — {f.type==="theme"?"outfit / backdrop / props":"the setup(s) this belongs to"})</span></span>
-         <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:8}}>{linkIds.length===0&&<span style={{fontSize:12,color:"var(--muted)"}}>None.</span>}{linkIds.map(id=>{const o=cand.find(a=>a.id===id);return <span key={id} style={{display:"inline-flex",alignItems:"center",gap:6,background:"var(--panel2)",border:"1px solid var(--line2)",borderRadius:8,padding:"3px 6px 3px 10px",fontSize:12}}>{o?(o.name||o.code):id}<button type="button" onClick={()=>setLinkIds(l=>l.filter(x=>x!==id))} style={{display:"flex",padding:1}}><Icon d={I.x} s={13} c="var(--muted)"/></button></span>})}</div>
-         <select value="" onChange={e=>{if(e.target.value)setLinkIds(l=>l.includes(e.target.value)?l:[...l,e.target.value])}} style={{width:"100%"}}><option value="">{f.type==="theme"?"+ add an item…":"+ link a setup…"}</option>{cand.filter(a=>(f.type==="theme"?a.type==="item":a.type==="theme")&&!linkIds.includes(a.id)).map(a=><option key={a.id} value={a.id}>{(a.name||a.code)}{a.kind?" · "+a.kind:""}</option>)}</select>
+         <ItemPicker pool={cand.filter(a=>f.type==="theme"?a.type==="item":a.type==="theme")} selectedIds={linkIds} onToggle={id=>setLinkIds(l=>l.includes(id)?l.filter(x=>x!==id):[...l,id])} emptyHint={f.type==="theme"?"None yet — pick outfits / props / backdrops below.":"None yet — pick the setup(s) this belongs to."}/>
        </div>
        {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>(shows under the New filter)</span></span></div>}
        {(f.type==="theme"&&(f.session_type==="Cake Smash"||f.session_type==="Sitter"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("Real balloon")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Real balloon"])]:(f.static_tags||[]).filter(x=>x!=="Real balloon"))}/><span style={{fontSize:13,fontWeight:500}}>Real balloon <span style={{color:"var(--muted)",fontWeight:400}}>(off = plain theme — Cake Smash &amp; Sitter)</span></span></div>}
@@ -1092,7 +1201,7 @@ function InvEdit({item,onClose,onSaved}){
    const m={};(l||[]).forEach(r=>{m[r.location]={on:true,qty:r.quantity,times:r.times_selected||0,cond:r.condition||item.condition||"Good",date:r.acquired_on||(item.created_at?item.created_at.slice(0,10):"")}});setLocs(m);
    if(item.type==="theme"){const {data:tl}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",item.id);setLinks((tl||[]).map(x=>x.component_item_id));}
    else{const {data:tl}=await sb.from("inv_theme_item").select("theme_id").eq("component_item_id",item.id);setLinks((tl||[]).map(x=>x.theme_id));}
-   const {data:av}=await sb.from("inv_item").select("id,code,name,kind,type").neq("id",item.id).order("name");setAll(av||[]);
+   const {data:av}=await sb.from("inv_item").select("id,code,name,kind,type,photo_url,session_type").neq("id",item.id).order("name");setAll(av||[]);
  })()},[]);
  useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
  const kindsE=KIND_BY_CAT[f.session_type]||ITEM_KINDS;
@@ -1148,7 +1257,7 @@ function InvEdit({item,onClose,onSaved}){
          {showGender&&<div><span style={lab}>Gender</span><select value={f.gender||""} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS_T.map(g=><option key={g}>{g}</option>)}</select></div>}
          {showSub&&<div><span style={lab}>Type</span><input value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!subList.includes(v))addTaxOption(f.kind==="prop"?"propsub":"subkind",f.kind==="prop"?f.session_type:f.kind,v);}} list="suboptsE" placeholder={SUBTYPE_PH[f.kind]||""}/><datalist id="suboptsE">{subList.map(s=><option key={s} value={s}/>)}</datalist></div>}
          {showDim&&<div><span style={lab}>Dimensions</span><input value={f.dimensions||""} onChange={e=>set("dimensions",e.target.value)} placeholder="e.g. 40 × 30 cm"/></div>}
-         {showColor&&<div><span style={lab}>{f.type==="theme"?"Colour / palette":"Color"}</span><input value={f.color||""} onChange={e=>set("color",e.target.value)} placeholder={f.type==="theme"?"e.g. green & brown":""}/></div>}
+         {showColor&&<div style={{gridColumn:"1/-1"}}><span style={lab}>{f.type==="theme"?"Colour / palette":"Color"}</span><ColorPicker value={f.color||""} onChange={v=>set("color",v)}/></div>}
          {showSize&&<div style={{gridColumn:"1/-1"}}><span style={lab}>Size</span><SizePicker value={f.size||""} onChange={v=>set("size",v)} opts={sizeOptsE} onAdd={v=>addTaxOption("size",f.session_type,v)}/></div>}
          {showUsable&&<div style={{gridColumn:"1/-1"}}><span style={lab}>Usable for <span style={{color:"var(--muted)",fontWeight:400}}>(other sessions it can be reused in)</span></span><UsablePicker value={f.usable_for} onChange={v=>set("usable_for",v)}/></div>}
          <div style={{gridColumn:"1/-1"}}><span style={lab}>Photo <span style={{color:"var(--muted)",fontWeight:400}}>(cover)</span></span><PhotoField value={f.photo_url||""} onChange={v=>set("photo_url",v)} prefix="inv"/></div>
@@ -1178,8 +1287,7 @@ function InvEdit({item,onClose,onSaved}){
            <span style={{fontSize:10.5}}>(applied when you Save)</span>
          </div></div>
        <div><span style={lab}>{f.type==="theme"?"ITEMS IN THIS SETUP":"LINKED TO SETUP(S)"} <span style={{color:"var(--muted)",fontWeight:400}}>({f.type==="theme"?"outfit / backdrop / props":"the setup(s) this belongs to"})</span></span>
-         <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:8}}>{links.length===0&&<span style={{fontSize:12,color:"var(--muted)"}}>None yet.</span>}{links.map(id=>{const o=all.find(a=>a.id===id);return <span key={id} style={{display:"inline-flex",alignItems:"center",gap:6,background:"var(--panel2)",border:"1px solid var(--line2)",borderRadius:8,padding:"3px 6px 3px 10px",fontSize:12}}>{o?(o.name||o.code):id}<button onClick={()=>toggleLink(id)} style={{display:"flex",padding:1}}><Icon d={I.x} s={13} c="var(--muted)"/></button></span>})}</div>
-         <select value="" onChange={e=>{if(e.target.value)toggleLink(e.target.value)}} style={{width:"100%"}}><option value="">{f.type==="theme"?"+ add an item…":"+ link a setup…"}</option>{all.filter(a=>(item.type==="theme"?a.type==="item":a.type==="theme")&&!links.includes(a.id)).map(a=><option key={a.id} value={a.id}>{(a.name||a.code)}{a.kind?" · "+a.kind:""}</option>)}</select>
+         <ItemPicker pool={all.filter(a=>item.type==="theme"?a.type==="item":a.type==="theme")} selectedIds={links} onToggle={id=>toggleLink(id)} emptyHint={item.type==="theme"?"None yet — pick outfits / props / backdrops below.":"None yet — pick the setup(s) this belongs to."}/>
        </div>
        {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>(shows under the New filter)</span></span></div>}
        {(f.type==="theme"&&(f.session_type==="Cake Smash"||f.session_type==="Sitter"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("Real balloon")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Real balloon"])]:(f.static_tags||[]).filter(x=>x!=="Real balloon"))}/><span style={{fontSize:13,fontWeight:500}}>Real balloon <span style={{color:"var(--muted)",fontWeight:400}}>(off = plain theme — Cake Smash &amp; Sitter)</span></span></div>}
@@ -1286,7 +1394,7 @@ function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
  </div>;
 }
 function NewInventory({initCat=""}){
- const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("popular"),[catF,setCatF]=useState(initCat),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState(""),[sizeF,setSizeF]=useState(""),[condF,setCondF]=useState(""),[newF,setNewF]=useState(false),[balloonF,setBalloonF]=useState(""),[unusedF,setUnusedF]=useState(false),[showArch,setShowArch]=useState(false),[labels,setLabels]=useState(false),[ecatF,setEcatF]=useState(""),[etypeF,setEtypeF]=useState(""),[estatF,setEstatF]=useState(""),[bucketF,setBucketF]=useState("");
+ const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[scan,setScan]=useState(false),[scanErr,setScanErr]=useState(""),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("popular"),[catF,setCatF]=useState(initCat),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState(""),[sizeF,setSizeF]=useState(""),[condF,setCondF]=useState(""),[newF,setNewF]=useState(false),[balloonF,setBalloonF]=useState(""),[unusedF,setUnusedF]=useState(false),[showArch,setShowArch]=useState(false),[labels,setLabels]=useState(false),[ecatF,setEcatF]=useState(""),[etypeF,setEtypeF]=useState(""),[estatF,setEstatF]=useState(""),[bucketF,setBucketF]=useState("");
  const scrollRef=useRef(null);
  const [vmode,setVmode]=useState("");
  const [detail,setDetail]=useState(null),[labelItem,setLabelItem]=useState(null),[browseAll,setBrowseAll]=useState(false),[picked,setPicked]=useState(()=>new Set());
@@ -1389,6 +1497,7 @@ function NewInventory({initCat=""}){
        {[["list",I.list],["grid",I.grid]].map(([mode,ic])=><button key={mode} onClick={()=>setVmode(mode)} title={mode==="list"?"List view":"Grid view"} style={{display:"flex",alignItems:"center",justifyContent:"center",width:36,height:36,background:vm===mode?"var(--ink)":"var(--panel)",color:vm===mode?"#fff":"var(--muted)"}}><Icon d={ic} s={16} c={vm===mode?"#fff":"var(--muted)"}/></button>)}
      </div>
      {(()=>{const na=rows.filter(r=>r.archived).length;return na>0&&<button onClick={()=>setShowArch(!showArch)} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 13px",borderRadius:8,border:`1px solid ${showArch?"var(--ink)":"var(--line2)"}`,background:showArch?"var(--ink)":"var(--panel)",color:showArch?"#fff":"var(--soft)",fontWeight:600,fontSize:13}}>{showArch?"Hide":"Show"} archived ({na})</button>})()}
+     <button onClick={()=>setScan(true)} title="Scan a code or type it" style={{display:"flex",alignItems:"center",gap:6,padding:"9px 13px",border:"1px solid var(--line2)",borderRadius:8,background:"var(--panel)",color:"var(--ink)",fontWeight:600,fontSize:13}}><span style={{fontSize:14}}>📷</span>Scan</button>
      <button onClick={()=>setAdd(true)} style={{display:"flex",alignItems:"center",gap:6,background:"var(--ink)",color:"#fff",padding:"9px 15px",borderRadius:8,fontWeight:600,fontSize:13}}><Icon d={I.plus} s={15} c="#fff"/>{etypeF?("Add "+etypeF):catF?("Add to "+catF):"Add item"}</button></div>
    <p style={{color:"var(--muted)",fontSize:12.5,marginTop:2,marginBottom:14}}>One card per real item · tracked across every studio.</p>
    <div style={{position:"relative",marginBottom:14}}><span style={{position:"absolute",left:13,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={16} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search by name or code…" style={{paddingLeft:38,height:42}}/></div>
@@ -1458,6 +1567,8 @@ function NewInventory({initCat=""}){
      return <div className="cardgrid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:10}}>{filtered.map(card)}</div>;
    })()}
    {add&&<AddInvItem init={{grp:groupF||undefined,session_type:!isElecView?(catF||undefined):undefined,subcategory:isElecView?(etypeF||undefined):undefined,type:groupF==="shoot"?(bucketF==="theme"?"theme":bucketF?"item":undefined):undefined,kind:bucketF==="outfit"?"outfit":undefined,gender:(groupF==="shoot"&&genF)||undefined,locs:loc?[loc]:undefined}} onClose={()=>setAdd(false)} onSaved={()=>{load();loadPub();}}/>}
+   {scan&&<ScanModal onClose={()=>{setScan(false);setScanErr("");}} onFound={async code=>{ setScanErr(""); try{ const {data,error}=await sb.from("inv_item").select("*").eq("code",code).maybeSingle(); if(error)throw error; if(!data){ setScanErr("No item found for "+code+"."); return; } setScan(false); setEdit(data); }catch(e){ setScanErr((e&&e.message)||"Lookup failed."); } }}/>}
+   {scanErr&&<div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",background:"#fde2e0",color:"var(--danger)",border:"1px solid #f3b8b3",borderRadius:8,padding:"10px 16px",fontSize:13,zIndex:400,boxShadow:"var(--shadow)"}}>{scanErr} <button onClick={()=>setScanErr("")} style={{marginLeft:12,padding:0,fontWeight:700}}>×</button></div>}
    {edit&&<InvEdit item={edit} onClose={()=>setEdit(null)} onSaved={()=>{setEdit(null);setDetail(null);load();}}/>}
    {detail&&<ItemPanel item={detail} published={pubSet.has(detail.id)} onClose={()=>setDetail(null)} onEdit={r=>{setDetail(null);setEdit(r);}} onPrint={r=>setLabelItem(r)} onOpen={r=>setDetail(r)}/>}
    {labelItem&&<LabelSheet items={[labelItem]} onClose={()=>setLabelItem(null)}/>}
