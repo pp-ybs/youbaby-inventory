@@ -725,7 +725,7 @@ function NewInventory(){
    </div></div>;
  return <div className="scroll fade" style={{flex:1,padding:"26px 30px"}}>
    <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-     <h1 style={{fontSize:26,fontWeight:700,letterSpacing:"-.01em"}}>New Inventory</h1>
+     <h1 style={{fontSize:26,fontWeight:700,letterSpacing:"-.01em"}}>Catalog</h1>
      <span style={{fontSize:12,color:"var(--muted)"}}>{rows.length} item{rows.length!==1?"s":""}</span>
      <button onClick={()=>setAdd(true)} style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,background:"var(--ink)",color:"#fff",padding:"9px 15px",borderRadius:10,fontWeight:600,fontSize:13}}><Icon d={I.plus} s={15} c="#fff"/>Add item</button></div>
    <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:18}}>One card per real thing · multi-location · auto barcode. (New structure — being filled in.)</p>
@@ -747,7 +747,7 @@ function NewInventory(){
 }
 
 // ---- sidebar ----
-const NAV=[{id:"dashboard",label:"Home",icon:I.home},{id:"catalog",label:"Catalog",icon:I.grid},{id:"showcase",label:"Website Showcase",icon:I.globe},{id:"categories",label:"Categories",icon:I.layers},{id:"newinv",label:"New Inventory",icon:I.star}];
+const NAV=[{id:"dashboard",label:"Home",icon:I.home},{id:"catalog",label:"Catalog",icon:I.grid},{id:"showcase",label:"Website Showcase",icon:I.globe},{id:"categories",label:"Categories",icon:I.layers}];
 const SOON=[{label:"Customers",icon:I.users}];
 function Sidebar({view,setView,themes,setBr,source,signOut,email,dohaCount,setInvLoc,locCounts={}}){
  return <aside style={{width:236,background:"var(--panel)",borderRight:"1px solid var(--line)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh"}}>
@@ -788,15 +788,11 @@ function LoginScreen(){
 function App(){
  const [themes,setThemes]=useState(()=>D.themes.map(t=>({...t})));
  const [source,setSource]=useState("local");
- const [dohaRows,setDohaRows]=useState([]);
- const [invLoc,setInvLoc]=useState("");
- useEffect(()=>{if(!sb)return;sb.from("doha_inventory").select("*").then(({data})=>setDohaRows(data||[]))},[]);
- const dohaCount=dohaRows.length;
- const locCounts=useMemo(()=>{const m={};dohaRows.forEach(r=>{m[r.location]=(m[r.location]||0)+1});return m},[dohaRows]);
- // map inventory rows into theme-shape so the catalogue views show them alongside DXB/AD themes.
- // only the shoot-level looks (setups/outfits/fabrics) go to the catalogue; props/backdrops live in Items & Props.
- const dohaThemes=useMemo(()=>dohaRows.filter(r=>!PROP_TYPES.includes(r.item_type)).map(r=>({id:r.id,name:r.name,category:r.category,gender:r.gender||"",branches:r.location?[r.location]:[],display:!!r.on_website,selection_count:r.times_used||0,image:r.photo||"",notes:r.notes||"",__doha:true,_row:r})),[dohaRows]);
- const allThemes=useMemo(()=>[...themes,...dohaThemes],[themes,dohaThemes]);
+ const [invRows,setInvRows]=useState([]);
+ const loadInv=()=>{if(sb)sb.from("inv_item").select("*,inv_item_location(location,quantity,times_selected)").then(({data})=>setInvRows(data||[]));};
+ useEffect(()=>{loadInv()},[]);
+ // SINGLE SOURCE: map inv_item rows into the shape the catalogue views expect
+ const allThemes=useMemo(()=>invRows.map(r=>({id:r.id,name:r.name,category:r.session_type,gender:r.gender||"",branches:(r.inv_item_location||[]).map(l=>l.location),display:!!r.website_display,selection_count:r.times_selected||0,image:r.photo_url||"",notes:r.notes||"",__inv:true,_row:r})),[invRows]);
  const [toast,setToast]=useState("");
  const notify=m=>{setToast(m);setTimeout(()=>setToast(""),4500);};
  const [session,setSession]=useState(sb?undefined:null);
@@ -813,9 +809,8 @@ function App(){
  })()},[]);
  const persist=ts=>{if(source!=="cloud")localStorage.setItem("ybs_themes_v2",JSON.stringify(ts));};
  const toggle=async t=>{
-   if(t.__doha){const nd=!t.display;setDohaRows(rs=>rs.map(x=>x.id===t.id?{...x,on_website:nd}:x));if(sb){const {error}=await sb.from("doha_inventory").update({on_website:nd}).eq("id",t.id);if(error){setDohaRows(rs=>rs.map(x=>x.id===t.id?{...x,on_website:!nd}:x));notify("Couldn't save change: "+error.message);}}return;}
+   if(t.__inv){const nd=!t.display;setInvRows(rs=>rs.map(x=>x.id===t.id?{...x,website_display:nd}:x));if(sb){const {error}=await sb.from("inv_item").update({website_display:nd}).eq("id",t.id);if(error){setInvRows(rs=>rs.map(x=>x.id===t.id?{...x,website_display:!nd}:x));notify("Couldn't save change: "+error.message);}}return;}
    const nd=!t.display;setThemes(ts=>{const n=ts.map(x=>x.id===t.id?{...x,display:nd}:x);persist(n);return n});if(source==="cloud"&&sb){const {error}=await sb.from("themes").update({display:nd}).eq("id",t.id);if(error){setThemes(ts=>{const n=ts.map(x=>x.id===t.id?{...x,display:!nd}:x);persist(n);return n});notify("Couldn't save change: "+error.message);}}};
- const saveDoha=async d=>{setDohaRows(rs=>rs.map(x=>x.id===d.id?{...x,...d}:x));setSel(null);if(sb){const {error}=await sb.from("doha_inventory").update({name:d.name,item_type:d.item_type,gender:d.gender,measurement:d.measurement,quantity:d.quantity,condition:d.condition,times_used:d.times_used,photo:d.photo,outfit_photo:d.outfit_photo,remarks:d.remarks,notes:d.notes,outfit_note:d.outfit_note,on_website:d.on_website,usable_for:d.usable_for}).eq("id",d.id);if(error)notify("Couldn't save: "+error.message);}};
  const saveTheme=async d=>{
    const isNew=!d.id; const row={...d,id:d.id||newId(d.category,themes)};
    delete row.popularity; // selection_count is the source of truth in UI
@@ -833,16 +828,15 @@ function App(){
  if(sb&&session===undefined) return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
  if(sb&&!session) return <LoginScreen/>;
  return <div style={{display:"flex",height:"100vh",overflow:"hidden"}}>
-   <Sidebar view={view} setView={setView} themes={themes} setBr={openBr} source={source} signOut={signOut} email={session&&session.user&&session.user.email} dohaCount={dohaCount} setInvLoc={setInvLoc} locCounts={locCounts}/>
+   <Sidebar view={view} setView={setView} themes={allThemes} setBr={openBr} source={source} signOut={signOut} email={session&&session.user&&session.user.email}/>
    <main style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:"var(--bg)"}}>
      {view==="dashboard"&&<Dashboard themes={allThemes} go={go}/>}
-     {view==="catalog"&&<Catalog themes={allThemes} onToggle={toggle} onOpen={setSel} onAdd={()=>setForm({})} state={catState}/>}
+     {view==="catalog"&&<NewInventory/>}
      {view==="showcase"&&<Showcase themes={allThemes} onOpen={setSel}/>}
      {view==="categories"&&<Categories themes={allThemes} go={openCat}/>}
-     {view==="newinv"&&<NewInventory/>}
    </main>
-   {selLive&&!selLive.__doha&&<Drawer t={selLive} onClose={()=>setSel(null)} onToggle={toggle} onEdit={t=>{setSel(null);setForm(t)}} onDelete={delTheme}/>}
-   {selLive&&selLive.__doha&&<DohaEdit item={selLive._row} onSave={saveDoha} onClose={()=>setSel(null)} allItems={dohaRows}/>}
+   {selLive&&selLive.__inv&&<InvEdit item={selLive._row} onClose={()=>setSel(null)} onSaved={()=>{setSel(null);loadInv();}}/>}
+   {selLive&&!selLive.__inv&&<Drawer t={selLive} onClose={()=>setSel(null)} onToggle={toggle} onEdit={t=>{setSel(null);setForm(t)}} onDelete={delTheme}/>}
    {form&&<ThemeForm init={form} onSave={saveTheme} onClose={()=>setForm(null)}/>}
    {toast&&<div className="fade" onClick={()=>setToast("")} style={{position:"fixed",bottom:22,left:"50%",transform:"translateX(-50%)",zIndex:400,background:"var(--danger)",color:"#fff",padding:"11px 18px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:"0 8px 24px rgba(20,20,30,.18)",maxWidth:"90vw",cursor:"pointer"}}>{toast}</div>}
  </div>;
