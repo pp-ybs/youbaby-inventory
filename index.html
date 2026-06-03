@@ -59,6 +59,10 @@ const CONDS=['Excellent','Good','Fair','Poor','Damaged'];
 const COND_COLOR={Excellent:'#2f9e54',Good:'#7bbf3f',Fair:'#cf8a1e',Poor:'#e07a2e',Damaged:'#d2473f'};
 const GENDERS=['Boy','Girl','Neutral'];
 const sc = t => (t.selection_count!=null?t.selection_count:(t.popularity||0));
+const monthsSince = d => { if(!d) return 0; const ms=Date.now()-new Date(d).getTime(); return Math.max(0,ms/(1000*60*60*24*30.44)); };
+const fmtDate = d => { if(!d) return ""; try{ return new Date(d).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}); }catch(e){ return ""; } };
+const ageLabel = d => { const m=monthsSince(d); if(m<1) return "this month"; if(m<12) return Math.round(m)+" mo"; return (Math.round(m/12*10)/10)+" yr"; };
+const avgMo = (n,d) => { const v=(n||0)/Math.max(1,monthsSince(d)); return v>=10?Math.round(v):Math.round(v*10)/10; };
 const IMG_BASE="https://ahysgpjnhldhdeinymrd.supabase.co/storage/v1/object/public/app/images/";
 const imgUrl = t => !t.image ? null : (/^https?:/.test(t.image) ? t.image : IMG_BASE+t.image);
 const newId = (c,list) => {const pre=(c||'NEW').slice(0,2).toUpperCase();let max=0;(list||[]).forEach(t=>{const m=/-(\d+)$/.exec(t.id||"");if(m){const n=+m[1];if(n>max)max=n}});return `YBS-${pre}-${String(max+1).padStart(4,"0")}`;};
@@ -627,7 +631,7 @@ async function nextCode(cat,seg){const p=codePrefix(cat,seg)+"-";if(!sb)return p
 function Barcode({value,height=46}){const ref=useRef(null);useEffect(()=>{if(ref.current&&window.JsBarcode&&value){try{window.JsBarcode(ref.current,value,{format:"CODE128",height,fontSize:13,margin:6,displayValue:true});}catch(e){}}},[value,height]);return <svg ref={ref} style={{maxWidth:"100%"}}/>;}
 
 function AddInvItem({onClose,onSaved}){
- const [f,setF]=useState({sessionRel:true,type:"item",kind:"outfit",session_type:"Newborn",gender:"",subcategory:"",size:"",dimensions:"",name:"",color:"",condition:"Good",photo_url:"",purchase_url:"",usable_for:[],static_tags:[],website_display:false,notes:""});
+ const [f,setF]=useState({sessionRel:true,type:"item",kind:"outfit",session_type:"Newborn",gender:"",subcategory:"",size:"",dimensions:"",name:"",color:"",condition:"Good",value:"",photo_url:"",purchase_url:"",usable_for:[],static_tags:[],website_display:false,notes:""});
  const [locs,setLocs]=useState({});
  const [linkIds,setLinkIds]=useState([]),[cand,setCand]=useState([]);
  useEffect(()=>{if(sb)sb.from("inv_item").select("id,code,name,kind,type").order("name").then(({data})=>setCand(data||[]))},[]);
@@ -655,16 +659,16 @@ function AddInvItem({onClose,onSaved}){
    if(!valid||busy)return;setBusy(true);setErr("");
    try{
      const code=await nextCode(catForCode,seg);
-     const row={code,item_group:f.sessionRel?"shoot":"supplies",type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.sessionRel?f.session_type:null,subcategory:f.subcategory||null,gender:(!f.sessionRel||NO_GENDER.includes(f.session_type))?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,photo_url:f.photo_url||null,purchase_url:f.purchase_url||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:f.condition,website_display:!!f.website_display,notes:f.notes||null};
+     const row={code,item_group:f.sessionRel?"shoot":"supplies",type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.sessionRel?f.session_type:null,subcategory:f.subcategory||null,gender:(!f.sessionRel||NO_GENDER.includes(f.session_type))?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,photo_url:f.photo_url||null,purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:f.condition,website_display:!!f.website_display,notes:f.notes||null};
      const {data,error}=await sb.from("inv_item").insert({...row,times_selected:chosen.reduce((s,b)=>s+(Number(locs[b].times)||0),0)}).select().single();if(error)throw error;
-     const locRows=chosen.map(b=>({item_id:data.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0}));
+     const locRows=chosen.map(b=>({item_id:data.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:f.condition}));
      if(locRows.length){const {error:e2}=await sb.from("inv_item_location").insert(locRows);if(e2)throw e2;}
      if(linkIds.length)await sb.from("inv_theme_item").insert(linkIds.map(cid=>f.type==="theme"?({theme_id:data.id,component_item_id:cid}):({theme_id:cid,component_item_id:data.id})));
      setSaved({...data,_locs:locRows});onSaved&&onSaved();
    }catch(e){setErr(e.message||String(e));}
    setBusy(false);
  };
- const reset=()=>{setSaved(null);setLinkIds([]);setF(p=>({...p,name:"",size:"",color:"",brand:"",photo_url:"",purchase_url:"",notes:""}));};
+ const reset=()=>{setSaved(null);setLinkIds([]);setF(p=>({...p,name:"",size:"",color:"",brand:"",photo_url:"",purchase_url:"",value:"",notes:""}));};
  const lab={display:"block",fontSize:10.5,fontWeight:700,color:"var(--muted)",letterSpacing:".06em",marginBottom:5};
  const pill=(on,onClick,txt,col)=><button type="button" onClick={onClick} style={{padding:"7px 14px",borderRadius:20,border:`1px solid ${on?(col||"var(--ink)"):"var(--line2)"}`,background:on?(col||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{txt}</button>;
  return <div style={{position:"fixed",inset:0,background:"#1a1a2433",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -697,7 +701,8 @@ function AddInvItem({onClose,onSaved}){
          {showColor&&<div><span style={lab}>{f.type==="theme"?"COLOUR / PALETTE":"COLOR"}</span><input value={f.color} onChange={e=>set("color",e.target.value)} placeholder={f.type==="theme"?"e.g. green & brown":""}/></div>}
          {showUsable&&<div style={{gridColumn:"1/-1"}}><span style={lab}>USABLE FOR <span style={{color:"var(--muted)",fontWeight:400}}>(other sessions it can be reused in)</span></span><UsablePicker value={f.usable_for} onChange={v=>set("usable_for",v)}/></div>}
          <div style={{gridColumn:"1/-1"}}><span style={lab}>PHOTO</span><PhotoField value={f.photo_url||""} onChange={v=>set("photo_url",v)} prefix="inv"/></div>
-         <div style={{gridColumn:"1/-1"}}><span style={lab}>PURCHASE LINK <span style={{color:"var(--muted)",fontWeight:400}}>(where to buy more — optional)</span></span><input value={f.purchase_url} onChange={e=>set("purchase_url",e.target.value)} placeholder="https://…"/></div>
+         <div><span style={lab}>PURCHASE LINK <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><input value={f.purchase_url} onChange={e=>set("purchase_url",e.target.value)} placeholder="https://…"/></div>
+         <div><span style={lab}>VALUE <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><input type="number" min="0" step="0.01" value={f.value} onChange={e=>set("value",e.target.value)} placeholder="e.g. 350"/></div>
          <div style={{gridColumn:"1/-1"}}><span style={lab}>NOTES</span><textarea rows={2} value={f.notes} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical"}}/></div>
        </div>
        <div><span style={lab}>{f.type==="theme"?"LINK ITEMS IN THIS SETUP":"LINK TO SETUP(S)"} <span style={{color:"var(--muted)",fontWeight:400}}>(optional — {f.type==="theme"?"outfit / backdrop / props":"the setup(s) this belongs to"})</span></span>
@@ -724,7 +729,7 @@ function InvEdit({item,onClose,onSaved}){
  const set=(k,v)=>setF(p=>({...p,[k]:v}));
  useEffect(()=>{(async()=>{if(!sb)return;
    const {data:l}=await sb.from("inv_item_location").select("*").eq("item_id",item.id);
-   const m={};(l||[]).forEach(r=>{m[r.location]={on:true,qty:r.quantity,times:r.times_selected||0}});setLocs(m);
+   const m={};(l||[]).forEach(r=>{m[r.location]={on:true,qty:r.quantity,times:r.times_selected||0,cond:r.condition||item.condition||"Good"}});setLocs(m);
    if(item.type==="theme"){const {data:tl}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",item.id);setLinks((tl||[]).map(x=>x.component_item_id));}
    else{const {data:tl}=await sb.from("inv_theme_item").select("theme_id").eq("component_item_id",item.id);setLinks((tl||[]).map(x=>x.theme_id));}
    const {data:av}=await sb.from("inv_item").select("id,code,name,kind,type").neq("id",item.id).order("name");setAll(av||[]);
@@ -747,9 +752,10 @@ function InvEdit({item,onClose,onSaved}){
    try{
      const segE=f.type==="theme"?"SET":(KIND_CODE[f.kind]||"IT");const catE=f.session_type||"GEN";
      let code=f.code;if(code&&!code.startsWith(codePrefix(catE,segE)+"-"))code=await nextCode(catE,segE);
-     await sb.from("inv_item").update({code,name:f.name,type:f.type,kind:f.type==="item"?f.kind:null,session_type:f.session_type,subcategory:f.subcategory||null,gender:NO_GENDER.includes(f.session_type)?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,photo_url:f.photo_url||null,purchase_url:f.purchase_url||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:f.condition,notes:f.notes||null,website_display:!!f.website_display,times_selected:totalSel}).eq("id",item.id);
      const on=BR.filter(b=>locs[b]&&locs[b].on),off=BR.filter(b=>!(locs[b]&&locs[b].on));
-     if(on.length)await sb.from("inv_item_location").upsert(on.map(b=>({item_id:item.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0})));
+     const itemCond=on.length?(locs[on[0]].cond||f.condition||"Good"):(f.condition||"Good");
+     await sb.from("inv_item").update({code,name:f.name,type:f.type,kind:f.type==="item"?f.kind:null,session_type:f.session_type,subcategory:f.subcategory||null,gender:NO_GENDER.includes(f.session_type)?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,photo_url:f.photo_url||null,purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:itemCond,notes:f.notes||null,website_display:!!f.website_display,times_selected:totalSel}).eq("id",item.id);
+     if(on.length)await sb.from("inv_item_location").upsert(on.map(b=>({item_id:item.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:(locs[b].cond||"Good")})));
      for(const b of off)await sb.from("inv_item_location").delete().eq("item_id",item.id).eq("location",b);
      onSaved&&onSaved();
    }catch(e){setErr(e.message||String(e));}setBusy(false);};
@@ -777,15 +783,16 @@ function InvEdit({item,onClose,onSaved}){
          {showColor&&<div><span style={lab}>{f.type==="theme"?"COLOUR / PALETTE":"COLOR"}</span><input value={f.color||""} onChange={e=>set("color",e.target.value)} placeholder={f.type==="theme"?"e.g. green & brown":""}/></div>}
          {showSize&&<div style={{gridColumn:"1/-1"}}><span style={lab}>SIZE</span><SizePicker value={f.size||""} onChange={v=>set("size",v)} opts={sizeOptsE}/></div>}
          {showUsable&&<div style={{gridColumn:"1/-1"}}><span style={lab}>USABLE FOR <span style={{color:"var(--muted)",fontWeight:400}}>(other sessions it can be reused in)</span></span><UsablePicker value={f.usable_for} onChange={v=>set("usable_for",v)}/></div>}
-         {!noCond&&<div><span style={lab}>CONDITION</span><select value={f.condition||"Good"} onChange={e=>set("condition",e.target.value)}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>}
          <div style={{gridColumn:"1/-1"}}><span style={lab}>PHOTO</span><PhotoField value={f.photo_url||""} onChange={v=>set("photo_url",v)} prefix="inv"/></div>
-         <div style={{gridColumn:"1/-1"}}><span style={lab}>PURCHASE LINK <span style={{color:"var(--muted)",fontWeight:400}}>(where to buy more)</span></span><input value={f.purchase_url||""} onChange={e=>set("purchase_url",e.target.value)} placeholder="https://…"/></div>
+         <div><span style={lab}>PURCHASE LINK <span style={{color:"var(--muted)",fontWeight:400}}>(where to buy more)</span></span><input value={f.purchase_url||""} onChange={e=>set("purchase_url",e.target.value)} placeholder="https://…"/></div>
+         <div><span style={lab}>VALUE <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><input type="number" min="0" step="0.01" value={f.value==null?"":f.value} onChange={e=>set("value",e.target.value)} placeholder="e.g. 350"/></div>
          <div style={{gridColumn:"1/-1"}}><span style={lab}>NOTES</span><textarea rows={2} value={f.notes||""} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical"}}/></div>
        </div>
-       <div><span style={lab}>LOCATIONS · QTY · TIMES SELECTED <span style={{color:"var(--muted)",fontWeight:400}}>(total qty {BR.reduce((s,b)=>s+(locs[b]&&locs[b].on?(Number(locs[b].qty)||0):0),0)} · total selected {totalSel})</span></span>
+       <div><span style={lab}>LOCATIONS · QTY · CONDITION · TIMES SELECTED <span style={{color:"var(--muted)",fontWeight:400}}>(total qty {BR.reduce((s,b)=>s+(locs[b]&&locs[b].on?(Number(locs[b].qty)||0):0),0)} · total selected {totalSel})</span></span>
          <div style={{display:"flex",flexDirection:"column",gap:7}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <div key={b} style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-           <button type="button" onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1,times:(p[b]&&p[b].times)||0}}))} style={{width:130,textAlign:"left",padding:"7px 12px",borderRadius:9,border:`1px solid ${on?(BR_COLOR[b]||"var(--ink)"):"var(--line2)"}`,background:on?(BR_COLOR[b]||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,display:"flex",alignItems:"center",gap:8}}><Dot c={on?"#fff":BR_COLOR[b]} s={7}/>{b}</button>
-           {on&&<><span style={{fontSize:11.5,color:"var(--muted)"}}>qty <input type="number" min="0" value={locs[b].qty} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],qty:e.target.value}}))} style={{width:58,marginLeft:4}}/></span>{(f.type==="theme"||f.kind==="outfit")&&<span style={{fontSize:11.5,color:"var(--muted)"}}>selected <input type="number" min="0" value={locs[b].times} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],times:e.target.value}}))} style={{width:64,marginLeft:4}}/></span>}</>}</div>})}</div></div>
+           <button type="button" onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1,times:(p[b]&&p[b].times)||0,cond:(p[b]&&p[b].cond)||"Good"}}))} style={{width:130,textAlign:"left",padding:"7px 12px",borderRadius:9,border:`1px solid ${on?(BR_COLOR[b]||"var(--ink)"):"var(--line2)"}`,background:on?(BR_COLOR[b]||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,display:"flex",alignItems:"center",gap:8}}><Dot c={on?"#fff":BR_COLOR[b]} s={7}/>{b}</button>
+           {on&&<><span style={{fontSize:11.5,color:"var(--muted)"}}>qty <input type="number" min="0" value={locs[b].qty} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],qty:e.target.value}}))} style={{width:58,marginLeft:4}}/></span>{!noCond&&<span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11.5,color:"var(--muted)"}}><Dot c={COND_COLOR[locs[b].cond||"Good"]} s={8}/><select value={locs[b].cond||"Good"} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],cond:e.target.value}}))} style={{padding:"4px 6px",fontSize:11.5}}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></span>}{(f.type==="theme"||f.kind==="outfit")&&<span style={{fontSize:11.5,color:"var(--muted)"}}>selected <input type="number" min="0" value={locs[b].times} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],times:e.target.value}}))} style={{width:64,marginLeft:4}}/></span>}</>}</div>})}</div>
+         {item.created_at&&<div style={{fontSize:11,color:"var(--muted)",marginTop:8}}>Added {fmtDate(item.created_at)} · in use {ageLabel(item.created_at)}{(f.type==="theme"||f.kind==="outfit")?` · ~${avgMo(totalSel,item.created_at)} selections/mo`:""}</div>}</div>
        <div><span style={lab}>{f.type==="theme"?"ITEMS IN THIS SETUP":"LINKED TO SETUP(S)"} <span style={{color:"var(--muted)",fontWeight:400}}>({f.type==="theme"?"outfit / backdrop / props":"the setup(s) this belongs to"})</span></span>
          <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:8}}>{links.length===0&&<span style={{fontSize:12,color:"var(--muted)"}}>None yet.</span>}{links.map(id=>{const o=all.find(a=>a.id===id);return <span key={id} style={{display:"inline-flex",alignItems:"center",gap:6,background:"var(--panel2)",border:"1px solid var(--line2)",borderRadius:20,padding:"3px 6px 3px 10px",fontSize:12}}>{o?(o.name||o.code):id}<button onClick={()=>toggleLink(id)} style={{display:"flex",padding:1}}><Icon d={I.x} s={13} c="var(--muted)"/></button></span>})}</div>
          <select value="" onChange={e=>{if(e.target.value)toggleLink(e.target.value)}} style={{width:"100%"}}><option value="">{f.type==="theme"?"+ add an item…":"+ link a setup…"}</option>{all.filter(a=>(item.type==="theme"?a.type==="item":a.type==="theme")&&!links.includes(a.id)).map(a=><option key={a.id} value={a.id}>{(a.name||a.code)}{a.kind?" · "+a.kind:""}</option>)}</select>
@@ -803,7 +810,7 @@ function InvEdit({item,onClose,onSaved}){
 
 function NewInventory({initCat=""}){
  const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("popular"),[catF,setCatF]=useState(initCat),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState(""),[sizeF,setSizeF]=useState(""),[newF,setNewF]=useState(false);
- const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sb.from("inv_item").select("*,inv_item_location(location,quantity,status,times_selected)").order("created_at",{ascending:false});if(error)setErr(error.message);setRows(data||[]);};
+ const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sb.from("inv_item").select("*,inv_item_location(location,quantity,status,times_selected,condition)").order("created_at",{ascending:false});if(error)setErr(error.message);setRows(data||[]);};
  useEffect(()=>{load()},[]);
  if(rows===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
  const locOf=r=>(r.inv_item_location||[]).map(x=>x.location);
@@ -831,8 +838,9 @@ function NewInventory({initCat=""}){
      <span style={{fontWeight:600,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name||"—"}</span>
      <div style={{background:"#fff",borderRadius:6,padding:"3px 4px",alignSelf:"flex-start",border:"1px solid var(--line)"}}><Barcode value={r.code} height={34}/></div>
      <div style={{fontSize:11,color:"var(--soft)"}}>{r.session_type}{r.subcategory?" · "+r.subcategory:""}{r.gender?" · "+r.gender:""}{r.size?" · "+r.size:""}</div>
-     <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>{(r.inv_item_location||[]).map(l=><span key={l.location} title={"selected "+(l.times_selected||0)} style={{fontSize:10,fontWeight:600,color:BR_COLOR[l.location]||"var(--soft)",background:"var(--panel2)",border:`1px solid ${BR_COLOR[l.location]||"var(--line2)"}`,borderRadius:20,padding:"1px 8px"}}>{l.location} ·{l.quantity}</span>)}{(r.inv_item_location||[]).length>0&&<span style={{fontSize:10,color:"var(--muted)",fontWeight:600}}>· {(r.inv_item_location||[]).reduce((s,x)=>s+(x.quantity||0),0)} total</span>}{(r.static_tags||[]).includes("New")&&<span style={{fontSize:9,fontWeight:700,color:"var(--gold)",background:"var(--gold-soft)",borderRadius:10,padding:"1px 7px"}}>NEW</span>}</div>
-     {(r.type==="theme"||r.kind==="outfit")&&<div style={{fontSize:10.5,color:"var(--gold)",fontWeight:600,display:"flex",alignItems:"center",gap:4}}><Icon d={I.cursor} s={11} c="#f3c64a" fill="#f3c64a" sw={0}/>{selOf(r)} times selected</div>}
+     <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>{(r.inv_item_location||[]).map(l=><span key={l.location} title={l.location+" · "+(l.condition||"—")+" · selected "+(l.times_selected||0)} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:600,color:BR_COLOR[l.location]||"var(--soft)",background:"var(--panel2)",border:`1px solid ${BR_COLOR[l.location]||"var(--line2)"}`,borderRadius:20,padding:"1px 8px 1px 6px"}}><Dot c={COND_COLOR[l.condition]||"var(--line2)"} s={6}/>{l.location} ·{l.quantity}</span>)}{(r.inv_item_location||[]).length>0&&<span style={{fontSize:10,color:"var(--muted)",fontWeight:600}}>· {(r.inv_item_location||[]).reduce((s,x)=>s+(x.quantity||0),0)} total</span>}{(r.static_tags||[]).includes("New")&&<span style={{fontSize:9,fontWeight:700,color:"var(--gold)",background:"var(--gold-soft)",borderRadius:10,padding:"1px 7px"}}>NEW</span>}</div>
+     {(r.type==="theme"||r.kind==="outfit")&&<div style={{fontSize:10.5,color:"var(--gold)",fontWeight:600,display:"flex",alignItems:"center",gap:4}}><Icon d={I.cursor} s={11} c="#f3c64a" fill="#f3c64a" sw={0}/>{selOf(r)} selected · ~{avgMo(selOf(r),r.created_at)}/mo</div>}
+     {r.created_at&&<div style={{fontSize:9.5,color:"var(--muted)"}}>Added {fmtDate(r.created_at)} · {ageLabel(r.created_at)} in use{r.value!=null?" · value "+r.value:""}</div>}
    </div></div>;
  return <div className="scroll fade" style={{flex:1,padding:"26px 30px"}}>
    <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
