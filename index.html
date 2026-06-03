@@ -396,7 +396,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const thumb=(url,d,sz)=>url?<img src={url} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--panel2)"}}><Icon d={I.image} s={sz||20} c="#c4c7d2"/></div>;
  // resolve the items a section shows — manual links, or auto-filled when dynamic
  const dynFill=(s,board)=>{const seg=board.split(" · ");const bl=seg[0],bs=seg[1];const bGender=seg.find(x=>["Girls","Boys","Twins"].includes(x));const bKind=seg.find(x=>["Themes & setups","Outfits"].includes(x));const gv=GENDER_VAL[bGender];
-   let pool=themes.filter(t=>(t.branches||[]).includes(bl)&&t.category===bs&&(!gv||t.gender===gv)&&(bKind==="Outfits"?(t._row&&t._row.kind==="outfit"):bKind==="Themes & setups"?(t._row&&t._row.type==="theme"):true));
+   let pool=themes.filter(t=>(t.branches||[]).includes(bl)&&t.category===bs&&(!gv||genHit(t.gender,gv))&&(bKind==="Outfits"?(t._row&&t._row.kind==="outfit"):bKind==="Themes & setups"?(t._row&&t._row.type==="theme"):true));
    const isNew=t=>t._row&&Array.isArray(t._row.static_tags)&&t._row.static_tags.includes("New");
    if(s.rule==="popular")pool=[...pool].sort((a,b)=>(b.selection_count||0)-(a.selection_count||0));
    else pool=[...pool.filter(isNew),...pool.filter(t=>!isNew(t))];
@@ -434,7 +434,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
        {!scLoc&&BR.map(b=><CoverTile key={b} label={b} sub={boardsUnder(b).length+" pages"} coverKey={b} fallback={pic(t=>(t.branches||[]).includes(b))} onClick={()=>setScLoc(b)} onChanged={()=>setCoverV(v=>v+1)}/>)}
        {scLoc&&!scSession&&SESSION_CATS.map(s=><CoverTile key={s} label={s} sub={boardsUnder(scLoc+" · "+s).length+" pages"} coverKey={scLoc+" · "+s} fallback={pic(t=>t.category===s&&(t.branches||[]).includes(scLoc))} onClick={()=>setScSession(s)} onChanged={()=>setCoverV(v=>v+1)}/>)}
        {scLoc&&scSession&&!scKind&&kindOpts.length>1&&kindOpts.map(k=><CoverTile key={k} label={k} sub={boardsUnder(scLoc+" · "+scSession+" · "+k).length+" pages"} coverKey={scLoc+" · "+scSession+" · "+k} fallback={pic(t=>t.category===scSession&&(k==="Outfits"?(t._row&&t._row.kind==="outfit"):(t._row&&t._row.type==="theme"))&&(t.branches||[]).includes(scLoc))} onClick={()=>setScKind(k)} onChanged={()=>setCoverV(v=>v+1)}/>)}
-       {scLoc&&scSession&&scKind&&needGender&&!scGender&&[["Girls","Girl"],["Boys","Boy"],["Twins","Twins"]].map(([g,gv])=><CoverTile key={g} label={g} sub={boardSecs([scLoc,scSession,scKind,g].join(" · ")).length+" sections"} coverKey={[scLoc,scSession,scKind,g].join(" · ")} fallback={pic(t=>t.category===scSession&&t.gender===gv&&(scKind==="Outfits"?(t._row&&t._row.kind==="outfit"):(t._row&&t._row.type==="theme"))&&(t.branches||[]).includes(scLoc))} onClick={()=>setScGender(g)} onChanged={()=>setCoverV(v=>v+1)}/>)}
+       {scLoc&&scSession&&scKind&&needGender&&!scGender&&[["Girls","Girl"],["Boys","Boy"],["Twins","Twins"]].map(([g,gv])=><CoverTile key={g} label={g} sub={boardSecs([scLoc,scSession,scKind,g].join(" · ")).length+" sections"} coverKey={[scLoc,scSession,scKind,g].join(" · ")} fallback={pic(t=>t.category===scSession&&genHit(t.gender,gv)&&(scKind==="Outfits"?(t._row&&t._row.kind==="outfit"):(t._row&&t._row.type==="theme"))&&(t.branches||[]).includes(scLoc))} onClick={()=>setScGender(g)} onChanged={()=>setCoverV(v=>v+1)}/>)}
      </div>
    :<div style={{display:"flex",flexDirection:"column",gap:14}}>
      {boardSecs(activeBoard).map((s,i,arr)=>{const its=secItems(s);return <div key={s.id} style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:10,padding:"14px 16px",boxShadow:"var(--shadow)"}}>
@@ -760,7 +760,10 @@ let CAT_CODE={"Cake Smash":"CS",Newborn:"NB",Infant:"IN",Maternity:"MA",Sitter:"
 const KIND_CODE={outfit:"OF",fabric:"FB",prop:"PR",backdrop:"BD",wrap:"WR",basket:"BS",accessory:"AC",other:"IT",setup:"SET"};
 const ITEM_KINDS=["outfit","fabric","prop","backdrop","wrap","basket","accessory","other"];
 let SESSION_CATS=["Newborn","Infant","Sitter","Cake Smash","Children","Maternity","Gender Reveal"];
-const GENDERS_T=["Girl","Boy","Twins","Neutral"];
+const GENDERS_T=["Girl","Boy","Twins","Unisex"];
+// a unisex / general item shows up under every gender (Boy, Girl AND Twins)
+const UNISEX_G=g=>!g||g==="Unisex"||g==="Neutral"||g==="Unisex / Neutral";
+const genHit=(g,tile)=>g===tile||UNISEX_G(g);
 // per-category Style (subcategory) options + which categories skip gender
 let STYLE_OPTS={Maternity:["Classic Black","Classic White","Fabrics","Elegant","Exclusive Setups","Private Collection","Outdoor"]};
 let NO_GENDER=["Maternity","Gender Reveal"];
@@ -1217,7 +1220,7 @@ function NewInventory({initCat=""}){
    &&(ex==="kind"||!kindF||r.kind===kindF)
    &&(ex==="type"||!typeF||r.type===typeF)
    &&(ex==="bucket"||!bucketF||(bucketF==="theme"?r.type==="theme":bucketF==="outfit"?(r.type==="item"&&r.kind==="outfit"):(r.type==="item"&&r.kind!=="outfit")))
-   &&(ex==="gen"||!genF||r.gender===genF)
+   &&(ex==="gen"||!genF||genHit(r.gender,genF))
    &&(ex==="sub"||!subF||kindF!=="prop"||(r.subcategory||"")===subF)
    &&(ex==="size"||!sizeF||(r.size||"").split(",").map(x=>x.trim()).includes(sizeF))
    &&(ex==="cond"||!condF||(r.inv_item_location||[]).some(l=>(!loc||l.location===loc)&&(l.condition||"")===condF))
@@ -1321,7 +1324,7 @@ function NewInventory({initCat=""}){
      if(drillBucket){const cntB=key=>rows.filter(r=>m(r,"bucket")&&(key==="theme"?r.type==="theme":key==="outfit"?(r.type==="item"&&r.kind==="outfit"):(r.type==="item"&&r.kind!=="outfit"))).length;
        return tgrid(BUCKETS.map(([key,label,icd])=>{const n=cntB(key);return tile(key,()=>setBucketF(key),icd,"#7c8291",label,n+" item"+(n!==1?"s":""));}));}
      // Level 2c (session only) — Girl / Boy / Twins
-     if(drillGender){return tgrid([["Girl","Girls"],["Boy","Boys"],["Twins","Twins"]].map(([gv,label])=>{const n=rows.filter(r=>m(r,"gen")&&r.gender===gv).length;return tile(gv,()=>setGenF(gv),I.users,"#7c8291",label,n+" item"+(n!==1?"s":""));}));}
+     if(drillGender){const uni=rows.filter(r=>m(r,"gen")&&UNISEX_G(r.gender)).length;return tgrid([["Girl","Girls"],["Boy","Boys"],["Twins","Twins"]].map(([gv,label])=>{const n=rows.filter(r=>m(r,"gen")&&genHit(r.gender,gv)).length;return tile(gv,()=>setGenF(gv),I.users,"#7c8291",label,n+" item"+(n!==1?"s":"")+(uni?" · incl. unisex":""));}));}
      if(!filtered.length) return <div style={{color:"var(--muted)",fontSize:13,padding:"30px 0"}}>Nothing matches these filters.</div>;
      if(vm==="list"){const colCat=r=>r.subcategory||r.session_type||ucf(r.kind||(r.type==="theme"?"setup":""));
        const colStat=r=>r.op_status||(r.type==="theme"?"Setup":r.kind?ucf(r.kind):"");
