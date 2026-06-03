@@ -71,9 +71,9 @@ const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null;
 
 const CATS=['Cake Smash','Sitter','Maternity','Infant','Newborn'];
-let CAT_COLOR={'Cake Smash':'#ff6468','Sitter':'#3e7bfa','Maternity':'#7c4dff','Infant':'#22b573','Newborn':'#f0a23c','Children':'#ff8f5e','Gender Reveal':'#18b8c4'};
+let CAT_COLOR={'Cake Smash':'#8a8f9c','Sitter':'#8a8f9c','Maternity':'#8a8f9c','Infant':'#8a8f9c','Newborn':'#8a8f9c','Children':'#8a8f9c','Gender Reveal':'#8a8f9c'};
 const BR=['DXB','AD','Doha','Al Quoz'];
-const BR_COLOR={'DXB':'#3e7bfa','AD':'#7c4dff','Doha':'#ff6468','Al Quoz':'#f0a23c'};
+const BR_COLOR={'DXB':'#8a8f9c','AD':'#8a8f9c','Doha':'#8a8f9c','Al Quoz':'#8a8f9c'};
 const CONDS=['Excellent','Good','Fair','Poor','Damaged'];
 const COND_COLOR={Excellent:'#22b573',Good:'#5bbf6a',Fair:'#f0a23c',Poor:'#ff8f3c',Damaged:'#ff5a5f'};
 const GENDERS=['Boy','Girl','Neutral'];
@@ -94,7 +94,7 @@ const invQty = r => (r.inv_item_location||[]).reduce((s,x)=>s+(x.quantity||0),0)
 const tracksUse = r => r.type==="theme"||r.kind==="outfit"; // only setups & outfits count selections
 const ucf = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : s;   // First-letter capital
 const FLBL={fontSize:11,fontWeight:600,color:"var(--muted)",marginRight:6,minWidth:62,display:"inline-block"};
-const fchip=(key,on,onClick,text,count,col)=>{const c=col||"#3e7bfa";return <button type="button" key={key} onClick={onClick} style={{padding:"5px 12px",borderRadius:9,border:`1px solid ${on?c:"var(--line2)"}`,background:on?c+"1c":"var(--panel)",color:on?c:"var(--soft)",fontSize:12,fontWeight:on?700:600,cursor:"pointer",transition:"all .12s",whiteSpace:"nowrap"}}>{text}{count!=null&&<span style={{opacity:.5,marginLeft:5,fontWeight:600}}>{count}</span>}</button>;};
+const fchip=(key,on,onClick,text,count,col)=><button type="button" key={key} onClick={onClick} style={{padding:"6px 13px",borderRadius:8,border:`1px solid ${on?"#cdd2dc":"var(--line2)"}`,background:on?"#eef1f5":"var(--panel)",color:on?"var(--ink)":"var(--soft)",fontSize:12,fontWeight:on?700:500,cursor:"pointer",transition:"all .12s",whiteSpace:"nowrap"}}>{text}{count!=null&&<span style={{opacity:.5,marginLeft:5,fontWeight:600}}>{count}</span>}</button>;
 // ---- Electronics & Inventory: type → parent category, and which fields each type uses ----
 const ELEC_CAT={Camera:"Cameras & Lenses",Lens:"Cameras & Lenses","Lens Adaptor":"Cameras & Lenses","Camera Bag":"Cameras & Lenses",Stabiliser:"Cameras & Lenses",
  Flash:"Lighting","Continuous Light":"Lighting","Trigger/Receiver":"Lighting","Softbox/Modifier":"Lighting",Umbrella:"Lighting",Reflector:"Lighting","Light Stand":"Lighting","Boom Stand":"Lighting",
@@ -1015,10 +1015,18 @@ function NewInventory({initCat=""}){
  const togglePick=id=>setPicked(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
  const isElecView=groupF==="electronics"||groupF==="facility";
  const vm=vmode||(isElecView?"list":"grid");
- const pickGroup=g=>{setGroupF(g);setCatF("");setGenF("");setKindF("");setSubF("");setSizeF("");setTypeF("");setNewF(false);setUnusedF(false);setEcatF("");setEtypeF("");setEstatF("");};
+ const GL={shoot:"Session inventory",electronics:"Equipment",facility:"Facility"};
+ const catSel=isElecView?ecatF:catF;
+ const resetCat=()=>{setEcatF("");setEtypeF("");setCatF("");};
+ const resetStudio=()=>{setLoc("");setBrowseAll(false);resetCat();};
+ const drillStudio=!!groupF&&!loc&&!browseAll;
+ const drillCat=!!groupF&&(loc||browseAll)&&!catSel;
+ const atItems=!!groupF&&(loc||browseAll)&&!!catSel;
+ const pickGroup=g=>{setGroupF(g);setLoc("");setBrowseAll(false);setCatF("");setGenF("");setKindF("");setSubF("");setSizeF("");setTypeF("");setNewF(false);setUnusedF(false);setEcatF("");setEtypeF("");setEstatF("");};
  const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sb.from("inv_item").select("*,inv_item_location(location,quantity,status,times_selected,condition,acquired_on)").order("created_at",{ascending:false});if(error)setErr(error.message);setRows(data||[]);};
  const removeItem=async(r,e)=>{if(e)e.stopPropagation();if(!window.confirm("Remove “"+(r.name||r.code)+"”? This can't be undone."))return;if(sb){await sb.from("inv_item_location").delete().eq("item_id",r.id);await sb.from("inv_theme_item").delete().eq("theme_id",r.id);await sb.from("inv_theme_item").delete().eq("component_item_id",r.id);await sb.from("inv_item").delete().eq("id",r.id);}load();};
  useEffect(()=>{load()},[]);
+ useEffect(()=>{if(initCat){setGroupF("shoot");setBrowseAll(true);setCatF(initCat);}},[initCat]);
  if(rows===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
  const locOf=r=>(r.inv_item_location||[]).map(x=>x.location);
  const selOf=r=>(r.inv_item_location||[]).reduce((s,x)=>s+(x.times_selected||0),0);
@@ -1081,63 +1089,37 @@ function NewInventory({initCat=""}){
    <p style={{color:"var(--muted)",fontSize:12.5,marginTop:2,marginBottom:14}}>One card per real item · tracked across every studio.</p>
    <div style={{position:"relative",marginBottom:14}}><span style={{position:"absolute",left:13,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={16} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search by name or code…" style={{paddingLeft:38,height:42}}/></div>
    {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8,marginBottom:14}}>{err}</div>}
-   {(()=>{const GL={shoot:"Session inventory",electronics:"Equipment",facility:"Facility"};const groups=["shoot","electronics","facility"];return <div className="filterbar" style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center",marginBottom:9}}>
-     <span style={FLBL}>Group</span>
-     {fchip("ga",!groupF,()=>pickGroup(""),"All")}
-     {groups.map(g=>{const n=cnt("group",r=>(r.item_group||"shoot")===g);return n?fchip(g,groupF===g,()=>pickGroup(groupF===g?"":g),GL[g],n):null;})}
-   </div>})()}
-   {!isElecView&&<div className="filterbar" style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center",marginBottom:9}}>
-     <span style={FLBL}>Location</span>
-     {fchip("la",!loc,()=>setLoc(""),"All")}
-     {BR.map(b=>{const n=cnt("loc",r=>locOf(r).includes(b));return n?fchip(b,loc===b,()=>setLoc(loc===b?"":b),b,n,BR_COLOR[b]):null;})}
-   </div>}
-   {!isElecView&&<div className="filterbar" style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center",marginBottom:9}}>
-     <span style={FLBL}>Session</span>
-     {fchip("ca",!catF,()=>setCatF(""),"All")}
-     {SESSION_CATS.map(c=>{const n=cnt("cat",r=>r.session_type===c);return n?fchip(c,catF===c,()=>setCatF(catF===c?"":c),c,n,CAT_COLOR[c]):null;})}
-   </div>}
-   {isElecView&&(loc||browseAll||ecatF)&&<div style={{display:"flex",alignItems:"center",gap:7,marginBottom:11,fontSize:13,flexWrap:"wrap"}}>
-     <button onClick={()=>{setLoc("");setBrowseAll(false);setEcatF("");setEtypeF("");}} style={{color:"var(--accent)",fontWeight:700}}>Studios</button>
+   {groupF&&<div style={{display:"flex",alignItems:"center",gap:7,marginBottom:14,fontSize:13.5,flexWrap:"wrap"}}>
+     <button onClick={()=>{pickGroup("");}} style={{color:"var(--muted)",fontWeight:600}}>Catalog</button>
      <Icon d={I.chev} s={14} c="var(--muted)"/>
-     <button onClick={()=>{setEcatF("");setEtypeF("");}} style={{color:ecatF?"var(--accent)":"var(--ink)",fontWeight:700}}>{loc||"All studios"}</button>
-     {ecatF&&<><Icon d={I.chev} s={14} c="var(--muted)"/><span style={{fontWeight:700}}>{ecatF}</span></>}
+     <button onClick={resetStudio} style={{color:(loc||browseAll)?"var(--accent)":"var(--ink)",fontWeight:700}}>{GL[groupF]}</button>
+     {(loc||browseAll)&&<><Icon d={I.chev} s={14} c="var(--muted)"/><button onClick={resetCat} style={{color:catSel?"var(--accent)":"var(--ink)",fontWeight:700}}>{loc||"All studios"}</button></>}
+     {catSel&&<><Icon d={I.chev} s={14} c="var(--muted)"/><span style={{fontWeight:700}}>{catSel}</span></>}
      <span style={{flex:1}}/>
-     <button onClick={()=>setAdd(true)} style={{display:"inline-flex",alignItems:"center",gap:5,color:"var(--accent)",fontWeight:700,fontSize:12.5}}><Icon d={I.plus} s={14} c="var(--accent)"/>Add to {ecatF||(loc||"All studios")}</button>
+     {atItems&&<button onClick={()=>setAdd(true)} style={{display:"inline-flex",alignItems:"center",gap:5,color:"var(--accent)",fontWeight:700,fontSize:12.5}}><Icon d={I.plus} s={14} c="var(--accent)"/>Add to {catSel}</button>}
    </div>}
-   {(()=>{const gs=isElecView?[]:GENDERS_T.filter(g=>cnt("gen",r=>r.gender===g)>0);return gs.length?<div className="filterbar" style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center",marginBottom:9}}>
-     <span style={FLBL}>Gender</span>
-     {fchip("gna",!genF,()=>setGenF(""),"All")}
-     {gs.map(g=>{const n=cnt("gen",r=>r.gender===g);return fchip(g,genF===g,()=>setGenF(genF===g?"":g),g,n);})}
-   </div>:null})()}
-   <div className="filterbar" style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center",marginBottom:16,marginTop:2}}>
-     <span style={FLBL}>{isElecView?"Filter":"Type"}</span>
-     {!isElecView&&fchip("ta",!typeF,()=>setTypeF(""),"All")}
-     {!isElecView&&[["theme","Setups"],["item","Items"]].map(([v,l])=>{const n=cnt("type",r=>r.type===v);return n?fchip(v,typeF===v,()=>setTypeF(typeF===v?"":v),l,n):null;})}
-     {!isElecView&&(()=>{const n=rows.filter(r=>(r.static_tags||[]).includes("New")).length;return n?fchip("new",newF,()=>setNewF(!newF),"★ New",n,"#f0a23c"):null;})()}
-     {!isElecView&&(()=>{const n=rows.filter(r=>!r.archived&&tracksUse(r)&&invSel(r)===0).length;return n?fchip("un",unusedF,()=>setUnusedF(!unusedF),"Unused",n,"#f0a23c"):null;})()}
-     {!isElecView&&(()=>{const ks=[...new Set(rows.filter(r=>m(r,"kind")).map(r=>r.kind).filter(Boolean))].sort();return ks.length?<select value={kindF} onChange={e=>setKindF(e.target.value)} style={{width:"auto",marginLeft:4}}><option value="">All kinds</option>{ks.map(k=><option key={k} value={k}>{ucf(k)}</option>)}</select>:null})()}
-     {!isElecView&&kindF==="prop"&&(()=>{const subs=[...new Set(rows.filter(r=>m(r,"sub")&&r.kind==="prop").map(r=>r.subcategory).filter(Boolean))].sort();return <select value={subF} onChange={e=>setSubF(e.target.value)} style={{width:"auto"}}><option value="">All prop types</option>{subs.map(s=><option key={s} value={s}>{ucf(s)}</option>)}</select>})()}
+   {atItems&&<div className="filterbar" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:14}}>
+     {!isElecView&&(()=>{const ks=[...new Set(rows.filter(r=>m(r,"kind")).map(r=>r.kind).filter(Boolean))].sort();return ks.length?<select value={kindF} onChange={e=>setKindF(e.target.value)} style={{width:"auto"}}><option value="">All kinds</option>{ks.map(k=><option key={k} value={k}>{ucf(k)}</option>)}</select>:null})()}
      {!isElecView&&(()=>{const szs=[...new Set(rows.filter(r=>m(r,"size")).flatMap(r=>(r.size||"").split(",").map(x=>x.trim()).filter(Boolean)))].sort();return szs.length?<select value={sizeF} onChange={e=>setSizeF(e.target.value)} style={{width:"auto"}}><option value="">All sizes / ages</option>{szs.map(s=><option key={s}>{s}</option>)}</select>:null})()}
+     {!isElecView&&(()=>{const gs=GENDERS_T.filter(g=>cnt("gen",r=>r.gender===g)>0);return gs.length?<select value={genF} onChange={e=>setGenF(e.target.value)} style={{width:"auto"}}><option value="">All genders</option>{gs.map(g=><option key={g}>{g}</option>)}</select>:null})()}
      {isElecView&&(()=>{const ts=[...new Set(rows.filter(r=>m(r,"etype")).map(r=>r.subcategory).filter(Boolean))].sort();return ts.length?<select value={etypeF} onChange={e=>setEtypeF(e.target.value)} style={{width:"auto"}}><option value="">All types</option>{ts.map(t=><option key={t}>{t}</option>)}</select>:null})()}
      {isElecView&&(()=>{const sts=[...new Set(rows.filter(r=>m(r,"estat")).map(r=>r.op_status).filter(Boolean))].sort();return sts.length?<select value={estatF} onChange={e=>setEstatF(e.target.value)} style={{width:"auto"}}><option value="">All statuses</option>{sts.map(s=><option key={s}>{s}</option>)}</select>:null})()}
-     {(()=>{const cs=CONDS.filter(c=>cnt("cond",r=>(r.inv_item_location||[]).some(l=>(!loc||l.location===loc)&&l.condition===c))>0);return cs.length?<select value={condF} onChange={e=>setCondF(e.target.value)} style={{width:"auto"}}><option value="">All conditions</option>{cs.map(c=><option key={c}>{c}</option>)}</select>:null})()}
-     <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}><option value="popular">{isElecView?"Default order":"Most selected"+(loc?" (in "+loc+")":"")}</option>{!isElecView&&<option value="least">Least selected</option>}<option value="az">A – Z</option><option value="cond">Condition · worst first</option><option value="condbest">Condition · best first</option></select>
-   </div>
+     {(()=>{const cs=CONDS.filter(c=>cnt("cond",r=>(r.inv_item_location||[]).some(l=>l.condition===c))>0);return cs.length?<select value={condF} onChange={e=>setCondF(e.target.value)} style={{width:"auto"}}><option value="">All conditions</option>{cs.map(c=><option key={c}>{c}</option>)}</select>:null})()}
+     <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}><option value="popular">{isElecView?"Default order":"Most selected"}</option>{!isElecView&&<option value="least">Least selected</option>}<option value="az">A – Z</option><option value="cond">Condition · worst first</option><option value="condbest">Condition · best first</option></select>
+   </div>}
    {(()=>{
      const tile=(key,onClick,icd,icc,title,subT)=><button key={key} onClick={onClick} className="fade" style={{textAlign:"left",display:"flex",alignItems:"center",gap:13,background:"var(--panel)",border:"1px solid var(--line)",borderRadius:9,padding:16,boxShadow:"var(--shadow)",cursor:"pointer"}}><div style={{width:46,height:46,borderRadius:8,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:icc+"16"}}><Icon d={icd} s={23} c={icc} sw={1.7}/></div><div style={{flex:1,minWidth:0}}><div style={{fontWeight:700,fontSize:14}}>{title}</div><div style={{fontSize:12,color:"var(--muted)",marginTop:2}}>{subT}</div></div><Icon d={I.chev} s={18} c="var(--muted)"/></button>;
-     // Equipment / Facility: studio -> category -> items drill-down
-     if(isElecView&&!loc&&!browseAll&&!ecatF){
-       const studios=BR.filter(b=>rows.some(r=>m(r,"loc")&&locOf(r).includes(b)));
-       return <div className="cardgrid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))",gap:12}}>
-         {studios.map(b=>{const n=rows.filter(r=>m(r,"loc")&&locOf(r).includes(b)).length;return tile(b,()=>setLoc(b),I.pin,BR_COLOR[b]||"#7c8291",b,n+" item"+(n!==1?"s":""));})}
-         {tile("__all",()=>setBrowseAll(true),I.grid,"#7c8291","All studios",rows.filter(r=>m(r,"loc")).length+" items")}
-       </div>;
-     }
-     if(isElecView&&!ecatF){
-       const cats=ELEC_CATS.filter(c=>rows.some(r=>m(r,"ecat")&&elecCat(r)===c));
+     const tgrid=ch=><div className="cardgrid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))",gap:12}}>{ch}</div>;
+     // Level 0 — pick a group
+     if(!groupF){const gicon={shoot:I.layers,electronics:I.camera,facility:I.sofa};return tgrid(["shoot","electronics","facility"].map(g=>{const n=rows.filter(r=>!r.archived&&(r.item_group||"shoot")===g).length;return n?tile(g,()=>pickGroup(g),gicon[g],"#7c8291",GL[g],n+" items"):null;}));}
+     // Level 1 — pick a studio
+     if(drillStudio){const studios=BR.filter(b=>rows.some(r=>m(r,"loc")&&locOf(r).includes(b)));
+       return tgrid([...studios.map(b=>{const n=rows.filter(r=>m(r,"loc")&&locOf(r).includes(b)).length;return tile(b,()=>setLoc(b),I.pin,"#7c8291",b,n+" item"+(n!==1?"s":""));}),tile("__all",()=>setBrowseAll(true),I.grid,"#7c8291","All studios",rows.filter(r=>m(r,"loc")).length+" items")]);}
+     // Level 2 — pick a category
+     if(drillCat){const cl=isElecView?ELEC_CATS:SESSION_CATS;const cof=isElecView?elecCat:(r=>r.session_type);const setC=isElecView?setEcatF:setCatF;
+       const cats=cl.filter(c=>rows.some(r=>m(r,isElecView?"ecat":"cat")&&cof(r)===c));
        if(!cats.length) return <div style={{color:"var(--muted)",fontSize:13,padding:"30px 0"}}>Nothing here{loc?" in "+loc:""} yet.</div>;
-       return <div className="cardgrid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))",gap:12}}>{cats.map(c=>{const items=rows.filter(r=>m(r,"ecat")&&elecCat(r)===c);const ic=itemIcon(items[0]||{item_group:"electronics",subcategory:""});return tile(c,()=>setEcatF(c),ic.d,ic.c,c,items.length+" item"+(items.length!==1?"s":""));})}</div>;
-     }
+       return tgrid(cats.map(c=>{const items=rows.filter(r=>m(r,isElecView?"ecat":"cat")&&cof(r)===c);const ic=itemIcon(items[0]||{item_group:groupF,subcategory:""});return tile(c,()=>setC(c),ic.d,ic.c,c,items.length+" item"+(items.length!==1?"s":""));}));}
      if(!filtered.length) return <div style={{color:"var(--muted)",fontSize:13,padding:"30px 0"}}>Nothing matches these filters.</div>;
      if(vm==="list"){const colCat=r=>r.subcategory||r.session_type||ucf(r.kind||(r.type==="theme"?"setup":""));
        const colStat=r=>r.op_status||(r.type==="theme"?"Setup":r.kind?ucf(r.kind):"");
