@@ -988,8 +988,15 @@ function LabelSheet({items=[],onClose}){
 }
 // ---- right-hand detail panel (Pulse-style) ----
 const ST_COL=s=>s==="Available"?"#16a34a":s==="In use"?"#2563eb":s==="In repair"?"#d97706":s==="Overdue"?"#ea580c":s==="For sale"?"#7c3aed":s==="Retired"?"#6b7280":"#9aa0b0";
-function ItemPanel({item:r,published,onClose,onEdit,onPrint}){
+function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
  const [tab,setTab]=useState("Overview");
+ const [comp,setComp]=useState([]);
+ useEffect(()=>{(async()=>{if(!sb){setComp([]);return;}let ids=[];
+   if(r.type==="theme"){const {data}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",r.id);ids=(data||[]).map(x=>x.component_item_id);}
+   else{const {data}=await sb.from("inv_theme_item").select("theme_id").eq("component_item_id",r.id);ids=(data||[]).map(x=>x.theme_id);}
+   if(!ids.length){setComp([]);return;}
+   const {data:its}=await sb.from("inv_item").select("id,name,code,photo_url,kind,subcategory,session_type,item_group,op_status,type").in("id",ids);setComp(its||[]);
+ })()},[r.id]);
  useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
  const isAsset=r.item_group!=="shoot"; const locs=r.inv_item_location||[]; const ic=itemIcon(r);
  const st=r.op_status; const acq=acqOf(r);
@@ -1013,6 +1020,10 @@ function ItemPanel({item:r,published,onClose,onEdit,onPrint}){
          {locs.length?locs.map(l=><div key={l.location} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid var(--line)"}}><Dot c={BR_COLOR[l.location]||"#bbb"} s={8}/><span style={{fontSize:13,fontWeight:600,flex:1}}>{l.location}</span>{!isAsset&&l.condition&&<span style={{fontSize:11.5,color:COND_COLOR[l.condition],fontWeight:600,marginRight:10}}>{l.condition}</span>}<span style={{fontSize:12.5,color:"var(--soft)"}}>qty {l.quantity}</span></div>):<div style={lab}>No locations.</div>}
          {r.value!=null&&r.value!==""&&<Row k="Value" v={(r.value_currency||"")+" "+r.value}/>}
          {!isAsset&&<div style={{marginTop:14,display:"flex",alignItems:"center",gap:11,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"11px 14px"}}><Icon d={I.globe} s={18} c={published?"#16a34a":"var(--muted)"}/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{published?"Published on website":"Not on website"}</div><div style={{fontSize:11,color:"var(--muted)"}}>{published?"Live because it's in the Website Showcase":"Add it in Website Showcase to publish"}</div></div></div>}
+         <div style={{marginTop:16}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><span style={{fontSize:11,fontWeight:700,color:"var(--muted)"}}>{r.type==="theme"?"Items in this setup":"Part of these setups"}</span><span style={{flex:1}}/>{onEdit&&<button onClick={()=>onEdit(r)} style={{fontSize:11.5,fontWeight:600,color:"var(--accent)"}}>{r.type==="theme"?"+ Add / manage":"Manage"}</button>}</div>
+           {comp.length?<div style={{display:"flex",flexDirection:"column",gap:5}}>{comp.map(c=>{const ci=itemIcon(c);return <div key={c.id} onClick={()=>onOpen&&onOpen(c)} className="trow" style={{display:"flex",alignItems:"center",gap:10,padding:"6px 8px",borderRadius:8,cursor:"pointer",border:"1px solid var(--line)"}}><div style={{width:34,height:34,borderRadius:7,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:"var(--panel2)"}}>{c.photo_url?<img src={c.photo_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon d={ci.d} s={16} c={ci.c} sw={1.7}/>}</div><div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.name}</div><div style={{fontSize:10.5,color:"var(--muted)"}}>{c.type==="theme"?(c.session_type||"Setup"):ucf(c.kind||c.subcategory||"item")}</div></div><Icon d={I.chev} s={15} c="var(--muted)"/></div>;})}</div>
+           :<div style={{fontSize:12,color:"var(--muted)",padding:"4px 0"}}>{r.type==="theme"?"No items linked yet — tap “Add / manage”.":"Not part of any setup."}</div>}
+         </div>
        </div>}
        {tab==="Specifications"&&<div>
          <Row k="Group" v={r.item_group==="shoot"?"Session inventory":r.item_group==="facility"?"Facility":"Equipment"}/>
@@ -1201,7 +1212,7 @@ function NewInventory({initCat=""}){
    })()}
    {add&&<AddInvItem init={{grp:groupF||undefined,session_type:!isElecView?(catF||undefined):undefined,subcategory:isElecView?(etypeF||undefined):undefined}} onClose={()=>setAdd(false)} onSaved={load}/>}
    {edit&&<InvEdit item={edit} onClose={()=>setEdit(null)} onSaved={()=>{setEdit(null);setDetail(null);load();}}/>}
-   {detail&&<ItemPanel item={detail} published={pubSet.has(detail.id)} onClose={()=>setDetail(null)} onEdit={r=>{setDetail(null);setEdit(r);}} onPrint={r=>setLabelItem(r)}/>}
+   {detail&&<ItemPanel item={detail} published={pubSet.has(detail.id)} onClose={()=>setDetail(null)} onEdit={r=>{setDetail(null);setEdit(r);}} onPrint={r=>setLabelItem(r)} onOpen={r=>setDetail(r)}/>}
    {labelItem&&<LabelSheet items={[labelItem]} onClose={()=>setLabelItem(null)}/>}
    {labels&&<LabelSheet items={filtered} onClose={()=>setLabels(false)}/>}
  </div>;
