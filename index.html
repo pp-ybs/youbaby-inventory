@@ -715,6 +715,9 @@ function InvEdit({item,onClose,onSaved}){
      <div style={{padding:24,display:"flex",flexDirection:"column",gap:18}}>
        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
          <div style={{gridColumn:"1/-1"}}><span style={lab}>NAME *</span><input value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
+         <div style={{gridColumn:"1/-1"}}><span style={lab}>TYPE</span><div style={{display:"flex",gap:8}}>
+           {[["theme","Setup (theme)","#cf8a1e"],["item","Item","#48b08c"]].map(([v,l,c])=><button type="button" key={v} onClick={()=>{set("type",v);if(v==="item"&&!f.kind)set("kind",kindsE[0]||"other")}} style={{padding:"7px 14px",borderRadius:20,border:`1px solid ${f.type===v?c:"var(--line2)"}`,background:f.type===v?c:"var(--panel)",color:f.type===v?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{l}</button>)}
+         </div></div>
          <div><span style={lab}>CATEGORY</span><select value={f.session_type||""} onChange={e=>set("session_type",e.target.value)}>{SESSION_CATS.map(c=><option key={c}>{c}</option>)}</select></div>
          {f.type==="item"&&<div><span style={lab}>KIND</span><select value={f.kind||""} onChange={e=>set("kind",e.target.value)}>{kindsE.map(k=><option key={k}>{k}</option>)}</select></div>}
          {showStyle&&<div><span style={lab}>STYLE</span><select value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)}><option value="">—</option>{STYLE_OPTS[f.session_type].map(s=><option key={s}>{s}</option>)}</select></div>}
