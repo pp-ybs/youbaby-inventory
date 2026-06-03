@@ -573,7 +573,7 @@ const KIND_BY_CAT={Maternity:["outfit","backdrop","accessory"],"Cake Smash":["ou
 const GENERAL_KINDS=["prop","accessory","backdrop","other"];
 const SIZE_OPTS=["S","M","L","XL","One size"];
 // size options per session type (baby sessions use age, maternity uses dress sizes)
-const SIZE_BY_CAT={Maternity:["S","M","L","XL","One size"],"Cake Smash":["1 year","12-18m","One size"],Infant:["1-3m","3-6m","6-9m","One size"],Sitter:["6-9m","9-12m","One size"]};
+const SIZE_BY_CAT={Maternity:["S","M","L","XL","One size"],"Cake Smash":["1 year","12-18m","One size"],Infant:["1-3m","3-6m","One size"],Sitter:["6-9m","9-12m","One size"]};
 const PROP_SUBTYPES=["flowers","toys","balloons","number","cake stand","banner","other"];
 const SUBTYPE_OPTS={prop:PROP_SUBTYPES,basket:["Moon","Heart","Bed","Basket"],accessory:["bonnet","headband","hat","crown","bow tie","veil"]};
 const SUBTYPE_PH={prop:"e.g. flowers, toys, number…",basket:"e.g. Moon, Heart, Bed, Basket",accessory:"e.g. bonnet, headband, hat"};
@@ -750,7 +750,7 @@ function InvEdit({item,onClose,onSaved}){
 }
 
 function NewInventory(){
- const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("new"),[catF,setCatF]=useState(""),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState("");
+ const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("new"),[catF,setCatF]=useState(""),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState(""),[sizeF,setSizeF]=useState("");
  const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sb.from("inv_item").select("*,inv_item_location(location,quantity,status)").order("created_at",{ascending:false});if(error)setErr(error.message);setRows(data||[]);};
  useEffect(()=>{load()},[]);
  if(rows===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
@@ -764,6 +764,7 @@ function NewInventory(){
    &&(ex==="type"||!typeF||r.type===typeF)
    &&(ex==="gen"||!genF||r.gender===genF)
    &&(ex==="sub"||!subF||kindF!=="prop"||(r.subcategory||"")===subF)
+   &&(ex==="size"||!sizeF||(r.size||"").split(",").map(x=>x.trim()).includes(sizeF))
    &&(!ql||((r.name||"")+" "+(r.code||"")+" "+(r.subcategory||"")).toLowerCase().includes(ql));
  const cnt=(ex,pred)=>rows.filter(r=>m(r,ex)&&pred(r)).length;
  const filtered=rows.filter(r=>m(r,null))
@@ -813,6 +814,7 @@ function NewInventory(){
      {[["theme","Setups"],["item","Items"]].map(([v,l])=>{const n=cnt("type",r=>r.type===v);return <button key={v} onClick={()=>setTypeF(typeF===v?"":v)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${typeF===v?"var(--ink)":"var(--line2)"}`,background:typeF===v?"var(--ink)":"var(--panel)",color:typeF===v?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4}}>{l} ({n})</button>})}
      {(()=>{const ks=[...new Set(rows.filter(r=>m(r,"kind")).map(r=>r.kind).filter(Boolean))].sort();return ks.length?<select value={kindF} onChange={e=>setKindF(e.target.value)} style={{width:"auto",marginLeft:6}}><option value="">All kinds</option>{ks.map(k=><option key={k}>{k}</option>)}</select>:null})()}
      {kindF==="prop"&&(()=>{const subs=[...new Set(rows.filter(r=>m(r,"sub")&&r.kind==="prop").map(r=>r.subcategory).filter(Boolean))].sort();return <select value={subF} onChange={e=>setSubF(e.target.value)} style={{width:"auto"}}><option value="">All prop types</option>{subs.map(s=><option key={s}>{s}</option>)}</select>})()}
+     {(()=>{const szs=[...new Set(rows.filter(r=>m(r,"size")).flatMap(r=>(r.size||"").split(",").map(x=>x.trim()).filter(Boolean)))].sort();return szs.length?<select value={sizeF} onChange={e=>setSizeF(e.target.value)} style={{width:"auto"}}><option value="">All sizes / ages</option>{szs.map(s=><option key={s}>{s}</option>)}</select>:null})()}
      <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}><option value="new">Newest</option><option value="popular">Most selected{loc?" (in "+loc+")":""}</option></select>
      <div style={{position:"relative",flex:1,minWidth:160}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name / code…" style={{paddingLeft:34}}/></div>
    </div>
