@@ -335,14 +335,18 @@ function ShowRow({title,sub,items,onOpen}){
    </div></div>;
 }
 function Showcase({themes,onOpen}){
- const [secs,setSecs]=useState([]),[links,setLinks]=useState([]),[board,setBoard]=useState(""),[picker,setPicker]=useState(null),[pq,setPq]=useState(""),[preview,setPreview]=useState(false),[loaded,setLoaded]=useState(false);
+ const [secs,setSecs]=useState([]),[links,setLinks]=useState([]),[picker,setPicker]=useState(null),[pq,setPq]=useState(""),[preview,setPreview]=useState(false),[loaded,setLoaded]=useState(false);
+ const [scLoc,setScLoc]=useState(""),[scSession,setScSession]=useState(""),[scGender,setScGender]=useState("");
  const load=async()=>{if(!sb){setLoaded(true);return;}const {data:s}=await sb.from("showcase_section").select("*").order("sort");const {data:l}=await sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender)").order("sort");setSecs(s||[]);setLinks(l||[]);setLoaded(true);};
  useEffect(()=>{load()},[]);
- const boards=[...new Set(secs.map(s=>s.board))]; const activeBoard=board||boards[0]||"Maternity · Dubai";
+ const needGender=scSession&&!NO_GENDER.includes(scSession);
+ const activeBoard=(scLoc&&scSession)?`${scLoc} · ${scSession}${(needGender&&scGender)?" · "+scGender:""}`:"";
+ const atBoard=!!scLoc&&!!scSession&&(!needGender||!!scGender);
  const boardSecs=secs.filter(s=>s.board===activeBoard).sort((a,b)=>(a.sort||0)-(b.sort||0));
  const itemsOf=sid=>links.filter(l=>l.section_id===sid);
- const addBoard=async()=>{const n=window.prompt("New board name (e.g. Baby Girl · Dubai):");if(!n)return;await sb.from("showcase_section").insert({board:n,title:"New section",sort:0});setBoard(n);load();};
+ const pic=pred=>{const t=themes.find(x=>x.image&&pred(x));return t?t.image:null;};
  const addSection=async()=>{const mx=Math.max(0,...boardSecs.map(s=>s.sort||0));await sb.from("showcase_section").insert({board:activeBoard,title:"New section",sort:mx+1});load();};
+ const vtile=(label,sub,img,onClick)=><button key={label} onClick={onClick} className="fade" style={{position:"relative",height:170,borderRadius:12,overflow:"hidden",border:"1px solid var(--line)",boxShadow:"var(--shadow)",cursor:"pointer",background:"var(--panel2)",textAlign:"left"}}>{img?<img src={img} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.image} s={30} c="#c4c7d2"/></div>}<div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,.66) 0%,rgba(0,0,0,.05) 55%)"}}/><div style={{position:"absolute",left:14,right:14,bottom:12}}><div style={{color:"#fff",fontSize:17,fontWeight:800,letterSpacing:"-.01em"}}>{label}</div>{sub&&<div style={{color:"rgba(255,255,255,.85)",fontSize:11.5,marginTop:2}}>{sub}</div>}</div></button>;
  const upd=async(id,patch)=>{setSecs(ss=>ss.map(s=>s.id===id?{...s,...patch}:s));if(sb)await sb.from("showcase_section").update(patch).eq("id",id);};
  const move=async(s,dir)=>{const arr=boardSecs;const i=arr.findIndex(x=>x.id===s.id);const j=i+dir;if(j<0||j>=arr.length)return;const a=arr[i],b=arr[j];await sb.from("showcase_section").update({sort:b.sort}).eq("id",a.id);await sb.from("showcase_section").update({sort:a.sort}).eq("id",b.id);load();};
  const delSection=async(s)=>{if(!window.confirm("Delete section “"+s.title+"”?"))return;await sb.from("showcase_section").delete().eq("id",s.id);load();};
@@ -357,12 +361,20 @@ function Showcase({themes,onOpen}){
      <span style={{flex:1}}/>
      <button onClick={()=>setPreview(!preview)} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:8,border:"1px solid var(--line2)",background:preview?"var(--ink)":"var(--panel)",color:preview?"#fff":"var(--soft)",fontWeight:600,fontSize:13}}><Icon d={I.eye} s={15} c={preview?"#fff":"var(--soft)"}/>{preview?"Editing preview":"Preview"}</button>
    </div>
-   <p style={{color:"var(--muted)",fontSize:12.5,marginBottom:16}}>Build the public set-up gallery: create sections, drop themes in (a theme can sit in several sections), reorder, and publish.</p>
-   <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:18}}>
-     {boards.map(b=><button key={b} onClick={()=>setBoard(b)} style={{padding:"7px 14px",borderRadius:8,border:`1px solid ${b===activeBoard?"var(--ink)":"var(--line2)"}`,background:b===activeBoard?"var(--ink)":"var(--panel)",color:b===activeBoard?"#fff":"var(--soft)",fontWeight:600,fontSize:13}}>{b}</button>)}
-     <button onClick={addBoard} style={{padding:"7px 13px",borderRadius:8,border:"1px dashed var(--line2)",color:"var(--soft)",fontWeight:600,fontSize:13}}>+ New board</button>
-   </div>
-   {preview?
+   <p style={{color:"var(--muted)",fontSize:12.5,marginBottom:16}}>Pick a studio, then a session (then girl/boy) and build that page — drop themes into sections. A theme can sit in several sections.</p>
+   {(scLoc||scSession)&&<div style={{display:"flex",alignItems:"center",gap:7,marginBottom:16,fontSize:13.5,flexWrap:"wrap"}}>
+     <button onClick={()=>{setScLoc("");setScSession("");setScGender("");}} style={{color:"var(--muted)",fontWeight:600}}>Showcase</button>
+     <Icon d={I.chev} s={14} c="var(--muted)"/><button onClick={()=>{setScSession("");setScGender("");}} style={{color:scSession?"var(--accent)":"var(--ink)",fontWeight:700}}>{scLoc}</button>
+     {scSession&&<><Icon d={I.chev} s={14} c="var(--muted)"/><button onClick={()=>setScGender("")} style={{color:(needGender&&scGender)?"var(--accent)":"var(--ink)",fontWeight:700}}>{scSession}</button></>}
+     {needGender&&scGender&&<><Icon d={I.chev} s={14} c="var(--muted)"/><span style={{fontWeight:700}}>{scGender}</span></>}
+   </div>}
+   {!atBoard?
+     <div className="cardgrid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:14}}>
+       {!scLoc&&BR.map(b=>vtile(b,(secs.filter(s=>s.board.startsWith(b+" · ")).length||0)+" pages",pic(t=>(t.branches||[]).includes(b)),()=>setScLoc(b)))}
+       {scLoc&&!scSession&&SESSION_CATS.map(s=>vtile(s,null,pic(t=>t.category===s&&(t.branches||[]).includes(scLoc)),()=>setScSession(s)))}
+       {scLoc&&scSession&&needGender&&!scGender&&[["Girls","Girl"],["Boys","Boy"],["Twins","Twins"]].map(([g,gv])=>vtile(g,null,pic(t=>t.category===scSession&&t.gender===gv&&(t.branches||[]).includes(scLoc)),()=>setScGender(g)))}
+     </div>
+   :preview?
      <div style={{maxWidth:1000,margin:"0 auto"}}>
        <h2 style={{textAlign:"center",fontSize:26,fontWeight:800,marginBottom:24}}>{activeBoard}</h2>
        {boardSecs.map(s=><div key={s.id} style={{marginBottom:26}}><div style={{fontSize:16,fontWeight:700}}>{s.title}</div>{s.note&&<div style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>{s.note}</div>}<div className="hscroll" style={{display:"flex",gap:10,paddingTop:8}}>{itemsOf(s.id).map(l=><div key={l.id} style={{position:"relative",width:150,height:200,flexShrink:0,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)"}}>{thumb(l.inv_item&&l.inv_item.photo_url,null,26)}{l.inv_item&&l.inv_item.size&&<span style={{position:"absolute",top:6,right:6,fontSize:9,fontWeight:700,background:"rgba(0,0,0,.55)",color:"#fff",borderRadius:5,padding:"1px 6px"}}>{l.inv_item.size}</span>}</div>)}{!itemsOf(s.id).length&&<span style={{fontSize:12,color:"var(--muted)"}}>No themes yet.</span>}</div></div>)}
