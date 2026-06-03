@@ -705,8 +705,9 @@ const codePrefix=(cat,seg)=>(CAT_CODE[cat]||((cat||"XX").replace(/[^A-Za-z]/g,""
 async function nextCode(cat,seg){const p=codePrefix(cat,seg)+"-";if(!sb)return p+"001";const {data}=await sb.from("inv_item").select("code").like("code",p+"%");let mx=0;(data||[]).forEach(r=>{const m=/(\d+)\s*$/.exec(r.code||"");if(m)mx=Math.max(mx,parseInt(m[1],10))});return p+String(mx+1).padStart(3,"0");}
 function Barcode({value,height=46}){const ref=useRef(null);useEffect(()=>{if(ref.current&&window.JsBarcode&&value){try{window.JsBarcode(ref.current,value,{format:"CODE128",height,fontSize:13,margin:6,displayValue:true});}catch(e){}}},[value,height]);return <svg ref={ref} style={{maxWidth:"100%"}}/>;}
 
-function AddInvItem({onClose,onSaved}){
- const [f,setF]=useState({grp:"shoot",sessionRel:true,type:"item",kind:"outfit",session_type:"Newborn",gender:"",subcategory:"",size:"",dimensions:"",name:"",color:"",condition:"Good",serial_no:"",assignee:"",op_status:"Available",value:"",value_currency:"AED",purchase_date:"",acquired_on:today(),perLocDate:false,photo_url:"",purchase_url:"",usable_for:[],static_tags:[],website_display:false,notes:""});
+function AddInvItem({onClose,onSaved,init={}}){
+ const ig=init.grp||"shoot";
+ const [f,setF]=useState({grp:ig,sessionRel:ig==="shoot",type:"item",kind:"outfit",session_type:init.session_type||"Newborn",gender:"",subcategory:init.subcategory||"",size:"",dimensions:"",name:"",color:"",condition:"Good",serial_no:"",assignee:"",op_status:"Available",value:"",value_currency:"AED",purchase_date:"",acquired_on:today(),perLocDate:false,photo_url:"",purchase_url:"",usable_for:[],static_tags:[],website_display:false,notes:""});
  const OPSTATUS=["Available","In use","In repair","Retired","For sale"];
  const [locs,setLocs]=useState({});
  const [linkIds,setLinkIds]=useState([]),[cand,setCand]=useState([]);
@@ -1009,7 +1010,7 @@ function NewInventory({initCat=""}){
      <span style={{marginLeft:"auto"}}/>
      {(()=>{const na=rows.filter(r=>r.archived).length;return na>0&&<button onClick={()=>setShowArch(!showArch)} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 13px",borderRadius:10,border:`1px solid ${showArch?"var(--ink)":"var(--line2)"}`,background:showArch?"var(--ink)":"var(--panel)",color:showArch?"#fff":"var(--soft)",fontWeight:600,fontSize:13}}>{showArch?"Hide":"Show"} archived ({na})</button>})()}
      <button onClick={()=>setLabels(true)} disabled={!filtered.length} title="Print barcode labels for the items currently shown" style={{display:"flex",alignItems:"center",gap:6,background:"var(--panel)",border:"1px solid var(--line2)",color:"var(--soft)",padding:"9px 13px",borderRadius:10,fontWeight:600,fontSize:13,opacity:filtered.length?1:.5}}><Icon d={I.list} s={15} c="var(--soft)"/>Print labels</button>
-     <button onClick={()=>setAdd(true)} style={{display:"flex",alignItems:"center",gap:6,background:"var(--ink)",color:"#fff",padding:"9px 15px",borderRadius:10,fontWeight:600,fontSize:13}}><Icon d={I.plus} s={15} c="#fff"/>Add item</button></div>
+     <button onClick={()=>setAdd(true)} style={{display:"flex",alignItems:"center",gap:6,background:"var(--ink)",color:"#fff",padding:"9px 15px",borderRadius:10,fontWeight:600,fontSize:13}}><Icon d={I.plus} s={15} c="#fff"/>{etypeF?("Add "+etypeF):catF?("Add to "+catF):"Add item"}</button></div>
    <p style={{color:"var(--muted)",fontSize:12.5,marginTop:2,marginBottom:16}}>One card per real item · tracked across every studio.</p>
    {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8,marginBottom:14}}>{err}</div>}
    {(()=>{const GL={shoot:"Session inventory",electronics:"Equipment",facility:"Facility"};const groups=["shoot","electronics","facility"];return <div className="filterbar" style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center",marginBottom:9}}>
@@ -1063,7 +1064,7 @@ function NewInventory({initCat=""}){
          <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 15px",borderBottom:"1px solid var(--line)",fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".05em",textTransform:"uppercase"}}><span style={{flex:1}}>Name</span><span style={{width:130}}>Type</span><span style={{width:110}}>Status</span><span style={{width:120}}>Location</span><span style={{width:140}}>Assigned to</span></div>
          {filtered.map(r=>{const ic=itemIcon(r);const st=r.op_status||"—";const c=stCol(st);return <div key={r.id} onClick={()=>setEdit(r)} className="trow fade" style={{display:"flex",alignItems:"center",gap:12,padding:"9px 15px",borderTop:"1px solid var(--line)",cursor:"pointer"}}>
            <div style={{display:"flex",alignItems:"center",gap:11,flex:1,minWidth:0}}><div style={{width:38,height:38,borderRadius:9,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",background:r.photo_url?"var(--panel2)":ic.c+"15"}}>{r.photo_url?<img src={r.photo_url} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon d={ic.d} s={18} c={ic.c} sw={1.7}/>}</div><div style={{minWidth:0}}><div style={{fontWeight:600,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</div><div style={{fontSize:10,color:"var(--muted)",fontFamily:"ui-monospace,monospace"}}>{r.code}</div></div></div>
-           <span style={{width:130,fontSize:12,color:"var(--soft)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.subcategory||"—"}</span>
+           <span style={{width:130}}>{r.subcategory?<span style={{display:"inline-block",fontSize:11,fontWeight:600,color:"var(--soft)",background:"var(--panel2)",border:"1px solid var(--line2)",borderRadius:8,padding:"2px 9px",whiteSpace:"nowrap",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis"}}>{r.subcategory}</span>:<span style={{color:"var(--muted)"}}>—</span>}</span>
            <span style={{width:110,fontSize:11.5,fontWeight:600,color:c,display:"inline-flex",alignItems:"center",gap:5}}>{st!=="—"&&<Dot c={c} s={6}/>}{st}</span>
            <span style={{width:120,fontSize:12,color:"var(--soft)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{(r.inv_item_location||[]).map(l=>l.location).join(", ")||"—"}</span>
            <span style={{width:140,fontSize:12,color:"var(--soft)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.assignee||"—"}</span>
@@ -1071,7 +1072,7 @@ function NewInventory({initCat=""}){
        </div></div>;}
      return <div className="cardgrid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:10}}>{filtered.map(card)}</div>;
    })()}
-   {add&&<AddInvItem onClose={()=>setAdd(false)} onSaved={load}/>}
+   {add&&<AddInvItem init={{grp:groupF||undefined,session_type:!isElecView?(catF||undefined):undefined,subcategory:isElecView?(etypeF||undefined):undefined}} onClose={()=>setAdd(false)} onSaved={load}/>}
    {edit&&<InvEdit item={edit} onClose={()=>setEdit(null)} onSaved={()=>{setEdit(null);load();}}/>}
    {labels&&<LabelSheet items={filtered} onClose={()=>setLabels(false)}/>}
  </div>;
