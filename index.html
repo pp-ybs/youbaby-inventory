@@ -1720,7 +1720,11 @@ function NewInventory({initCat=""}){
      <button onClick={()=>{pickGroup("");}} style={{color:"var(--muted)",fontWeight:600}}>Catalog</button>
      <Icon d={I.chev} s={14} c="var(--muted)"/>
      <button onClick={resetStudio} style={{color:(loc||browseAll)?"var(--accent)":"var(--ink)",fontWeight:700}}>{GL[groupF]}</button>
-     {(loc||browseAll)&&<><Icon d={I.chev} s={14} c="var(--muted)"/><button onClick={resetCat} style={{color:catSel?"var(--accent)":"var(--ink)",fontWeight:700}}>{loc||"All studios"}</button></>}
+     {(loc||browseAll)&&<><Icon d={I.chev} s={14} c="var(--muted)"/><button onClick={resetCat} style={{color:catSel?"var(--accent)":"var(--ink)",fontWeight:700}}>{loc||"All studios"}</button>
+       {/* Inline studio toggle — lets you switch the current view between one studio and all studios without backing out of the drilldown */}
+       {loc&&catSel&&<button onClick={()=>{setLoc("");setBrowseAll(true);}} title={`See ${catSel}${bucketF?" · "+bucketF:""}${genF?" · "+genF:""} across all 4 studios`} style={{display:"inline-flex",alignItems:"center",gap:4,marginLeft:6,padding:"3px 9px",borderRadius:14,border:"1px solid var(--line2)",background:"var(--panel)",color:"var(--soft)",fontSize:11.5,fontWeight:600,cursor:"pointer"}}><span style={{fontSize:11}}>↔</span> Across all studios</button>}
+       {browseAll&&catSel&&<span style={{display:"inline-flex",alignItems:"center",gap:4,marginLeft:6,padding:"3px 9px",borderRadius:14,border:"1px solid var(--line2)",background:"var(--panel2)",color:"var(--muted)",fontSize:11.5,fontWeight:600}}>combined view</span>}
+     </>}
      {catSel&&<><Icon d={I.chev} s={14} c="var(--muted)"/><button onClick={()=>{if(groupF==="shoot")resetBucket();}} style={{color:(groupF==="shoot"&&bucketF)?"var(--accent)":"var(--ink)",fontWeight:700}}>{catSel}</button></>}
      {groupF==="shoot"&&bucketF&&<><Icon d={I.chev} s={14} c="var(--muted)"/><button onClick={()=>{if(bucketGendered)setGenF("");}} style={{color:(bucketGendered&&genF)?"var(--accent)":"var(--ink)",fontWeight:700}}>{(BUCKETS.find(b=>b[0]===bucketF)||[])[1]}</button></>}
      {groupF==="shoot"&&bucketGendered&&genF&&<><Icon d={I.chev} s={14} c="var(--muted)"/><span style={{fontWeight:700}}>{genF}</span></>}
@@ -1746,7 +1750,10 @@ function NewInventory({initCat=""}){
      // Level 1 — pick a studio
      if(drillStudio){const dataLocs=[...new Set(rows.filter(r=>m(r,"loc")).flatMap(locOf).filter(Boolean))];
        const studios=[...BR,...dataLocs.filter(l=>!BR.includes(l)).sort()];
-       return tgrid([...studios.map(b=>{const n=rows.filter(r=>m(r,"loc")&&locOf(r).includes(b)).length;return tile(b,()=>setLoc(b),I.pin,"#7c8291",b,n+" item"+(n!==1?"s":""));}),tile("__all",()=>setBrowseAll(true),I.grid,"#7c8291","All studios",rows.filter(r=>m(r,"loc")).length+" items")]);}
+       const totalN=rows.filter(r=>m(r,"loc")).length;
+       // "All studios" tile uses the accent colour so it's visually distinct from the per-branch tiles
+       // and reads as a deliberate "combined view" option rather than just another branch.
+       return tgrid([tile("__all",()=>setBrowseAll(true),I.grid,"var(--accent)","All studios","Combined view · "+totalN+" item"+(totalN!==1?"s":"")), ...studios.map(b=>{const n=rows.filter(r=>m(r,"loc")&&locOf(r).includes(b)).length;return tile(b,()=>setLoc(b),I.pin,BR_COLOR[b]||"#7c8291",b,n+" item"+(n!==1?"s":""));})]);}
      // Level 2 — pick a category
      if(drillCat){const cl=isElecView?ELEC_CATS:SESSION_CATS;const cof=isElecView?elecCat:(r=>r.session_type);const setC=isElecView?setEcatF:setCatF;
        const cats=cl.filter(c=>rows.some(r=>m(r,isElecView?"ecat":"cat")&&cof(r)===c));
