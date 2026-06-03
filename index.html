@@ -359,7 +359,7 @@ const PROP_TYPES=["backdrop","background","prop","accessory","other"];
 const PROP_GROUP={backdrop:"Backdrops",background:"Backgrounds",prop:"Props",accessory:"Accessories",other:"Other"};
 // shoot types an item can be used for (usable_for)
 const SHOOT_TYPES=["Maternity","Newborn","Sitter","Infant","Cake Smash","Children"];
-const dTC=t=>t==="fabric"||t==="background"||t==="backdrop"?"#a47cd1":(t==="prop"||t==="accessory")?"#48b08c":t==="outfit"?"#e06b94":t==="setup"?"#cf8a1e":"#9a9ca8";
+const dTC=t=>t==="fabric"||t==="background"||t==="backdrop"?"#a47cd1":t==="wrap"?"#5a93d6":(t==="prop"||t==="accessory"||t==="basket")?"#48b08c":t==="outfit"?"#e06b94":t==="setup"?"#cf8a1e":"#9a9ca8";
 function DohaEdit({item,onSave,onClose,allItems=[],links=[],onLink,onUnlink}){
  const [f,setF]=useState({...item});
  const set=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -561,20 +561,22 @@ function ItemsProps(){
 
 // ---- New unified inventory (inv_item): Add wizard + browse ----
 const CAT_CODE={"Cake Smash":"CS",Newborn:"NB",Infant:"IN",Maternity:"MA",Sitter:"SI",Christmas:"XM"};
-const KIND_CODE={outfit:"OF",fabric:"FB",prop:"PR",backdrop:"BD",wrap:"WR",accessory:"AC",other:"IT",setup:"SET"};
-const ITEM_KINDS=["outfit","fabric","prop","backdrop","wrap","accessory","other"];
+const KIND_CODE={outfit:"OF",fabric:"FB",prop:"PR",backdrop:"BD",wrap:"WR",basket:"BS",accessory:"AC",other:"IT",setup:"SET"};
+const ITEM_KINDS=["outfit","fabric","prop","backdrop","wrap","basket","accessory","other"];
 const SESSION_CATS=["Newborn","Infant","Sitter","Cake Smash","Maternity","Christmas"];
 const GENDERS_T=["Girl","Boy","Twins","Neutral"];
 // per-category Style (subcategory) options + which categories skip gender
 const STYLE_OPTS={Maternity:["Classic Black","Classic White","Fabrics","Elegant","Exclusive Setups","Private Collection","Outdoor","New"]};
 const NO_GENDER=["Maternity"];
 // which item kinds are offered per session type
-const KIND_BY_CAT={Maternity:["outfit","backdrop","accessory"],"Cake Smash":["outfit","prop","backdrop","accessory"],Newborn:["outfit","wrap","prop","backdrop","accessory"],Infant:["outfit","prop","backdrop","accessory"],Sitter:["outfit","prop","backdrop","accessory"],Christmas:["outfit","wrap","prop","backdrop","accessory"]};
+const KIND_BY_CAT={Maternity:["outfit","backdrop","accessory"],"Cake Smash":["outfit","prop","backdrop","accessory"],Newborn:["outfit","wrap","basket","prop","backdrop","accessory"],Infant:["outfit","prop","backdrop","accessory"],Sitter:["outfit","prop","backdrop","accessory"],Christmas:["outfit","wrap","prop","backdrop","accessory"]};
 const GENERAL_KINDS=["prop","accessory","backdrop","other"];
 const SIZE_OPTS=["S","M","L","XL","One size"];
 // size options per session type (baby sessions use age, maternity uses dress sizes)
-const SIZE_BY_CAT={Maternity:["S","M","L","XL","One size"],"Cake Smash":["1 year","12-18m","One size"],Newborn:["Newborn","0-1m","One size"],Infant:["1-3m","3-6m","6-9m","One size"],Sitter:["6-9m","9-12m","One size"]};
-const PROP_SUBTYPES=["flowers","toys","balloons","number","cake stand","banner","basket","other"];
+const SIZE_BY_CAT={Maternity:["S","M","L","XL","One size"],"Cake Smash":["1 year","12-18m","One size"],Infant:["1-3m","3-6m","6-9m","One size"],Sitter:["6-9m","9-12m","One size"]};
+const PROP_SUBTYPES=["flowers","toys","balloons","number","cake stand","banner","other"];
+const SUBTYPE_OPTS={prop:PROP_SUBTYPES,basket:["Moon","Heart","Bed","Basket"],accessory:["bonnet","headband","hat","crown","bow tie","veil"]};
+const SUBTYPE_PH={prop:"e.g. flowers, toys, number…",basket:"e.g. Moon, Heart, Bed, Basket",accessory:"e.g. bonnet, headband, hat"};
 function SizePicker({value,onChange,opts=SIZE_OPTS}){
  const cur=(value||"").split(",").map(s=>s.trim()).filter(Boolean);
  const toggle=s=>{const next=cur.includes(s)?cur.filter(x=>x!==s):[...cur,s];onChange(next.join(", "));};
@@ -604,11 +606,10 @@ function AddInvItem({onClose,onSaved}){
  useEffect(()=>{if(f.type==="item"&&!kinds.includes(f.kind))set("kind",kinds[0]||"other")},[f.session_type,f.sessionRel,f.type]);
  const showStyle=f.sessionRel&&STYLE_OPTS[f.session_type]&&f.type==="item"&&f.kind==="outfit";
  const showGender=f.sessionRel&&!NO_GENDER.includes(f.session_type)&&(f.type==="theme"||(f.type==="item"&&(f.kind==="outfit"||f.kind==="accessory")));
- const showSize=f.type==="item"&&f.kind==="outfit";
+ const showSize=f.type==="item"&&f.kind==="outfit"&&f.session_type!=="Newborn";
  const sizeOpts=SIZE_BY_CAT[f.session_type]||SIZE_OPTS;
- const isAcc=f.type==="item"&&f.kind==="accessory";
- const isProp=f.type==="item"&&f.kind==="prop";
- const showColor=f.type==="theme"||(f.type==="item"&&(f.kind==="outfit"||f.kind==="accessory"||f.kind==="prop"));
+ const showSub=f.type==="item"&&!!SUBTYPE_OPTS[f.kind];
+ const showColor=f.type==="theme"||f.type==="item";
  const showUsable=f.type==="item"&&(f.kind==="prop"||f.kind==="backdrop");
  useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
  const save=async()=>{
@@ -648,10 +649,10 @@ function AddInvItem({onClose,onSaved}){
        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
          {showStyle&&<div><span style={lab}>STYLE</span><select value={f.subcategory} onChange={e=>set("subcategory",e.target.value)}><option value="">—</option>{STYLE_OPTS[f.session_type].map(s=><option key={s}>{s}</option>)}</select></div>}
          {showGender&&<div><span style={lab}>GENDER</span><select value={f.gender} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS_T.map(g=><option key={g}>{g}</option>)}</select></div>}
-         {(isAcc||isProp)&&<div><span style={lab}>TYPE</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} list="propsubs" placeholder={isProp?"e.g. flowers, toys, number…":"e.g. headband, crown, veil"}/><datalist id="propsubs">{PROP_SUBTYPES.map(s=><option key={s} value={s}/>)}</datalist></div>}
+         {showSub&&<div><span style={lab}>TYPE</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} list="subopts" placeholder={SUBTYPE_PH[f.kind]||""}/><datalist id="subopts">{(SUBTYPE_OPTS[f.kind]||[]).map(s=><option key={s} value={s}/>)}</datalist></div>}
          {showSize&&<div style={{gridColumn:"1/-1"}}><span style={lab}>SIZE</span><SizePicker value={f.size} onChange={v=>set("size",v)} opts={sizeOpts}/></div>}
          <div><span style={lab}>CONDITION</span><select value={f.condition} onChange={e=>set("condition",e.target.value)}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>
-         <div style={{gridColumn:"1/-1"}}><span style={lab}>NAME / DESCRIPTION *</span><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder={isAcc?"e.g. Gold pearl headband":"e.g. Brown Corduroy Overalls"}/></div>
+         <div style={{gridColumn:"1/-1"}}><span style={lab}>NAME / DESCRIPTION *</span><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Brown Corduroy Overalls"/></div>
          {showColor&&<div><span style={lab}>{f.type==="theme"?"COLOUR / PALETTE":"COLOR"}</span><input value={f.color} onChange={e=>set("color",e.target.value)} placeholder={f.type==="theme"?"e.g. green & brown":""}/></div>}
          {showUsable&&<div style={{gridColumn:"1/-1"}}><span style={lab}>USABLE FOR <span style={{color:"var(--muted)",fontWeight:400}}>(other sessions it can be reused in)</span></span><UsablePicker value={f.usable_for} onChange={v=>set("usable_for",v)}/></div>}
          <div style={{gridColumn:"1/-1"}}><span style={lab}>PHOTO</span><PhotoField value={f.photo_url||""} onChange={v=>set("photo_url",v)} prefix="inv"/></div>
@@ -689,11 +690,10 @@ function InvEdit({item,onClose,onSaved}){
  const kindsE=KIND_BY_CAT[f.session_type]||ITEM_KINDS;
  const showStyle=STYLE_OPTS[f.session_type]&&f.type==="item"&&f.kind==="outfit";
  const showGender=!NO_GENDER.includes(f.session_type)&&(f.type==="theme"||(f.type==="item"&&(f.kind==="outfit"||f.kind==="accessory")));
- const showSize=f.type==="item"&&f.kind==="outfit";
+ const showSize=f.type==="item"&&f.kind==="outfit"&&f.session_type!=="Newborn";
  const sizeOptsE=SIZE_BY_CAT[f.session_type]||SIZE_OPTS;
- const isAcc=f.type==="item"&&f.kind==="accessory";
- const isProp=f.type==="item"&&f.kind==="prop";
- const showColor=f.type==="theme"||(f.type==="item"&&(f.kind==="outfit"||f.kind==="accessory"||f.kind==="prop"));
+ const showSub=f.type==="item"&&!!SUBTYPE_OPTS[f.kind];
+ const showColor=f.type==="theme"||f.type==="item";
  const showUsable=f.type==="item"&&(f.kind==="prop"||f.kind==="backdrop");
  const totalSel=BR.reduce((s,b)=>s+(locs[b]&&locs[b].on?(Number(locs[b].times)||0):0),0);
  const save=async()=>{if(busy)return;setBusy(true);setErr("");
@@ -719,7 +719,7 @@ function InvEdit({item,onClose,onSaved}){
          {f.type==="item"&&<div><span style={lab}>KIND</span><select value={f.kind||""} onChange={e=>set("kind",e.target.value)}>{kindsE.map(k=><option key={k}>{k}</option>)}</select></div>}
          {showStyle&&<div><span style={lab}>STYLE</span><select value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)}><option value="">—</option>{STYLE_OPTS[f.session_type].map(s=><option key={s}>{s}</option>)}</select></div>}
          {showGender&&<div><span style={lab}>GENDER</span><select value={f.gender||""} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS_T.map(g=><option key={g}>{g}</option>)}</select></div>}
-         {(isAcc||isProp)&&<div><span style={lab}>TYPE</span><input value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)} list="propsubsE" placeholder={isProp?"e.g. flowers, toys, number…":"e.g. headband, crown"}/><datalist id="propsubsE">{PROP_SUBTYPES.map(s=><option key={s} value={s}/>)}</datalist></div>}
+         {showSub&&<div><span style={lab}>TYPE</span><input value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)} list="suboptsE" placeholder={SUBTYPE_PH[f.kind]||""}/><datalist id="suboptsE">{(SUBTYPE_OPTS[f.kind]||[]).map(s=><option key={s} value={s}/>)}</datalist></div>}
          {showColor&&<div><span style={lab}>{f.type==="theme"?"COLOUR / PALETTE":"COLOR"}</span><input value={f.color||""} onChange={e=>set("color",e.target.value)} placeholder={f.type==="theme"?"e.g. green & brown":""}/></div>}
          {showSize&&<div style={{gridColumn:"1/-1"}}><span style={lab}>SIZE</span><SizePicker value={f.size||""} onChange={v=>set("size",v)} opts={sizeOptsE}/></div>}
          {showUsable&&<div style={{gridColumn:"1/-1"}}><span style={lab}>USABLE FOR <span style={{color:"var(--muted)",fontWeight:400}}>(other sessions it can be reused in)</span></span><UsablePicker value={f.usable_for} onChange={v=>set("usable_for",v)}/></div>}
