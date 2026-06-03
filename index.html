@@ -1368,7 +1368,8 @@ function NewInventory({initCat=""}){
      // Level 0 — pick a group
      if(!groupF){const gicon={shoot:I.layers,electronics:I.camera,facility:I.sofa};return tgrid(["shoot","electronics","facility"].map(g=>{const n=rows.filter(r=>!r.archived&&(r.item_group||"shoot")===g).length;return n?tile(g,()=>pickGroup(g),gicon[g],"#7c8291",GL[g],n+" items"):null;}));}
      // Level 1 — pick a studio
-     if(drillStudio){const studios=BR.filter(b=>rows.some(r=>m(r,"loc")&&locOf(r).includes(b)));
+     if(drillStudio){const dataLocs=[...new Set(rows.filter(r=>m(r,"loc")).flatMap(locOf).filter(Boolean))];
+       const studios=[...BR.filter(b=>dataLocs.includes(b)),...dataLocs.filter(l=>!BR.includes(l)).sort()];
        return tgrid([...studios.map(b=>{const n=rows.filter(r=>m(r,"loc")&&locOf(r).includes(b)).length;return tile(b,()=>setLoc(b),I.pin,"#7c8291",b,n+" item"+(n!==1?"s":""));}),tile("__all",()=>setBrowseAll(true),I.grid,"#7c8291","All studios",rows.filter(r=>m(r,"loc")).length+" items")]);}
      // Level 2 — pick a category
      if(drillCat){const cl=isElecView?ELEC_CATS:SESSION_CATS;const cof=isElecView?elecCat:(r=>r.session_type);const setC=isElecView?setEcatF:setCatF;
