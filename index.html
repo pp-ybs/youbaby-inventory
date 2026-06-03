@@ -759,7 +759,7 @@ function Barcode({value,height=46}){const ref=useRef(null);useEffect(()=>{if(ref
 
 function AddInvItem({onClose,onSaved,init={}}){
  const ig=init.grp||"shoot";
- const [f,setF]=useState({grp:ig,sessionRel:ig==="shoot",type:"item",kind:"outfit",session_type:init.session_type||"Newborn",gender:"",subcategory:init.subcategory||"",size:"",dimensions:"",name:"",color:"",condition:"Good",serial_no:"",assignee:"",op_status:"Available",value:"",value_currency:"AED",purchase_date:"",acquired_on:today(),perLocDate:false,photo_url:"",purchase_url:"",usable_for:[],static_tags:[],website_display:false,notes:""});
+ const [f,setF]=useState({grp:ig,sessionRel:ig==="shoot",type:init.type||"item",kind:"outfit",session_type:init.session_type||"Newborn",gender:"",subcategory:init.subcategory||"",size:"",dimensions:"",name:"",color:"",condition:"Good",serial_no:"",assignee:"",op_status:"Available",value:"",value_currency:"AED",purchase_date:"",acquired_on:today(),perLocDate:false,photo_url:"",purchase_url:"",usable_for:[],static_tags:[],website_display:false,notes:""});
  const OPSTATUS=["Available","In use","In repair","Retired","For sale"];
  const [locs,setLocs]=useState({});
  const [linkIds,setLinkIds]=useState([]),[cand,setCand]=useState([]);
@@ -1077,11 +1077,12 @@ function NewInventory({initCat=""}){
  const vm=vmode||(isElecView?"list":"grid");
  const GL={shoot:"Session inventory",electronics:"Equipment",facility:"Facility"};
  const catSel=isElecView?ecatF:catF;
- const resetCat=()=>{setEcatF("");setEtypeF("");setCatF("");};
+ const resetCat=()=>{setEcatF("");setEtypeF("");setCatF("");setTypeF("");};
  const resetStudio=()=>{setLoc("");setBrowseAll(false);resetCat();};
  const drillStudio=!!groupF&&!loc&&!browseAll;
  const drillCat=!!groupF&&(loc||browseAll)&&!catSel;
- const atItems=!!groupF&&(loc||browseAll)&&!!catSel;
+ const drillType=groupF==="shoot"&&(loc||browseAll)&&!!catSel&&!typeF;
+ const atItems=!!groupF&&(loc||browseAll)&&!!catSel&&(isElecView||!!typeF);
  const pickGroup=g=>{setGroupF(g);setLoc("");setBrowseAll(false);setCatF("");setGenF("");setKindF("");setSubF("");setSizeF("");setTypeF("");setNewF(false);setUnusedF(false);setEcatF("");setEtypeF("");setEstatF("");};
  const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sb.from("inv_item").select("*,inv_item_location(location,quantity,status,times_selected,condition,acquired_on)").order("created_at",{ascending:false});if(error)setErr(error.message);setRows(data||[]);};
  const [pubF,setPubF]=useState("");
@@ -1172,9 +1173,10 @@ function NewInventory({initCat=""}){
      <Icon d={I.chev} s={14} c="var(--muted)"/>
      <button onClick={resetStudio} style={{color:(loc||browseAll)?"var(--accent)":"var(--ink)",fontWeight:700}}>{GL[groupF]}</button>
      {(loc||browseAll)&&<><Icon d={I.chev} s={14} c="var(--muted)"/><button onClick={resetCat} style={{color:catSel?"var(--accent)":"var(--ink)",fontWeight:700}}>{loc||"All studios"}</button></>}
-     {catSel&&<><Icon d={I.chev} s={14} c="var(--muted)"/><span style={{fontWeight:700}}>{catSel}</span></>}
+     {catSel&&<><Icon d={I.chev} s={14} c="var(--muted)"/><button onClick={()=>setTypeF("")} style={{color:(groupF==="shoot"&&typeF)?"var(--accent)":"var(--ink)",fontWeight:700}}>{catSel}</button></>}
+     {groupF==="shoot"&&typeF&&<><Icon d={I.chev} s={14} c="var(--muted)"/><span style={{fontWeight:700}}>{typeF==="theme"?"Themes":"Items"}</span></>}
      <span style={{flex:1}}/>
-     {atItems&&<button onClick={()=>setAdd(true)} style={{display:"inline-flex",alignItems:"center",gap:5,color:"var(--accent)",fontWeight:700,fontSize:12.5}}><Icon d={I.plus} s={14} c="var(--accent)"/>Add to {catSel}</button>}
+     {atItems&&<button onClick={()=>setAdd(true)} style={{display:"inline-flex",alignItems:"center",gap:5,color:"var(--accent)",fontWeight:700,fontSize:12.5}}><Icon d={I.plus} s={14} c="var(--accent)"/>Add {groupF==="shoot"?(typeF==="theme"?"theme":"item"):("to "+catSel)}</button>}
    </div>}
    {atItems&&<div className="filterbar" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:14}}>
      {!isElecView&&(()=>{const ks=[...new Set(rows.filter(r=>m(r,"kind")).map(r=>r.kind).filter(Boolean))].sort();return ks.length?<select value={kindF} onChange={e=>setKindF(e.target.value)} style={{width:"auto"}}><option value="">All kinds</option>{ks.map(k=><option key={k} value={k}>{ucf(k)}</option>)}</select>:null})()}
@@ -1199,6 +1201,9 @@ function NewInventory({initCat=""}){
        const cats=cl.filter(c=>rows.some(r=>m(r,isElecView?"ecat":"cat")&&cof(r)===c));
        if(!cats.length) return <div style={{color:"var(--muted)",fontSize:13,padding:"30px 0"}}>Nothing here{loc?" in "+loc:""} yet.</div>;
        return tgrid(cats.map(c=>{const items=rows.filter(r=>m(r,isElecView?"ecat":"cat")&&cof(r)===c);const ic=itemIcon(items[0]||{item_group:groupF,subcategory:""});return tile(c,()=>setC(c),ic.d,ic.c,c,items.length+" item"+(items.length!==1?"s":""));}));}
+     // Level 2b (session only) — Themes vs Items
+     if(drillType){const nT=rows.filter(r=>m(r,"type")&&r.type==="theme").length;const nI=rows.filter(r=>m(r,"type")&&r.type==="item").length;
+       return tgrid([tile("themes",()=>setTypeF("theme"),I.layers,"#7c8291","Themes / setups",nT+" setup"+(nT!==1?"s":"")),tile("items",()=>setTypeF("item"),I.box,"#7c8291","Items",nI+" item"+(nI!==1?"s":""))]);}
      if(!filtered.length) return <div style={{color:"var(--muted)",fontSize:13,padding:"30px 0"}}>Nothing matches these filters.</div>;
      if(vm==="list"){const colCat=r=>r.subcategory||r.session_type||ucf(r.kind||(r.type==="theme"?"setup":""));
        const colStat=r=>r.op_status||(r.type==="theme"?"Setup":r.kind?ucf(r.kind):"");
@@ -1222,7 +1227,7 @@ function NewInventory({initCat=""}){
        </div></div>;}
      return <div className="cardgrid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:10}}>{filtered.map(card)}</div>;
    })()}
-   {add&&<AddInvItem init={{grp:groupF||undefined,session_type:!isElecView?(catF||undefined):undefined,subcategory:isElecView?(etypeF||undefined):undefined}} onClose={()=>setAdd(false)} onSaved={load}/>}
+   {add&&<AddInvItem init={{grp:groupF||undefined,session_type:!isElecView?(catF||undefined):undefined,subcategory:isElecView?(etypeF||undefined):undefined,type:groupF==="shoot"?(typeF||undefined):undefined}} onClose={()=>setAdd(false)} onSaved={()=>{load();loadPub();}}/>}
    {edit&&<InvEdit item={edit} onClose={()=>setEdit(null)} onSaved={()=>{setEdit(null);setDetail(null);load();}}/>}
    {detail&&<ItemPanel item={detail} published={pubSet.has(detail.id)} onClose={()=>setDetail(null)} onEdit={r=>{setDetail(null);setEdit(r);}} onPrint={r=>setLabelItem(r)} onOpen={r=>setDetail(r)}/>}
    {labelItem&&<LabelSheet items={[labelItem]} onClose={()=>setLabelItem(null)}/>}
