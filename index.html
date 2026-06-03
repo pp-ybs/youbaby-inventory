@@ -74,6 +74,19 @@ const worstCond = r => { const xs=(r.inv_item_location||[]).map(l=>COND_RANK[l.c
 const invSel = r => (r.inv_item_location||[]).reduce((s,x)=>s+(x.times_selected||0),0);
 const invQty = r => (r.inv_item_location||[]).reduce((s,x)=>s+(x.quantity||0),0);
 const tracksUse = r => r.type==="theme"||r.kind==="outfit"; // only setups & outfits count selections
+// ---- Electronics & Inventory: type → parent category, and which fields each type uses ----
+const ELEC_CAT={Camera:"Cameras & Lenses",Lens:"Cameras & Lenses","Lens Adaptor":"Cameras & Lenses","Camera Bag":"Cameras & Lenses",Stabiliser:"Cameras & Lenses",
+ Flash:"Lighting","Continuous Light":"Lighting","Trigger/Receiver":"Lighting","Softbox/Modifier":"Lighting",Umbrella:"Lighting",Reflector:"Lighting","Light Stand":"Lighting","Boom Stand":"Lighting",
+ "Battery/Charger":"Power & Storage","SD Card":"Power & Storage",
+ Computer:"Computers & Devices",Phone:"Computers & Devices",Tablet:"Computers & Devices",Printer:"Computers & Devices","Card Machine":"Computers & Devices",CCTV:"Computers & Devices",Audio:"Computers & Devices",
+ Furniture:"Furniture",Appliance:"Appliances",Diffuser:"Appliances",
+ "Studio Prop":"Studio Props","Helium Tank":"Studio Equipment",Trolley:"Studio Equipment","Posing Bed":"Studio Equipment",
+ Key:"Keys",Other:"Other"};
+const ELEC_CATS=["Cameras & Lenses","Lighting","Power & Storage","Computers & Devices","Studio Equipment","Studio Props","Furniture","Appliances","Keys","Other"];
+const elecCat = r => ELEC_CAT[r.subcategory]||"Other";
+const NO_SERIAL = new Set(["Key","Furniture","Studio Prop","Helium Tank","Diffuser","Appliance"]);
+const NO_VALUE = new Set(["Key"]);
+const ASSET_TYPES=Object.keys(ELEC_CAT); // suggestion list for the asset Type field
 const IMG_BASE="https://ahysgpjnhldhdeinymrd.supabase.co/storage/v1/object/public/app/images/";
 const imgUrl = t => !t.image ? null : (/^https?:/.test(t.image) ? t.image : IMG_BASE+t.image);
 const newId = (c,list) => {const pre=(c||'NEW').slice(0,2).toUpperCase();let max=0;(list||[]).forEach(t=>{const m=/-(\d+)$/.exec(t.id||"");if(m){const n=+m[1];if(n>max)max=n}});return `YBS-${pre}-${String(max+1).padStart(4,"0")}`;};
@@ -663,8 +676,9 @@ function AddInvItem({onClose,onSaved}){
  const subList=f.kind==="prop"?(PROP_SUBTYPES_BY_CAT[f.session_type]||PROP_SUBTYPES):(SUBTYPE_OPTS[f.kind]||[]);
  const showSetupStyle=f.type==="theme"&&!!SETUP_STYLE[f.session_type];
  const showDim=f.type==="item"&&f.kind==="basket";
- const noCond=(f.subcategory||"").toLowerCase().includes("balloon");
  const isAsset=!f.sessionRel;
+ const noCond=(f.subcategory||"").toLowerCase().includes("balloon")||(isAsset&&f.subcategory==="Key");
+ const showValue=f.type!=="theme"&&!(isAsset&&NO_VALUE.has(f.subcategory));
  const showColor=!isAsset&&(f.type==="theme"||f.type==="item");
  const showUsable=!isAsset&&f.type==="item"&&(f.kind==="prop"||f.kind==="backdrop");
  useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
@@ -703,10 +717,10 @@ function AddInvItem({onClose,onSaved}){
        {!isAsset&&<div><span style={lab}>{f.sessionRel?"4":"3"} · TYPE</span><div style={{display:"flex",gap:8}}>{pill(f.type==="theme",()=>set("type","theme"),f.session_type==="Gender Reveal"?"Reveal":"Setup (theme)","#cf8a1e")}{pill(f.type==="item",()=>set("type","item"),"Item","#48b08c")}</div></div>}
        {!isAsset&&f.type==="item"&&<div><span style={lab}>{f.sessionRel?"5":"4"} · KIND</span><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{kinds.map(k=>pill(f.kind===k,()=>set("kind",k),k,dTC(k)))}</div></div>}
        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-         {isAsset&&<div><span style={lab}>TYPE</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} placeholder="e.g. Camera, Lens, Furniture"/></div>}
+         {isAsset&&<div><span style={lab}>TYPE</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} list="assettypesA" placeholder="e.g. Camera, Lens, Furniture"/><datalist id="assettypesA">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
          {isAsset&&<div><span style={lab}>STATUS</span><select value={f.op_status} onChange={e=>set("op_status",e.target.value)}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
-         {isAsset&&<div><span style={lab}>SERIAL NO</span><input value={f.serial_no} onChange={e=>set("serial_no",e.target.value)} placeholder="serial / IMEI"/></div>}
-         {isAsset&&<div><span style={lab}>ASSIGNED TO / HELD AT</span><input value={f.assignee} onChange={e=>set("assignee",e.target.value)} placeholder="person or room"/></div>}
+         {isAsset&&!NO_SERIAL.has(f.subcategory)&&<div><span style={lab}>SERIAL NO</span><input value={f.serial_no} onChange={e=>set("serial_no",e.target.value)} placeholder="serial / IMEI"/></div>}
+         {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"KEY HOLDER":"ASSIGNED TO / HELD AT"}</span><input value={f.assignee} onChange={e=>set("assignee",e.target.value)} placeholder="person or room"/></div>}
          {showStyle&&<div><span style={lab}>STYLE</span><select value={f.subcategory} onChange={e=>set("subcategory",e.target.value)}><option value="">—</option>{STYLE_OPTS[f.session_type].map(s=><option key={s}>{s}</option>)}</select></div>}
          {showSetupStyle&&<div><span style={lab}>REVEAL TYPE</span><select value={f.subcategory} onChange={e=>set("subcategory",e.target.value)}><option value="">—</option>{SETUP_STYLE[f.session_type].map(s=><option key={s}>{s}</option>)}</select></div>}
          {showGender&&<div><span style={lab}>GENDER</span><select value={f.gender} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS_T.map(g=><option key={g}>{g}</option>)}</select></div>}
@@ -719,7 +733,7 @@ function AddInvItem({onClose,onSaved}){
          {showUsable&&<div style={{gridColumn:"1/-1"}}><span style={lab}>USABLE FOR <span style={{color:"var(--muted)",fontWeight:400}}>(other sessions it can be reused in)</span></span><UsablePicker value={f.usable_for} onChange={v=>set("usable_for",v)}/></div>}
          <div style={{gridColumn:"1/-1"}}><span style={lab}>PHOTO</span><PhotoField value={f.photo_url||""} onChange={v=>set("photo_url",v)} prefix="inv"/></div>
          <div><span style={lab}>PURCHASE LINK <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><input value={f.purchase_url} onChange={e=>set("purchase_url",e.target.value)} placeholder="https://…"/></div>
-         <div><span style={lab}>VALUE <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><div style={{display:"flex",gap:6}}><input type="number" min="0" step="0.01" value={f.value} onChange={e=>set("value",e.target.value)} placeholder="e.g. 350" style={{flex:1,minWidth:0}}/><select value={f.value_currency} onChange={e=>set("value_currency",e.target.value)} style={{width:80}}>{["AED","QAR","USD"].map(c=><option key={c}>{c}</option>)}</select></div></div>
+         {showValue&&<div><span style={lab}>VALUE <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><div style={{display:"flex",gap:6}}><input type="number" min="0" step="0.01" value={f.value} onChange={e=>set("value",e.target.value)} placeholder="e.g. 350" style={{flex:1,minWidth:0}}/><select value={f.value_currency} onChange={e=>set("value_currency",e.target.value)} style={{width:80}}>{["AED","QAR","USD"].map(c=><option key={c}>{c}</option>)}</select></div></div>}
          <div style={{gridColumn:"1/-1"}}><span style={lab}>DATE ADDED <span style={{color:"var(--muted)",fontWeight:400}}>(set the real date — used for usage stats)</span></span><div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><input type="date" max={today()} value={f.acquired_on} onChange={e=>set("acquired_on",e.target.value)} disabled={f.perLocDate} style={{opacity:f.perLocDate?.45:1,width:170}}/><label style={{display:"flex",alignItems:"center",gap:6,fontSize:11.5,color:"var(--soft)",cursor:"pointer"}}><input type="checkbox" checked={f.perLocDate} onChange={e=>set("perLocDate",e.target.checked)}/>Different date per location (added one by one)</label></div></div>
          <div style={{gridColumn:"1/-1"}}><span style={lab}>NOTES</span><textarea rows={2} value={f.notes} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical"}}/></div>
        </div>
@@ -728,7 +742,7 @@ function AddInvItem({onClose,onSaved}){
          <select value="" onChange={e=>{if(e.target.value)setLinkIds(l=>l.includes(e.target.value)?l:[...l,e.target.value])}} style={{width:"100%"}}><option value="">{f.type==="theme"?"+ add an item…":"+ link a setup…"}</option>{cand.filter(a=>(f.type==="theme"?a.type==="item":a.type==="theme")&&!linkIds.includes(a.id)).map(a=><option key={a.id} value={a.id}>{(a.name||a.code)}{a.kind?" · "+a.kind:""}</option>)}</select>
        </div>
        {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>(shows under the New filter)</span></span></div>}
-       <div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 14px"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"}</span></div>
+       {!isAsset&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 14px"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"}</span></div>}
        {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8}}>{err}</div>}
        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
          <button onClick={onClose} style={{padding:"11px 20px",border:"1px solid var(--line2)",borderRadius:10,fontWeight:600}}>Cancel</button>
@@ -765,7 +779,8 @@ function InvEdit({item,onClose,onSaved}){
  const subList=f.kind==="prop"?(PROP_SUBTYPES_BY_CAT[f.session_type]||PROP_SUBTYPES):(SUBTYPE_OPTS[f.kind]||[]);
  const showSetupStyle=f.type==="theme"&&!!SETUP_STYLE[f.session_type];
  const showDim=f.type==="item"&&f.kind==="basket";
- const noCond=(f.subcategory||"").toLowerCase().includes("balloon");
+ const noCond=(f.subcategory||"").toLowerCase().includes("balloon")||(isAsset&&f.subcategory==="Key");
+ const showValue=f.type!=="theme"&&!(isAsset&&NO_VALUE.has(f.subcategory));
  const showColor=!isAsset&&(f.type==="theme"||f.type==="item");
  const showUsable=!isAsset&&f.type==="item"&&(f.kind==="prop"||f.kind==="backdrop");
  const OPSTATUS=["Working","Not working","In service","For sale","Spare"];
@@ -797,11 +812,11 @@ function InvEdit({item,onClose,onSaved}){
          </div></div>}
          {!isAsset&&<div><span style={lab}>CATEGORY</span><select value={f.session_type||""} onChange={e=>set("session_type",e.target.value)}>{SESSION_CATS.map(c=><option key={c}>{c}</option>)}</select></div>}
          {!isAsset&&f.type==="item"&&<div><span style={lab}>KIND</span><select value={f.kind||""} onChange={e=>set("kind",e.target.value)}>{kindsE.map(k=><option key={k}>{k}</option>)}</select></div>}
-         {isAsset&&<div><span style={lab}>TYPE</span><input value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)} placeholder="e.g. Camera, Lens, Furniture"/></div>}
+         {isAsset&&<div><span style={lab}>TYPE</span><input value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)} list="assettypesE" placeholder="e.g. Camera, Lens, Furniture"/><datalist id="assettypesE">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
          {isAsset&&<div><span style={lab}>STATUS</span><select value={f.op_status||"Working"} onChange={e=>set("op_status",e.target.value)}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
-         {isAsset&&<div><span style={lab}>SERIAL NO</span><input value={f.serial_no||""} onChange={e=>set("serial_no",e.target.value)} placeholder="serial / IMEI"/></div>}
-         {isAsset&&<div><span style={lab}>ASSIGNED TO / HELD AT</span><input value={f.assignee||""} onChange={e=>set("assignee",e.target.value)} placeholder="person or room"/></div>}
-         {isAsset&&<div><span style={lab}>ORIGIN <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><input value={f.origin||""} onChange={e=>set("origin",e.target.value)} placeholder="e.g. Oman"/></div>}
+         {isAsset&&!NO_SERIAL.has(f.subcategory)&&<div><span style={lab}>SERIAL NO</span><input value={f.serial_no||""} onChange={e=>set("serial_no",e.target.value)} placeholder="serial / IMEI"/></div>}
+         {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"KEY HOLDER":"ASSIGNED TO / HELD AT"}</span><input value={f.assignee||""} onChange={e=>set("assignee",e.target.value)} placeholder="person or room"/></div>}
+         {isAsset&&f.subcategory!=="Key"&&<div><span style={lab}>ORIGIN <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><input value={f.origin||""} onChange={e=>set("origin",e.target.value)} placeholder="e.g. brand / source"/></div>}
          {showStyle&&<div><span style={lab}>STYLE</span><select value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)}><option value="">—</option>{STYLE_OPTS[f.session_type].map(s=><option key={s}>{s}</option>)}</select></div>}
          {showSetupStyle&&<div><span style={lab}>REVEAL TYPE</span><select value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)}><option value="">—</option>{SETUP_STYLE[f.session_type].map(s=><option key={s}>{s}</option>)}</select></div>}
          {showGender&&<div><span style={lab}>GENDER</span><select value={f.gender||""} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS_T.map(g=><option key={g}>{g}</option>)}</select></div>}
@@ -812,7 +827,7 @@ function InvEdit({item,onClose,onSaved}){
          {showUsable&&<div style={{gridColumn:"1/-1"}}><span style={lab}>USABLE FOR <span style={{color:"var(--muted)",fontWeight:400}}>(other sessions it can be reused in)</span></span><UsablePicker value={f.usable_for} onChange={v=>set("usable_for",v)}/></div>}
          <div style={{gridColumn:"1/-1"}}><span style={lab}>PHOTO</span><PhotoField value={f.photo_url||""} onChange={v=>set("photo_url",v)} prefix="inv"/></div>
          <div><span style={lab}>PURCHASE LINK <span style={{color:"var(--muted)",fontWeight:400}}>(where to buy more)</span></span><input value={f.purchase_url||""} onChange={e=>set("purchase_url",e.target.value)} placeholder="https://…"/></div>
-         <div><span style={lab}>VALUE <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><div style={{display:"flex",gap:6}}><input type="number" min="0" step="0.01" value={f.value==null?"":f.value} onChange={e=>set("value",e.target.value)} placeholder="e.g. 350" style={{flex:1,minWidth:0}}/><select value={f.value_currency||"AED"} onChange={e=>set("value_currency",e.target.value)} style={{width:80}}>{["AED","QAR","USD"].map(c=><option key={c}>{c}</option>)}</select></div></div>
+         {showValue&&<div><span style={lab}>VALUE <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><div style={{display:"flex",gap:6}}><input type="number" min="0" step="0.01" value={f.value==null?"":f.value} onChange={e=>set("value",e.target.value)} placeholder="e.g. 350" style={{flex:1,minWidth:0}}/><select value={f.value_currency||"AED"} onChange={e=>set("value_currency",e.target.value)} style={{width:80}}>{["AED","QAR","USD"].map(c=><option key={c}>{c}</option>)}</select></div></div>}
          <div style={{gridColumn:"1/-1"}}><span style={lab}>NOTES</span><textarea rows={2} value={f.notes||""} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical"}}/></div>
        </div>
        <div><span style={lab}>LOCATIONS · QTY · CONDITION · TIMES SELECTED <span style={{color:"var(--muted)",fontWeight:400}}>(total qty {BR.reduce((s,b)=>s+(locs[b]&&locs[b].on?(Number(locs[b].qty)||0):0),0)} · total selected {totalSel})</span></span>
@@ -834,7 +849,7 @@ function InvEdit({item,onClose,onSaved}){
          <select value="" onChange={e=>{if(e.target.value)toggleLink(e.target.value)}} style={{width:"100%"}}><option value="">{f.type==="theme"?"+ add an item…":"+ link a setup…"}</option>{all.filter(a=>(item.type==="theme"?a.type==="item":a.type==="theme")&&!links.includes(a.id)).map(a=><option key={a.id} value={a.id}>{(a.name||a.code)}{a.kind?" · "+a.kind:""}</option>)}</select>
        </div>
        {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>(shows under the New filter)</span></span></div>}
-       <div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 14px"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"}</span></div>
+       {!isAsset&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 14px"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"}</span></div>}
        {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8}}>{err}</div>}
        <div style={{display:"flex",gap:10,alignItems:"center"}}>
          {del?<span style={{display:"flex",alignItems:"center",gap:8,marginRight:"auto"}}><span style={{fontSize:12.5,color:"var(--danger)",fontWeight:600}}>Delete this card?</span><button onClick={remove} disabled={busy} style={{padding:"9px 14px",background:"var(--danger)",color:"#fff",borderRadius:10,fontWeight:600,fontSize:12.5}}>Yes, delete</button><button onClick={()=>setDel(false)} style={{fontSize:12.5,color:"var(--soft)",fontWeight:600}}>No</button></span>
@@ -868,7 +883,10 @@ function LabelSheet({items=[],onClose}){
  </div>;
 }
 function NewInventory({initCat=""}){
- const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("popular"),[catF,setCatF]=useState(initCat),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState(""),[sizeF,setSizeF]=useState(""),[condF,setCondF]=useState(""),[newF,setNewF]=useState(false),[unusedF,setUnusedF]=useState(false),[showArch,setShowArch]=useState(false),[labels,setLabels]=useState(false);
+ const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("popular"),[catF,setCatF]=useState(initCat),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState(""),[sizeF,setSizeF]=useState(""),[condF,setCondF]=useState(""),[newF,setNewF]=useState(false),[unusedF,setUnusedF]=useState(false),[showArch,setShowArch]=useState(false),[labels,setLabels]=useState(false),[ecatF,setEcatF]=useState(""),[etypeF,setEtypeF]=useState(""),[estatF,setEstatF]=useState("");
+ const scrollRef=useRef(null);
+ const isElecView=groupF==="electronics";
+ const pickGroup=g=>{setGroupF(g);setCatF("");setGenF("");setKindF("");setSubF("");setSizeF("");setTypeF("");setNewF(false);setUnusedF(false);setEcatF("");setEtypeF("");setEstatF("");};
  const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sb.from("inv_item").select("*,inv_item_location(location,quantity,status,times_selected,condition,acquired_on)").order("created_at",{ascending:false});if(error)setErr(error.message);setRows(data||[]);};
  useEffect(()=>{load()},[]);
  if(rows===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
@@ -884,6 +902,9 @@ function NewInventory({initCat=""}){
    &&(ex==="sub"||!subF||kindF!=="prop"||(r.subcategory||"")===subF)
    &&(ex==="size"||!sizeF||(r.size||"").split(",").map(x=>x.trim()).includes(sizeF))
    &&(ex==="cond"||!condF||(r.inv_item_location||[]).some(l=>(!loc||l.location===loc)&&(l.condition||"")===condF))
+   &&(ex==="ecat"||!ecatF||elecCat(r)===ecatF)
+   &&(ex==="etype"||!etypeF||(r.subcategory||"")===etypeF)
+   &&(ex==="estat"||!estatF||(r.op_status||"")===estatF)
    &&(showArch||!r.archived)
    &&(!unusedF||(tracksUse(r)&&invSel(r)===0))
    &&(!newF||(r.static_tags||[]).includes("New"))
@@ -907,7 +928,8 @@ function NewInventory({initCat=""}){
      {(r.type==="theme"||r.kind==="outfit")&&<div style={{fontSize:10.5,color:"var(--gold)",fontWeight:600,display:"flex",alignItems:"center",gap:4}}><Icon d={I.cursor} s={11} c="#f3c64a" fill="#f3c64a" sw={0}/>{selOf(r)} selected · ~{fmtRate(selRate(r))}/mo{r.value!=null&&r.value!==""&&selOf(r)>0?` · ${Math.round(Number(r.value)/selOf(r)).toLocaleString()} ${r.value_currency||""}/use`:""}</div>}
      {acqOf(r)&&<div style={{fontSize:9.5,color:"var(--muted)"}}>Added {fmtDate(acqOf(r))} · {ageLabel(acqOf(r))} in use{r.value!=null?" · "+r.value+" "+(r.value_currency||""):""}</div>}
    </div></div>;
- return <div className="scroll fade" style={{flex:1,padding:"26px 30px"}}>
+ return <div ref={scrollRef} className="scroll fade" style={{flex:1,padding:"26px 30px",position:"relative"}}>
+   <button onClick={()=>scrollRef.current&&scrollRef.current.scrollTo({top:0,behavior:"smooth"})} title="Go to top" style={{position:"fixed",right:26,bottom:24,zIndex:50,width:42,height:42,borderRadius:"50%",background:"var(--ink)",color:"#fff",boxShadow:"0 6px 20px rgba(20,20,30,.28)",display:"flex",alignItems:"center",justifyContent:"center",border:"none",cursor:"pointer"}}><Icon d="M12 19V5 M5 12l7-7 7 7" s={20} c="#fff"/></button>
    <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
      <h1 style={{fontSize:26,fontWeight:700,letterSpacing:"-.01em"}}>Catalog</h1>
      <span style={{fontSize:12,color:"var(--muted)"}}>{filtered.length===rows.length?rows.length:filtered.length+" / "+rows.length} item{rows.length!==1?"s":""}</span>
@@ -918,37 +940,44 @@ function NewInventory({initCat=""}){
      <button onClick={()=>setAdd(true)} style={{display:"flex",alignItems:"center",gap:6,background:"var(--ink)",color:"#fff",padding:"9px 15px",borderRadius:10,fontWeight:600,fontSize:13}}><Icon d={I.plus} s={15} c="#fff"/>Add item</button></div>
    <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:18}}>One card per real thing · multi-location · auto barcode. (New structure — being filled in.)</p>
    {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8,marginBottom:14}}>{err}</div>}
-   {(()=>{const GL={shoot:"Shoot Inventory",electronics:"Electronics",supplies:"Reusables"};const groups=["shoot","electronics","supplies"];return <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+   {(()=>{const GL={shoot:"Shoot Inventory",electronics:"Electronics & Inventory"};const groups=["shoot","electronics"];return <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
      <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>GROUP</span>
-     <button onClick={()=>setGroupF("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!groupF?"var(--ink)":"var(--line2)"}`,background:!groupF?"var(--ink)":"var(--panel)",color:!groupF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
-     {groups.map(g=>{const n=cnt("group",r=>(r.item_group||"shoot")===g);return <button key={g} onClick={()=>n&&setGroupF(groupF===g?"":g)} title={n?"":"nothing here yet"} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${groupF===g?"var(--ink)":"var(--line2)"}`,background:groupF===g?"var(--ink)":"var(--panel)",color:groupF===g?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.45,cursor:n?"pointer":"default"}}>{GL[g]} ({n})</button>})}
+     <button onClick={()=>pickGroup("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!groupF?"var(--ink)":"var(--line2)"}`,background:!groupF?"var(--ink)":"var(--panel)",color:!groupF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
+     {groups.map(g=>{const n=cnt("group",r=>(r.item_group||"shoot")===g);return <button key={g} onClick={()=>n&&pickGroup(groupF===g?"":g)} title={n?"":"nothing here yet"} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${groupF===g?"var(--ink)":"var(--line2)"}`,background:groupF===g?"var(--ink)":"var(--panel)",color:groupF===g?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.45,cursor:n?"pointer":"default"}}>{GL[g]} ({n})</button>})}
    </div>})()}
    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
      <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>LOCATION</span>
      <button onClick={()=>setLoc("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!loc?"var(--ink)":"var(--line2)"}`,background:!loc?"var(--ink)":"var(--panel)",color:!loc?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
      {BR.map(b=>{const n=cnt("loc",r=>locOf(r).includes(b));return <button key={b} onClick={()=>setLoc(loc===b?"":b)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${loc===b?(BR_COLOR[b]||"var(--ink)"):"var(--line2)"}`,background:loc===b?(BR_COLOR[b]||"var(--ink)"):"var(--panel)",color:loc===b?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4}}>{b} ({n})</button>})}
    </div>
-   <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+   {!isElecView&&<div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
      <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>SESSION</span>
      <button onClick={()=>setCatF("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!catF?"var(--ink)":"var(--line2)"}`,background:!catF?"var(--ink)":"var(--panel)",color:!catF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
      {SESSION_CATS.map(c=>{const n=cnt("cat",r=>r.session_type===c);return <button key={c} onClick={()=>n&&setCatF(catF===c?"":c)} title={n?"":"nothing here yet"} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${catF===c?(CAT_COLOR[c]||"var(--ink)"):"var(--line2)"}`,background:catF===c?(CAT_COLOR[c]||"var(--ink)"):"var(--panel)",color:catF===c?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4,cursor:n?"pointer":"default"}}>{c} ({n})</button>})}
-   </div>
-   {(()=>{const gs=GENDERS_T.filter(g=>cnt("gen",r=>r.gender===g)>0);return gs.length?<div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+   </div>}
+   {isElecView&&<div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+     <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>CATEGORY</span>
+     <button onClick={()=>{setEcatF("");setEtypeF("");}} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!ecatF?"var(--ink)":"var(--line2)"}`,background:!ecatF?"var(--ink)":"var(--panel)",color:!ecatF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
+     {ELEC_CATS.map(c=>{const n=cnt("ecat",r=>elecCat(r)===c);return n?<button key={c} onClick={()=>{setEcatF(ecatF===c?"":c);setEtypeF("");}} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${ecatF===c?"var(--ink)":"var(--line2)"}`,background:ecatF===c?"var(--ink)":"var(--panel)",color:ecatF===c?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{c} ({n})</button>:null})}
+   </div>}
+   {(()=>{const gs=isElecView?[]:GENDERS_T.filter(g=>cnt("gen",r=>r.gender===g)>0);return gs.length?<div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
      <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>GENDER</span>
      <button onClick={()=>setGenF("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!genF?"var(--ink)":"var(--line2)"}`,background:!genF?"var(--ink)":"var(--panel)",color:!genF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
      {gs.map(g=>{const n=cnt("gen",r=>r.gender===g);return <button key={g} onClick={()=>setGenF(genF===g?"":g)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${genF===g?"var(--ink)":"var(--line2)"}`,background:genF===g?"var(--ink)":"var(--panel)",color:genF===g?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4}}>{g} ({n})</button>})}
    </div>:null})()}
    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:14}}>
-     <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>TYPE</span>
-     <button onClick={()=>setTypeF("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!typeF?"var(--ink)":"var(--line2)"}`,background:!typeF?"var(--ink)":"var(--panel)",color:!typeF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
-     {[["theme","Setups"],["item","Items"]].map(([v,l])=>{const n=cnt("type",r=>r.type===v);return <button key={v} onClick={()=>setTypeF(typeF===v?"":v)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${typeF===v?"var(--ink)":"var(--line2)"}`,background:typeF===v?"var(--ink)":"var(--panel)",color:typeF===v?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4}}>{l} ({n})</button>})}
-     {(()=>{const n=rows.filter(r=>(r.static_tags||[]).includes("New")).length;return <button onClick={()=>setNewF(!newF)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${newF?"var(--gold)":"var(--line2)"}`,background:newF?"var(--gold-soft)":"var(--panel)",color:newF?"var(--gold)":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4}}>★ New ({n})</button>})()}
-     {(()=>{const n=rows.filter(r=>!r.archived&&tracksUse(r)&&invSel(r)===0).length;return <button onClick={()=>n&&setUnusedF(!unusedF)} title="Setups/outfits never selected" style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${unusedF?"#cf8a1e":"var(--line2)"}`,background:unusedF?"#fbf1dd":"var(--panel)",color:unusedF?"#cf8a1e":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4,cursor:n?"pointer":"default"}}>Unused ({n})</button>})()}
-     {(()=>{const ks=[...new Set(rows.filter(r=>m(r,"kind")).map(r=>r.kind).filter(Boolean))].sort();return ks.length?<select value={kindF} onChange={e=>setKindF(e.target.value)} style={{width:"auto",marginLeft:6}}><option value="">All kinds</option>{ks.map(k=><option key={k}>{k}</option>)}</select>:null})()}
-     {kindF==="prop"&&(()=>{const subs=[...new Set(rows.filter(r=>m(r,"sub")&&r.kind==="prop").map(r=>r.subcategory).filter(Boolean))].sort();return <select value={subF} onChange={e=>setSubF(e.target.value)} style={{width:"auto"}}><option value="">All prop types</option>{subs.map(s=><option key={s}>{s}</option>)}</select>})()}
-     {(()=>{const szs=[...new Set(rows.filter(r=>m(r,"size")).flatMap(r=>(r.size||"").split(",").map(x=>x.trim()).filter(Boolean)))].sort();return szs.length?<select value={sizeF} onChange={e=>setSizeF(e.target.value)} style={{width:"auto"}}><option value="">All sizes / ages</option>{szs.map(s=><option key={s}>{s}</option>)}</select>:null})()}
+     <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>{isElecView?"FILTER":"TYPE"}</span>
+     {!isElecView&&<button onClick={()=>setTypeF("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!typeF?"var(--ink)":"var(--line2)"}`,background:!typeF?"var(--ink)":"var(--panel)",color:!typeF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>}
+     {!isElecView&&[["theme","Setups"],["item","Items"]].map(([v,l])=>{const n=cnt("type",r=>r.type===v);return <button key={v} onClick={()=>setTypeF(typeF===v?"":v)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${typeF===v?"var(--ink)":"var(--line2)"}`,background:typeF===v?"var(--ink)":"var(--panel)",color:typeF===v?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4}}>{l} ({n})</button>})}
+     {!isElecView&&(()=>{const n=rows.filter(r=>(r.static_tags||[]).includes("New")).length;return <button onClick={()=>setNewF(!newF)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${newF?"var(--gold)":"var(--line2)"}`,background:newF?"var(--gold-soft)":"var(--panel)",color:newF?"var(--gold)":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4}}>★ New ({n})</button>})()}
+     {!isElecView&&(()=>{const n=rows.filter(r=>!r.archived&&tracksUse(r)&&invSel(r)===0).length;return <button onClick={()=>n&&setUnusedF(!unusedF)} title="Setups/outfits never selected" style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${unusedF?"#cf8a1e":"var(--line2)"}`,background:unusedF?"#fbf1dd":"var(--panel)",color:unusedF?"#cf8a1e":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4,cursor:n?"pointer":"default"}}>Unused ({n})</button>})()}
+     {!isElecView&&(()=>{const ks=[...new Set(rows.filter(r=>m(r,"kind")).map(r=>r.kind).filter(Boolean))].sort();return ks.length?<select value={kindF} onChange={e=>setKindF(e.target.value)} style={{width:"auto",marginLeft:6}}><option value="">All kinds</option>{ks.map(k=><option key={k}>{k}</option>)}</select>:null})()}
+     {!isElecView&&kindF==="prop"&&(()=>{const subs=[...new Set(rows.filter(r=>m(r,"sub")&&r.kind==="prop").map(r=>r.subcategory).filter(Boolean))].sort();return <select value={subF} onChange={e=>setSubF(e.target.value)} style={{width:"auto"}}><option value="">All prop types</option>{subs.map(s=><option key={s}>{s}</option>)}</select>})()}
+     {!isElecView&&(()=>{const szs=[...new Set(rows.filter(r=>m(r,"size")).flatMap(r=>(r.size||"").split(",").map(x=>x.trim()).filter(Boolean)))].sort();return szs.length?<select value={sizeF} onChange={e=>setSizeF(e.target.value)} style={{width:"auto"}}><option value="">All sizes / ages</option>{szs.map(s=><option key={s}>{s}</option>)}</select>:null})()}
+     {isElecView&&(()=>{const ts=[...new Set(rows.filter(r=>m(r,"etype")).map(r=>r.subcategory).filter(Boolean))].sort();return ts.length?<select value={etypeF} onChange={e=>setEtypeF(e.target.value)} style={{width:"auto"}}><option value="">All types</option>{ts.map(t=><option key={t}>{t}</option>)}</select>:null})()}
+     {isElecView&&(()=>{const sts=[...new Set(rows.filter(r=>m(r,"estat")).map(r=>r.op_status).filter(Boolean))].sort();return sts.length?<select value={estatF} onChange={e=>setEstatF(e.target.value)} style={{width:"auto"}}><option value="">All statuses</option>{sts.map(s=><option key={s}>{s}</option>)}</select>:null})()}
      {(()=>{const cs=CONDS.filter(c=>cnt("cond",r=>(r.inv_item_location||[]).some(l=>(!loc||l.location===loc)&&l.condition===c))>0);return cs.length?<select value={condF} onChange={e=>setCondF(e.target.value)} style={{width:"auto"}}><option value="">All conditions</option>{cs.map(c=><option key={c}>{c}</option>)}</select>:null})()}
-     <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}><option value="popular">Most selected{loc?" (in "+loc+")":""}</option><option value="least">Least selected</option><option value="az">A–Z</option><option value="cond">Condition (worst first)</option></select>
+     <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}><option value="popular">{isElecView?"Default":"Most selected"+(loc?" (in "+loc+")":"")}</option>{!isElecView&&<option value="least">Least selected</option>}<option value="az">A–Z</option><option value="cond">Condition (worst first)</option></select>
      <div style={{position:"relative",flex:1,minWidth:160}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name / code…" style={{paddingLeft:34}}/></div>
    </div>
    {filtered.length?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(214px,1fr))",gap:16}}>{filtered.map(card)}</div>:<div style={{color:"var(--muted)",fontSize:13,padding:"30px 0"}}>Nothing here yet — tap “Add item”.</div>}
