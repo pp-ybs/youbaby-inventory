@@ -18,18 +18,23 @@ clean schema and migrate existing data in (347 themes + 911 Doha items). Nothing
 - **Both Theme and Item carry locations** — a theme can exist in several studios too
   (same multi-location logic as items).
 
-## 3. Entry hierarchy (what Leah picks, in order)
+## 3. Entry / filter hierarchy (LOCKED)
 ```
-Type            → Theme | Item
- └ (if Item) Kind → Outfit | Prop | Backdrop | Electronics | Reusable | Accessory | Other
-Location(s)     → Dubai | Abu Dhabi | Doha | Al Quoz   (multi-select, qty per branch)
-Category        → Newborn | Infant | Sitter | Cake Smash | Maternity | (seasonal e.g. Christmas)
+GROUP           → Shoot Inventory | Electronics | Reusables/Supplies   (Shoot only for now)
+Location(s)     → Dubai | Abu Dhabi | Doha | Al Quoz   (multi-select; tick studios it's in, qty each)
+── within GROUP = Shoot Inventory: ──
+Session type    → Newborn | Infant | Sitter | Cake Smash | Maternity | (seasonal e.g. Christmas)
+Type            → Setup (Theme) | Item
+ └ (if Item) Kind → Outfit | Fabric | Backdrop | Prop | Wrap | Accessory | Other
 Gender          → Girl | Boy | Twins | Neutral
 Size            → free text (e.g. "One size", "M–L", "9–12 months")
 Details         → name, photo(s), condition, color/brand, notes
 ```
-One card = one real thing. The **same dress in 3 studios = 1 card**, present in 3 locations
-("multiplication presence").
+- One card = one real thing. **Same dress in 3 studios = 1 card** present in 3 locations.
+- **Electronics / Reusables** are sibling GROUPS (their own fields, **no session type**) — added later.
+- A theme/setup has **one** session type; a cross-shoot item (e.g. a backdrop) can carry **several**
+  (shows under each) without duplicate cards.
+- You can still filter from any angle (kind, gender, popular, status…) — this is just the default tree.
 
 ## 4. Labels / QR
 - Every item gets a short **code** (e.g. `YBS-000123`) = the value behind an auto-generated
