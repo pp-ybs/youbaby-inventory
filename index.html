@@ -72,8 +72,8 @@ const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null
 
 const CATS=['Cake Smash','Sitter','Maternity','Infant','Newborn'];
 let CAT_COLOR={'Cake Smash':'#8a8f9c','Sitter':'#8a8f9c','Maternity':'#8a8f9c','Infant':'#8a8f9c','Newborn':'#8a8f9c','Children':'#8a8f9c','Gender Reveal':'#8a8f9c'};
-const BR=['DXB','AD','Doha','Al Quoz'];
-const BR_COLOR={'DXB':'#8a8f9c','AD':'#8a8f9c','Doha':'#8a8f9c','Al Quoz':'#8a8f9c'};
+const BR=['Dubai','Abu Dhabi','Doha','Al Quoz'];
+const BR_COLOR={'Dubai':'#8a8f9c','Abu Dhabi':'#8a8f9c','Doha':'#8a8f9c','Al Quoz':'#8a8f9c'};
 const CONDS=['Excellent','Good','Fair','Poor','Damaged'];
 const COND_COLOR={Excellent:'#22b573',Good:'#5bbf6a',Fair:'#f0a23c',Poor:'#ff8f3c',Damaged:'#ff5a5f'};
 const GENDERS=['Boy','Girl','Neutral'];
@@ -1422,7 +1422,7 @@ function Settings({onSaved,notify,rows=[],email,signOut,onNav}){
  const [saving,setSaving]=useState(false); const [newSess,setNewSess]=useState("");
  const [showAdv,setShowAdv]=useState(false);
  const [staff,setStaff]=useState([]);
- const [newP,setNewP]=useState({name:"",role:"Photographer",studio:"DXB"});
+ const [newP,setNewP]=useState({name:"",role:"Photographer",studio:"Dubai"});
  const loadStaff=()=>{if(sb)sb.from("staff").select("id,name,role,studio,active").order("studio").then(({data})=>setStaff(data||[]));};
  useEffect(()=>{loadStaff();},[]);
  const ROLES=["Owner","Manager","Photographer","Editor","Retoucher","Receptionist","Assistant","Sales"];
@@ -1457,7 +1457,7 @@ function Settings({onSaved,notify,rows=[],email,signOut,onNav}){
  const card={background:"var(--panel)",border:"1px solid var(--line)",borderRadius:9,padding:"16px 18px",marginBottom:14};
  const subKinds=Object.keys(t.subtypeOpts||{});
  const secTitle=(tt,ss)=><div style={{margin:"24px 0 10px"}}><div style={{fontSize:13.5,fontWeight:700,color:"var(--ink)"}}>{tt}</div>{ss&&<div style={{fontSize:12,color:"var(--muted)",marginTop:2}}>{ss}</div>}</div>;
- const BR_LABEL={DXB:"Dubai",AD:"Abu Dhabi",Doha:"Doha",["Al Quoz"]:"Al Quoz"};
+ const BR_LABEL={Dubai:"Studio",["Abu Dhabi"]:"Studio",Doha:"Studio",["Al Quoz"]:"Studio"};
  return <div style={{flex:1,overflow:"auto"}}>
   <div style={{position:"sticky",top:0,zIndex:5,background:"var(--bg)",borderBottom:"1px solid var(--line)",padding:"16px 26px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
    <div>
