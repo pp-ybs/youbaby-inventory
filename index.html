@@ -616,10 +616,10 @@ function AddInvItem({onClose,onSaved}){
    try{
      const code=await nextCode(catForCode,seg);
      const row={code,item_group:f.sessionRel?"shoot":"supplies",type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.sessionRel?f.session_type:null,subcategory:f.subcategory||null,gender:(!f.sessionRel||NO_GENDER.includes(f.session_type))?null:(f.gender||null),size:f.size||null,color:f.color||null,photo_url:f.photo_url||null,purchase_url:f.purchase_url||null,usable_for:f.usable_for||[],condition:f.condition,website_display:!!f.website_display,notes:f.notes||null};
-     const {data,error}=await sb.from("inv_item").insert(row).select().single();if(error)throw error;
-     const locRows=chosen.map(b=>({item_id:data.id,location:b,quantity:Number(locs[b].qty)||1}));
+     const {data,error}=await sb.from("inv_item").insert({...row,times_selected:chosen.reduce((s,b)=>s+(Number(locs[b].times)||0),0)}).select().single();if(error)throw error;
+     const locRows=chosen.map(b=>({item_id:data.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0}));
      if(locRows.length){const {error:e2}=await sb.from("inv_item_location").insert(locRows);if(e2)throw e2;}
-     if(linkIds.length)await sb.from("inv_theme_item").insert(linkIds.map(cid=>({theme_id:data.id,component_item_id:cid})));
+     if(linkIds.length)await sb.from("inv_theme_item").insert(linkIds.map(cid=>f.type==="theme"?({theme_id:data.id,component_item_id:cid}):({theme_id:cid,component_item_id:data.id})));
      setSaved({...data,_locs:locRows});onSaved&&onSaved();
    }catch(e){setErr(e.message||String(e));}
    setBusy(false);
@@ -639,9 +639,9 @@ function AddInvItem({onClose,onSaved}){
        <div style={{display:"flex",gap:10}}><button onClick={reset} style={{padding:"11px 22px",background:"var(--ink)",color:"#fff",borderRadius:10,fontWeight:600}}>Add another</button><button onClick={onClose} style={{padding:"11px 20px",border:"1px solid var(--line2)",borderRadius:10,fontWeight:600}}>Done</button></div>
      </div>:<div style={{padding:24,display:"flex",flexDirection:"column",gap:18}}>
        <div><span style={lab}>1 · GROUP</span><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{pill(f.sessionRel,()=>set("sessionRel",true),"Shoot session item","#5a93d6")}{pill(!f.sessionRel,()=>set("sessionRel",false),"General / equipment","#9a9ca8")}</div></div>
-       <div><span style={lab}>2 · LOCATION(S) &amp; QTY</span><div style={{display:"flex",flexDirection:"column",gap:7}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <div key={b} style={{display:"flex",alignItems:"center",gap:10}}>
-         <button type="button" onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1}}))} style={{width:150,textAlign:"left",padding:"7px 12px",borderRadius:9,border:`1px solid ${on?(BR_COLOR[b]||"var(--ink)"):"var(--line2)"}`,background:on?(BR_COLOR[b]||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,display:"flex",alignItems:"center",gap:8}}><Dot c={on?"#fff":BR_COLOR[b]} s={7}/>{b}</button>
-         {on&&<span style={{fontSize:11.5,color:"var(--muted)"}}>qty <input type="number" min="1" value={locs[b].qty} onChange={e=>setLocs(p=>({...p,[b]:{on:true,qty:e.target.value}}))} style={{width:64,marginLeft:6}}/></span>}</div>})}</div></div>
+       <div><span style={lab}>2 · LOCATION(S) · QTY · TIMES SELECTED</span><div style={{display:"flex",flexDirection:"column",gap:7}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <div key={b} style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+         <button type="button" onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1,times:(p[b]&&p[b].times)||0}}))} style={{width:130,textAlign:"left",padding:"7px 12px",borderRadius:9,border:`1px solid ${on?(BR_COLOR[b]||"var(--ink)"):"var(--line2)"}`,background:on?(BR_COLOR[b]||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,display:"flex",alignItems:"center",gap:8}}><Dot c={on?"#fff":BR_COLOR[b]} s={7}/>{b}</button>
+         {on&&<><span style={{fontSize:11.5,color:"var(--muted)"}}>qty <input type="number" min="1" value={locs[b].qty} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,qty:e.target.value}}))} style={{width:56,marginLeft:4}}/></span><span style={{fontSize:11.5,color:"var(--muted)"}}>selected <input type="number" min="0" value={locs[b].times} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,times:e.target.value}}))} style={{width:60,marginLeft:4}}/></span></>}</div>})}</div></div>
        {f.sessionRel&&<div><span style={lab}>3 · SESSION TYPE</span><select value={f.session_type} onChange={e=>set("session_type",e.target.value)} style={{width:"100%"}}>{SESSION_CATS.map(c=><option key={c}>{c}</option>)}</select></div>}
        <div><span style={lab}>{f.sessionRel?"4":"3"} · TYPE</span><div style={{display:"flex",gap:8}}>{pill(f.type==="theme",()=>set("type","theme"),"Setup (theme)","#cf8a1e")}{pill(f.type==="item",()=>set("type","item"),"Item","#48b08c")}</div></div>
        {f.type==="item"&&<div><span style={lab}>{f.sessionRel?"5":"4"} · KIND</span><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{kinds.map(k=>pill(f.kind===k,()=>set("kind",k),k,dTC(k)))}</div></div>}
@@ -658,9 +658,9 @@ function AddInvItem({onClose,onSaved}){
          <div style={{gridColumn:"1/-1"}}><span style={lab}>PURCHASE LINK <span style={{color:"var(--muted)",fontWeight:400}}>(where to buy more — optional)</span></span><input value={f.purchase_url} onChange={e=>set("purchase_url",e.target.value)} placeholder="https://…"/></div>
          <div style={{gridColumn:"1/-1"}}><span style={lab}>NOTES</span><textarea rows={2} value={f.notes} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical"}}/></div>
        </div>
-       <div><span style={lab}>LINK BACKDROP / COMPONENTS <span style={{color:"var(--muted)",fontWeight:400}}>(optional — link this to a backdrop / outfit / props)</span></span>
+       <div><span style={lab}>{f.type==="theme"?"LINK ITEMS IN THIS SETUP":"LINK TO SETUP(S)"} <span style={{color:"var(--muted)",fontWeight:400}}>(optional — {f.type==="theme"?"outfit / backdrop / props":"the setup(s) this belongs to"})</span></span>
          <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:8}}>{linkIds.length===0&&<span style={{fontSize:12,color:"var(--muted)"}}>None.</span>}{linkIds.map(id=>{const o=cand.find(a=>a.id===id);return <span key={id} style={{display:"inline-flex",alignItems:"center",gap:6,background:"var(--panel2)",border:"1px solid var(--line2)",borderRadius:20,padding:"3px 6px 3px 10px",fontSize:12}}>{o?(o.name||o.code):id}<button type="button" onClick={()=>setLinkIds(l=>l.filter(x=>x!==id))} style={{display:"flex",padding:1}}><Icon d={I.x} s={13} c="var(--muted)"/></button></span>})}</div>
-         <select value="" onChange={e=>{if(e.target.value)setLinkIds(l=>l.includes(e.target.value)?l:[...l,e.target.value])}} style={{width:"100%"}}><option value="">+ link an item…</option>{cand.filter(a=>!linkIds.includes(a.id)).map(a=><option key={a.id} value={a.id}>{(a.name||a.code)}{a.kind?" · "+a.kind:" · setup"}</option>)}</select>
+         <select value="" onChange={e=>{if(e.target.value)setLinkIds(l=>l.includes(e.target.value)?l:[...l,e.target.value])}} style={{width:"100%"}}><option value="">{f.type==="theme"?"+ add an item…":"+ link a setup…"}</option>{cand.filter(a=>(f.type==="theme"?a.type==="item":a.type==="theme")&&!linkIds.includes(a.id)).map(a=><option key={a.id} value={a.id}>{(a.name||a.code)}{a.kind?" · "+a.kind:""}</option>)}</select>
        </div>
        <div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 14px"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"}</span></div>
        {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8}}>{err}</div>}
@@ -681,7 +681,8 @@ function InvEdit({item,onClose,onSaved}){
  useEffect(()=>{(async()=>{if(!sb)return;
    const {data:l}=await sb.from("inv_item_location").select("*").eq("item_id",item.id);
    const m={};(l||[]).forEach(r=>{m[r.location]={on:true,qty:r.quantity,times:r.times_selected||0}});setLocs(m);
-   const {data:tl}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",item.id);setLinks((tl||[]).map(x=>x.component_item_id));
+   if(item.type==="theme"){const {data:tl}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",item.id);setLinks((tl||[]).map(x=>x.component_item_id));}
+   else{const {data:tl}=await sb.from("inv_theme_item").select("theme_id").eq("component_item_id",item.id);setLinks((tl||[]).map(x=>x.theme_id));}
    const {data:av}=await sb.from("inv_item").select("id,code,name,kind,type").neq("id",item.id).order("name");setAll(av||[]);
  })()},[]);
  useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
@@ -703,7 +704,7 @@ function InvEdit({item,onClose,onSaved}){
      for(const b of off)await sb.from("inv_item_location").delete().eq("item_id",item.id).eq("location",b);
      onSaved&&onSaved();
    }catch(e){setErr(e.message||String(e));}setBusy(false);};
- const toggleLink=async(cid)=>{if(links.includes(cid)){setLinks(l=>l.filter(x=>x!==cid));await sb.from("inv_theme_item").delete().eq("theme_id",item.id).eq("component_item_id",cid);}else{setLinks(l=>[...l,cid]);await sb.from("inv_theme_item").insert({theme_id:item.id,component_item_id:cid});}};
+ const toggleLink=async(cid)=>{const row=item.type==="theme"?{theme_id:item.id,component_item_id:cid}:{theme_id:cid,component_item_id:item.id};if(links.includes(cid)){setLinks(l=>l.filter(x=>x!==cid));await sb.from("inv_theme_item").delete().eq("theme_id",row.theme_id).eq("component_item_id",row.component_item_id);}else{setLinks(l=>[...l,cid]);await sb.from("inv_theme_item").insert(row);}};
  const lab={display:"block",fontSize:10.5,fontWeight:700,color:"var(--muted)",letterSpacing:".06em",marginBottom:5};
  return <div style={{position:"fixed",inset:0,background:"#1a1a2433",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
    <div className="scroll fade" style={{width:580,maxWidth:"96vw",maxHeight:"92vh",background:"var(--panel)",borderRadius:18,boxShadow:"0 30px 80px rgba(20,20,30,.25)",overflow:"auto"}}>
@@ -731,9 +732,9 @@ function InvEdit({item,onClose,onSaved}){
          <div style={{display:"flex",flexDirection:"column",gap:7}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <div key={b} style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
            <button type="button" onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1,times:(p[b]&&p[b].times)||0}}))} style={{width:130,textAlign:"left",padding:"7px 12px",borderRadius:9,border:`1px solid ${on?(BR_COLOR[b]||"var(--ink)"):"var(--line2)"}`,background:on?(BR_COLOR[b]||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,display:"flex",alignItems:"center",gap:8}}><Dot c={on?"#fff":BR_COLOR[b]} s={7}/>{b}</button>
            {on&&<><span style={{fontSize:11.5,color:"var(--muted)"}}>qty <input type="number" min="0" value={locs[b].qty} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],qty:e.target.value}}))} style={{width:58,marginLeft:4}}/></span><span style={{fontSize:11.5,color:"var(--muted)"}}>selected <input type="number" min="0" value={locs[b].times} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],times:e.target.value}}))} style={{width:64,marginLeft:4}}/></span></>}</div>})}</div></div>
-       <div><span style={lab}>LINKED ITEMS <span style={{color:"var(--muted)",fontWeight:400}}>(components — outfit / backdrop / props that go with this)</span></span>
+       <div><span style={lab}>{f.type==="theme"?"ITEMS IN THIS SETUP":"LINKED TO SETUP(S)"} <span style={{color:"var(--muted)",fontWeight:400}}>({f.type==="theme"?"outfit / backdrop / props":"the setup(s) this belongs to"})</span></span>
          <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:8}}>{links.length===0&&<span style={{fontSize:12,color:"var(--muted)"}}>None yet.</span>}{links.map(id=>{const o=all.find(a=>a.id===id);return <span key={id} style={{display:"inline-flex",alignItems:"center",gap:6,background:"var(--panel2)",border:"1px solid var(--line2)",borderRadius:20,padding:"3px 6px 3px 10px",fontSize:12}}>{o?(o.name||o.code):id}<button onClick={()=>toggleLink(id)} style={{display:"flex",padding:1}}><Icon d={I.x} s={13} c="var(--muted)"/></button></span>})}</div>
-         <select value="" onChange={e=>{if(e.target.value)toggleLink(e.target.value)}} style={{width:"100%"}}><option value="">+ link an item…</option>{all.filter(a=>!links.includes(a.id)).map(a=><option key={a.id} value={a.id}>{(a.name||a.code)}{a.kind?" · "+a.kind:""}</option>)}</select>
+         <select value="" onChange={e=>{if(e.target.value)toggleLink(e.target.value)}} style={{width:"100%"}}><option value="">{f.type==="theme"?"+ add an item…":"+ link a setup…"}</option>{all.filter(a=>(item.type==="theme"?a.type==="item":a.type==="theme")&&!links.includes(a.id)).map(a=><option key={a.id} value={a.id}>{(a.name||a.code)}{a.kind?" · "+a.kind:""}</option>)}</select>
        </div>
        <div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 14px"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"}</span></div>
        {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8}}>{err}</div>}
@@ -744,7 +745,7 @@ function InvEdit({item,onClose,onSaved}){
 }
 
 function NewInventory(){
- const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("new"),[catF,setCatF]=useState(""),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState("");
+ const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("new"),[catF,setCatF]=useState(""),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState("");
  const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sb.from("inv_item").select("*,inv_item_location(location,quantity,status)").order("created_at",{ascending:false});if(error)setErr(error.message);setRows(data||[]);};
  useEffect(()=>{load()},[]);
  if(rows===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
@@ -756,6 +757,8 @@ function NewInventory(){
    &&(ex==="cat"||!catF||r.session_type===catF)
    &&(ex==="kind"||!kindF||r.kind===kindF)
    &&(ex==="type"||!typeF||r.type===typeF)
+   &&(ex==="gen"||!genF||r.gender===genF)
+   &&(ex==="sub"||!subF||kindF!=="prop"||(r.subcategory||"")===subF)
    &&(!ql||((r.name||"")+" "+(r.code||"")+" "+(r.subcategory||"")).toLowerCase().includes(ql));
  const cnt=(ex,pred)=>rows.filter(r=>m(r,ex)&&pred(r)).length;
  const filtered=rows.filter(r=>m(r,null))
@@ -794,11 +797,17 @@ function NewInventory(){
      <button onClick={()=>setCatF("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!catF?"var(--ink)":"var(--line2)"}`,background:!catF?"var(--ink)":"var(--panel)",color:!catF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
      {SESSION_CATS.filter(c=>rows.some(r=>r.session_type===c)).map(c=>{const n=cnt("cat",r=>r.session_type===c);return <button key={c} onClick={()=>setCatF(catF===c?"":c)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${catF===c?(CAT_COLOR[c]||"var(--ink)"):"var(--line2)"}`,background:catF===c?(CAT_COLOR[c]||"var(--ink)"):"var(--panel)",color:catF===c?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4}}>{c} ({n})</button>})}
    </div>
+   {(()=>{const gs=GENDERS_T.filter(g=>cnt("gen",r=>r.gender===g)>0);return gs.length?<div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+     <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>GENDER</span>
+     <button onClick={()=>setGenF("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!genF?"var(--ink)":"var(--line2)"}`,background:!genF?"var(--ink)":"var(--panel)",color:!genF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
+     {gs.map(g=>{const n=cnt("gen",r=>r.gender===g);return <button key={g} onClick={()=>setGenF(genF===g?"":g)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${genF===g?"var(--ink)":"var(--line2)"}`,background:genF===g?"var(--ink)":"var(--panel)",color:genF===g?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4}}>{g} ({n})</button>})}
+   </div>:null})()}
    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:14}}>
      <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>TYPE</span>
      <button onClick={()=>setTypeF("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!typeF?"var(--ink)":"var(--line2)"}`,background:!typeF?"var(--ink)":"var(--panel)",color:!typeF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
      {[["theme","Setups"],["item","Items"]].map(([v,l])=>{const n=cnt("type",r=>r.type===v);return <button key={v} onClick={()=>setTypeF(typeF===v?"":v)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${typeF===v?"var(--ink)":"var(--line2)"}`,background:typeF===v?"var(--ink)":"var(--panel)",color:typeF===v?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4}}>{l} ({n})</button>})}
      {(()=>{const ks=[...new Set(rows.filter(r=>m(r,"kind")).map(r=>r.kind).filter(Boolean))].sort();return ks.length?<select value={kindF} onChange={e=>setKindF(e.target.value)} style={{width:"auto",marginLeft:6}}><option value="">All kinds</option>{ks.map(k=><option key={k}>{k}</option>)}</select>:null})()}
+     {kindF==="prop"&&(()=>{const subs=[...new Set(rows.filter(r=>m(r,"sub")&&r.kind==="prop").map(r=>r.subcategory).filter(Boolean))].sort();return <select value={subF} onChange={e=>setSubF(e.target.value)} style={{width:"auto"}}><option value="">All prop types</option>{subs.map(s=><option key={s}>{s}</option>)}</select>})()}
      <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}><option value="new">Newest</option><option value="popular">Most selected{loc?" (in "+loc+")":""}</option></select>
      <div style={{position:"relative",flex:1,minWidth:160}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name / code…" style={{paddingLeft:34}}/></div>
    </div>
