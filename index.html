@@ -725,7 +725,15 @@ function NewInventory(){
  if(rows===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
  const locOf=r=>(r.inv_item_location||[]).map(x=>x.location);
  const selOf=r=>(r.inv_item_location||[]).reduce((s,x)=>s+(x.times_selected||0),0);
- const filtered=rows.filter(r=>(!groupF||(r.item_group||"shoot")===groupF)&&(!catF||r.session_type===catF)&&(!kindF||r.kind===kindF)&&(!typeF||r.type===typeF)&&(!loc||locOf(r).includes(loc))&&(!q||((r.name||"")+" "+(r.code||"")+" "+(r.subcategory||"")).toLowerCase().includes(q.trim().toLowerCase())))
+ const ql=q.trim().toLowerCase();
+ const m=(r,ex)=>(ex==="group"||!groupF||(r.item_group||"shoot")===groupF)
+   &&(ex==="loc"||!loc||locOf(r).includes(loc))
+   &&(ex==="cat"||!catF||r.session_type===catF)
+   &&(ex==="kind"||!kindF||r.kind===kindF)
+   &&(ex==="type"||!typeF||r.type===typeF)
+   &&(!ql||((r.name||"")+" "+(r.code||"")+" "+(r.subcategory||"")).toLowerCase().includes(ql));
+ const cnt=(ex,pred)=>rows.filter(r=>m(r,ex)&&pred(r)).length;
+ const filtered=rows.filter(r=>m(r,null))
    .sort((a,b)=>sort==="popular"?(loc?((b.inv_item_location||[]).find(x=>x.location===loc)?.times_selected||0)-((a.inv_item_location||[]).find(x=>x.location===loc)?.times_selected||0):selOf(b)-selOf(a)):(new Date(b.created_at)-new Date(a.created_at)));
  const card=r=><div key={r.id} onClick={()=>setEdit(r)} className="fade" style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",overflow:"hidden",boxShadow:"var(--shadow)",cursor:"pointer",display:"flex",flexDirection:"column"}}>
    <div style={{position:"relative",width:"100%",aspectRatio:"4/3",background:"var(--panel2)"}}>
@@ -746,26 +754,28 @@ function NewInventory(){
      <button onClick={()=>setAdd(true)} style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,background:"var(--ink)",color:"#fff",padding:"9px 15px",borderRadius:10,fontWeight:600,fontSize:13}}><Icon d={I.plus} s={15} c="#fff"/>Add item</button></div>
    <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:18}}>One card per real thing · multi-location · auto barcode. (New structure — being filled in.)</p>
    {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8,marginBottom:14}}>{err}</div>}
-   {(()=>{const GL={shoot:"Shoot session",supplies:"General",electronics:"Electronics"};const groups=["shoot","supplies","electronics"].filter(g=>g==="shoot"||rows.some(r=>(r.item_group||"shoot")===g));return <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+   {(()=>{const GL={shoot:"Shoot session",supplies:"General",electronics:"Electronics"};const groups=[...new Set(rows.map(r=>r.item_group||"shoot"))];return groups.length>1?<div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
      <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>GROUP</span>
      <button onClick={()=>setGroupF("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!groupF?"var(--ink)":"var(--line2)"}`,background:!groupF?"var(--ink)":"var(--panel)",color:!groupF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
-     {groups.map(g=>{const n=rows.filter(r=>(r.item_group||"shoot")===g).length;return <button key={g} onClick={()=>setGroupF(groupF===g?"":g)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${groupF===g?"var(--ink)":"var(--line2)"}`,background:groupF===g?"var(--ink)":"var(--panel)",color:groupF===g?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.5}}>{GL[g]||g} ({n})</button>})}
-   </div>})()}
+     {groups.map(g=>{const n=cnt("group",r=>(r.item_group||"shoot")===g);return <button key={g} onClick={()=>setGroupF(groupF===g?"":g)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${groupF===g?"var(--ink)":"var(--line2)"}`,background:groupF===g?"var(--ink)":"var(--panel)",color:groupF===g?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4}}>{GL[g]||g} ({n})</button>})}
+   </div>:null})()}
    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
      <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>LOCATION</span>
      <button onClick={()=>setLoc("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!loc?"var(--ink)":"var(--line2)"}`,background:!loc?"var(--ink)":"var(--panel)",color:!loc?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
-     {BR.map(b=>{const n=rows.filter(r=>locOf(r).includes(b)).length;return <button key={b} onClick={()=>setLoc(loc===b?"":b)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${loc===b?(BR_COLOR[b]||"var(--ink)"):"var(--line2)"}`,background:loc===b?(BR_COLOR[b]||"var(--ink)"):"var(--panel)",color:loc===b?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.5}}>{b} ({n})</button>})}
+     {BR.map(b=>{const n=cnt("loc",r=>locOf(r).includes(b));return <button key={b} onClick={()=>setLoc(loc===b?"":b)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${loc===b?(BR_COLOR[b]||"var(--ink)"):"var(--line2)"}`,background:loc===b?(BR_COLOR[b]||"var(--ink)"):"var(--panel)",color:loc===b?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4}}>{b} ({n})</button>})}
    </div>
    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
      <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>SESSION</span>
      <button onClick={()=>setCatF("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!catF?"var(--ink)":"var(--line2)"}`,background:!catF?"var(--ink)":"var(--panel)",color:!catF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
-     {SESSION_CATS.filter(c=>rows.some(r=>r.session_type===c)).map(c=>{const n=rows.filter(r=>r.session_type===c).length;return <button key={c} onClick={()=>setCatF(catF===c?"":c)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${catF===c?(CAT_COLOR[c]||"var(--ink)"):"var(--line2)"}`,background:catF===c?(CAT_COLOR[c]||"var(--ink)"):"var(--panel)",color:catF===c?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{c} ({n})</button>})}
+     {SESSION_CATS.filter(c=>rows.some(r=>r.session_type===c)).map(c=>{const n=cnt("cat",r=>r.session_type===c);return <button key={c} onClick={()=>setCatF(catF===c?"":c)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${catF===c?(CAT_COLOR[c]||"var(--ink)"):"var(--line2)"}`,background:catF===c?(CAT_COLOR[c]||"var(--ink)"):"var(--panel)",color:catF===c?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4}}>{c} ({n})</button>})}
    </div>
-   <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:22}}>
-     <select value={typeF} onChange={e=>setTypeF(e.target.value)} style={{width:"auto"}}><option value="">All (setups + items)</option><option value="theme">Setups</option><option value="item">Items</option></select>
-     <select value={kindF} onChange={e=>setKindF(e.target.value)} style={{width:"auto"}}><option value="">All kinds</option>{[...new Set(rows.map(r=>r.kind).filter(Boolean))].sort().map(k=><option key={k}>{k}</option>)}</select>
+   <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:14}}>
+     <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>TYPE</span>
+     <button onClick={()=>setTypeF("")} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${!typeF?"var(--ink)":"var(--line2)"}`,background:!typeF?"var(--ink)":"var(--panel)",color:!typeF?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
+     {[["theme","Setups"],["item","Items"]].map(([v,l])=>{const n=cnt("type",r=>r.type===v);return <button key={v} onClick={()=>setTypeF(typeF===v?"":v)} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${typeF===v?"var(--ink)":"var(--line2)"}`,background:typeF===v?"var(--ink)":"var(--panel)",color:typeF===v?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.4}}>{l} ({n})</button>})}
+     {(()=>{const ks=[...new Set(rows.filter(r=>m(r,"kind")).map(r=>r.kind).filter(Boolean))].sort();return ks.length?<select value={kindF} onChange={e=>setKindF(e.target.value)} style={{width:"auto",marginLeft:6}}><option value="">All kinds</option>{ks.map(k=><option key={k}>{k}</option>)}</select>:null})()}
      <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}><option value="new">Newest</option><option value="popular">Most selected{loc?" (in "+loc+")":""}</option></select>
-     <div style={{position:"relative",flex:1,minWidth:180}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name / code…" style={{paddingLeft:34}}/></div>
+     <div style={{position:"relative",flex:1,minWidth:160}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name / code…" style={{paddingLeft:34}}/></div>
    </div>
    {filtered.length?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(214px,1fr))",gap:16}}>{filtered.map(card)}</div>:<div style={{color:"var(--muted)",fontSize:13,padding:"30px 0"}}>Nothing here yet — tap “Add item”.</div>}
    {add&&<AddInvItem onClose={()=>setAdd(false)} onSaved={load}/>}
