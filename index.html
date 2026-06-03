@@ -1024,6 +1024,8 @@ function NewInventory({initCat=""}){
  const atItems=!!groupF&&(loc||browseAll)&&!!catSel;
  const pickGroup=g=>{setGroupF(g);setLoc("");setBrowseAll(false);setCatF("");setGenF("");setKindF("");setSubF("");setSizeF("");setTypeF("");setNewF(false);setUnusedF(false);setEcatF("");setEtypeF("");setEstatF("");};
  const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sb.from("inv_item").select("*,inv_item_location(location,quantity,status,times_selected,condition,acquired_on)").order("created_at",{ascending:false});if(error)setErr(error.message);setRows(data||[]);};
+ const [pubF,setPubF]=useState("");
+ const toggleWeb=async(r,e)=>{if(e)e.stopPropagation();if(sb)await sb.from("inv_item").update({website_display:!r.website_display}).eq("id",r.id);load();};
  const removeItem=async(r,e)=>{if(e)e.stopPropagation();if(!window.confirm("Remove “"+(r.name||r.code)+"”? This can't be undone."))return;if(sb){await sb.from("inv_item_location").delete().eq("item_id",r.id);await sb.from("inv_theme_item").delete().eq("theme_id",r.id);await sb.from("inv_theme_item").delete().eq("component_item_id",r.id);await sb.from("inv_item").delete().eq("id",r.id);}load();};
  useEffect(()=>{load()},[]);
  useEffect(()=>{if(initCat){setGroupF("shoot");setBrowseAll(true);setCatF(initCat);}},[initCat]);
@@ -1043,13 +1045,26 @@ function NewInventory({initCat=""}){
    &&(ex==="ecat"||!ecatF||elecCat(r)===ecatF)
    &&(ex==="etype"||!etypeF||(r.subcategory||"")===etypeF)
    &&(ex==="estat"||!estatF||(r.op_status||"")===estatF)
+   &&(ex==="pub"||!pubF||(pubF==="yes"?!!r.website_display:!r.website_display))
    &&(showArch||!r.archived)
    &&(!unusedF||(tracksUse(r)&&invSel(r)===0))
    &&(!newF||(r.static_tags||[]).includes("New"))
    &&(!ql||((r.name||"")+" "+(r.code||"")+" "+(r.subcategory||"")).toLowerCase().includes(ql));
  const cnt=(ex,pred)=>rows.filter(r=>m(r,ex)&&pred(r)).length;
  const filtered=rows.filter(r=>m(r,null))
-   .sort((a,b)=>sort==="az"?(a.name||"").localeCompare(b.name||""):sort==="cond"?worstCond(a)-worstCond(b):sort==="condbest"?worstCond(b)-worstCond(a):sort==="least"?selOf(a)-selOf(b):(loc?((b.inv_item_location||[]).find(x=>x.location===loc)?.times_selected||0)-((a.inv_item_location||[]).find(x=>x.location===loc)?.times_selected||0):selOf(b)-selOf(a)));
+   .sort((a,b)=>{const cat=r=>r.subcategory||r.session_type||r.kind||"";const stat=r=>r.op_status||r.kind||"";
+     switch(sort){
+       case"az":return (a.name||"").localeCompare(b.name||"");
+       case"za":return (b.name||"").localeCompare(a.name||"");
+       case"catA":return cat(a).localeCompare(cat(b));
+       case"catZ":return cat(b).localeCompare(cat(a));
+       case"statA":return stat(a).localeCompare(stat(b));
+       case"statZ":return stat(b).localeCompare(stat(a));
+       case"cond":return worstCond(a)-worstCond(b);
+       case"condbest":return worstCond(b)-worstCond(a);
+       case"least":return selOf(a)-selOf(b);
+       default:return loc?((b.inv_item_location||[]).find(x=>x.location===loc)?.times_selected||0)-((a.inv_item_location||[]).find(x=>x.location===loc)?.times_selected||0):selOf(b)-selOf(a);
+     }});
  const valTotals={};filtered.forEach(r=>{if(r.value!=null&&r.value!=="")valTotals[r.value_currency||"AED"]=(valTotals[r.value_currency||"AED"]||0)+Number(r.value||0);});
  const valStr=Object.entries(valTotals).map(([c,n])=>c+" "+n.toLocaleString()).join(" · ");
  const card=r=>{const locs=r.inv_item_location||[];const tot=locs.reduce((s,x)=>s+(x.quantity||0),0);const ic=itemIcon(r);
@@ -1105,6 +1120,7 @@ function NewInventory({initCat=""}){
      {isElecView&&(()=>{const ts=[...new Set(rows.filter(r=>m(r,"etype")).map(r=>r.subcategory).filter(Boolean))].sort();return ts.length?<select value={etypeF} onChange={e=>setEtypeF(e.target.value)} style={{width:"auto"}}><option value="">All types</option>{ts.map(t=><option key={t}>{t}</option>)}</select>:null})()}
      {isElecView&&(()=>{const sts=[...new Set(rows.filter(r=>m(r,"estat")).map(r=>r.op_status).filter(Boolean))].sort();return sts.length?<select value={estatF} onChange={e=>setEstatF(e.target.value)} style={{width:"auto"}}><option value="">All statuses</option>{sts.map(s=><option key={s}>{s}</option>)}</select>:null})()}
      {(()=>{const cs=CONDS.filter(c=>cnt("cond",r=>(r.inv_item_location||[]).some(l=>l.condition===c))>0);return cs.length?<select value={condF} onChange={e=>setCondF(e.target.value)} style={{width:"auto"}}><option value="">All conditions</option>{cs.map(c=><option key={c}>{c}</option>)}</select>:null})()}
+     {!isElecView&&<select value={pubF} onChange={e=>setPubF(e.target.value)} style={{width:"auto"}}><option value="">Website: all</option><option value="yes">Published</option><option value="no">Unpublished</option></select>}
      <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}><option value="popular">{isElecView?"Default order":"Most selected"}</option>{!isElecView&&<option value="least">Least selected</option>}<option value="az">A – Z</option><option value="cond">Condition · worst first</option><option value="condbest">Condition · best first</option></select>
    </div>}
    {(()=>{
@@ -1127,8 +1143,9 @@ function NewInventory({initCat=""}){
        const condOf=r=>{const xs=(r.inv_item_location||[]).map(l=>l.condition).filter(Boolean);return xs.length?xs.sort((a,b)=>ORD.indexOf(b)-ORD.indexOf(a))[0]:null;};
        const allOn=filtered.length>0&&filtered.every(r=>picked.has(r.id));
        const cell={display:"flex",alignItems:"center"};
-       return <div style={{overflowX:"auto",borderRadius:9,border:"1px solid var(--line)",boxShadow:"var(--shadow)",background:"var(--panel)"}}><div style={{minWidth:840}}>
-         <div style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px",borderBottom:"1px solid var(--line)",fontSize:11,fontWeight:600,color:"var(--muted)"}}><span style={{width:18,...cell}}><input type="checkbox" checked={allOn} onChange={()=>setPicked(allOn?new Set():new Set(filtered.map(r=>r.id)))} style={{width:15,height:15,cursor:"pointer"}}/></span><span style={{flex:1}}>Name</span><span style={{width:130}}>Category</span><span style={{width:110}}>Status</span><span style={{width:110}}>Condition</span><span style={{width:140}}>{isElecView?"Storage location":"Studios"}</span><span style={{width:30}}/></div>
+       const SortH=({label,a,d,w})=>{const on=sort===a||sort===d;return <button onClick={()=>setSort(sort===a?d:a)} style={{display:"flex",alignItems:"center",gap:4,color:on?"var(--ink)":"var(--muted)",fontWeight:on?700:600,fontSize:11,...(w?{width:w}:{flex:1}),cursor:"pointer",textAlign:"left"}}>{label}{on&&<span style={{fontSize:8}}>{sort===a?"▲":"▼"}</span>}</button>;};
+       return <div style={{overflowX:"auto",borderRadius:9,border:"1px solid var(--line)",boxShadow:"var(--shadow)",background:"var(--panel)"}}><div style={{minWidth:isElecView?840:900}}>
+         <div style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px",borderBottom:"1px solid var(--line)"}}><span style={{width:18,...cell}}><input type="checkbox" checked={allOn} onChange={()=>setPicked(allOn?new Set():new Set(filtered.map(r=>r.id)))} style={{width:15,height:15,cursor:"pointer"}}/></span><SortH label="Name" a="az" d="za"/><SortH label="Category" a="catA" d="catZ" w={130}/><SortH label="Status" a="statA" d="statZ" w={110}/><SortH label="Condition" a="cond" d="condbest" w={110}/><span style={{width:140,fontSize:11,fontWeight:600,color:"var(--muted)"}}>{isElecView?"Storage location":"Studios"}</span>{!isElecView&&<span style={{width:50,...cell,justifyContent:"center",fontSize:11,fontWeight:600,color:"var(--muted)"}}>Web</span>}<span style={{width:30}}/></div>
          {filtered.map(r=>{const ic=itemIcon(r);const st=colStat(r);const isStatus=!!r.op_status;const c=ST_COL(st);const cond=condOf(r);const on=picked.has(r.id);return <div key={r.id} onClick={()=>setDetail(r)} className="trow fade" style={{display:"flex",alignItems:"center",gap:14,padding:"11px 18px",borderTop:"1px solid var(--line)",cursor:"pointer"}}>
            <span style={{width:18,...cell}} onClick={e=>{e.stopPropagation();togglePick(r.id);}}><input type="checkbox" checked={on} readOnly style={{width:15,height:15,cursor:"pointer"}}/></span>
            <div style={{display:"flex",alignItems:"center",gap:12,flex:1,minWidth:0}}><div style={{width:40,height:40,borderRadius:8,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--panel2)"}}>{r.photo_url?<img src={r.photo_url} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon d={ic.d} s={19} c={ic.c} sw={1.7}/>}</div><div style={{minWidth:0}}><div style={{fontWeight:600,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</div><div style={{fontSize:11,color:"var(--muted)",fontFamily:"ui-monospace,SFMono-Regular,monospace"}}>{r.code}</div></div></div>
@@ -1136,6 +1153,7 @@ function NewInventory({initCat=""}){
            <span style={{width:110,fontSize:12.5,fontWeight:600,color:isStatus?c:"var(--muted)",display:"inline-flex",alignItems:"center",gap:6}}>{isStatus&&<Dot c={c} s={6}/>}{st||"—"}</span>
            <span style={{width:110,fontSize:12.5,color:cond?COND_COLOR[cond]:"var(--muted)",fontWeight:cond?600:400,display:"inline-flex",alignItems:"center",gap:6}}>{cond&&<Dot c={COND_COLOR[cond]} s={6}/>}{cond||"—"}</span>
            <span style={{width:140,fontSize:12.5,color:"var(--soft)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{(r.inv_item_location||[]).map(l=>l.location).join(", ")||"—"}</span>
+           {!isElecView&&<span style={{width:50,...cell,justifyContent:"center"}} onClick={e=>toggleWeb(r,e)} title={r.website_display?"Published on website — click to hide":"Hidden — click to publish"}><Icon d={I.globe} s={16} c={r.website_display?"#16a34a":"var(--line2)"}/></span>}
            <span style={{width:30,...cell,justifyContent:"flex-end"}}><button className="rowdel" onClick={e=>removeItem(r,e)} title="Remove item" style={{display:"flex",padding:4,color:"var(--danger)"}}><Icon d={I.trash} s={15} c="var(--danger)"/></button></span>
          </div>;})}
        </div></div>;}
