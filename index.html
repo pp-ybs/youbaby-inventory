@@ -52,7 +52,7 @@ const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null;
 
 const CATS=['Cake Smash','Sitter','Maternity','Infant','Newborn'];
-const CAT_COLOR={'Cake Smash':'#e06b94','Sitter':'#5a93d6','Maternity':'#a47cd1','Infant':'#48b08c','Newborn':'#d59a3f','Children':'#e0a06b','Gender Reveal':'#6fb1c9'};
+let CAT_COLOR={'Cake Smash':'#e06b94','Sitter':'#5a93d6','Maternity':'#a47cd1','Infant':'#48b08c','Newborn':'#d59a3f','Children':'#e0a06b','Gender Reveal':'#6fb1c9'};
 const BR=['DXB','AD','Doha','Al Quoz'];
 const BR_COLOR={'DXB':'#bd9b43','AD':'#5577d6','Doha':'#d2734a','Al Quoz':'#8a6fd1'};
 const CONDS=['Excellent','Good','Fair','Poor','Damaged'];
@@ -84,6 +84,7 @@ const I={
  chev:"M9 18l6-6-6-6",
  chevL:"M15 18l-6-6 6-6",
  cursor:"M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z",
+ gear:"M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
 };
 const Icon=({d,s=18,c="currentColor",sw=2,fill="none",style})=>
  <svg width={s} height={s} viewBox="0 0 24 24" fill={fill} stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={style}>
@@ -560,25 +561,57 @@ function ItemsProps(){
 }
 
 // ---- New unified inventory (inv_item): Add wizard + browse ----
-const CAT_CODE={"Cake Smash":"CS",Newborn:"NB",Infant:"IN",Maternity:"MA",Sitter:"SI",Children:"CH","Gender Reveal":"GR"};
+let CAT_CODE={"Cake Smash":"CS",Newborn:"NB",Infant:"IN",Maternity:"MA",Sitter:"SI",Children:"CH","Gender Reveal":"GR"};
 const KIND_CODE={outfit:"OF",fabric:"FB",prop:"PR",backdrop:"BD",wrap:"WR",basket:"BS",accessory:"AC",other:"IT",setup:"SET"};
 const ITEM_KINDS=["outfit","fabric","prop","backdrop","wrap","basket","accessory","other"];
-const SESSION_CATS=["Newborn","Infant","Sitter","Cake Smash","Children","Maternity","Gender Reveal"];
+let SESSION_CATS=["Newborn","Infant","Sitter","Cake Smash","Children","Maternity","Gender Reveal"];
 const GENDERS_T=["Girl","Boy","Twins","Neutral"];
 // per-category Style (subcategory) options + which categories skip gender
-const STYLE_OPTS={Maternity:["Classic Black","Classic White","Fabrics","Elegant","Exclusive Setups","Private Collection","Outdoor","New"]};
-const NO_GENDER=["Maternity","Gender Reveal"];
+let STYLE_OPTS={Maternity:["Classic Black","Classic White","Fabrics","Elegant","Exclusive Setups","Private Collection","Outdoor","New"]};
+let NO_GENDER=["Maternity","Gender Reveal"];
 // which item kinds are offered per session type
-const KIND_BY_CAT={Maternity:["outfit","backdrop","accessory"],"Cake Smash":["outfit","prop","backdrop","accessory"],Newborn:["outfit","wrap","basket","prop","backdrop","accessory"],Infant:["outfit","basket","prop","backdrop","accessory"],Sitter:["outfit","prop","backdrop","accessory"],Children:["outfit","prop","backdrop","accessory"],"Gender Reveal":["prop"]};
+let KIND_BY_CAT={Maternity:["outfit","backdrop","accessory"],"Cake Smash":["outfit","prop","backdrop","accessory"],Newborn:["outfit","wrap","basket","prop","backdrop","accessory"],Infant:["outfit","basket","prop","backdrop","accessory"],Sitter:["outfit","prop","backdrop","accessory"],Children:["outfit","prop","backdrop","accessory"],"Gender Reveal":["prop"]};
 const GENERAL_KINDS=["prop","accessory","backdrop","other"];
 const SIZE_OPTS=["S","M","L","XL","One size"];
 // size options per session type (baby sessions use age, maternity uses dress sizes)
-const SIZE_BY_CAT={Maternity:["S","M","L","XL","One size"],"Cake Smash":["1 year","12-18m","One size"],Infant:["1-3m","3-6m","One size"],Sitter:["6-9m","9-12m","One size"],Children:["3-4y","5-6y","7-8y","9-11y","One size"]};
+let SIZE_BY_CAT={Maternity:["S","M","L","XL","One size"],"Cake Smash":["1 year","12-18m","One size"],Infant:["1-3m","3-6m","One size"],Sitter:["6-9m","9-12m","One size"],Children:["3-4y","5-6y","7-8y","9-11y","One size"]};
 const PROP_SUBTYPES=["flowers","toys","balloons","number","cake stand","banner","other"];
-const PROP_SUBTYPES_BY_CAT={"Gender Reveal":["confetti","balloon","paint","box"]};
-const SETUP_STYLE={"Gender Reveal":["Confetti","Balloon","Paint","Box"]};
-const SUBTYPE_OPTS={prop:PROP_SUBTYPES,basket:["Bed","Sofa","Basket"],accessory:["bonnet","headband","hat","crown","bow tie","veil"]};
+let PROP_SUBTYPES_BY_CAT={"Gender Reveal":["confetti","balloon","paint","box"]};
+let SETUP_STYLE={"Gender Reveal":["Confetti","Balloon","Paint","Box"]};
+let SUBTYPE_OPTS={prop:PROP_SUBTYPES,basket:["Bed","Sofa","Basket"],accessory:["bonnet","headband","hat","crown","bow tie","veil"]};
 const SUBTYPE_PH={prop:"e.g. flowers, toys, number…",basket:"e.g. Bed, Sofa, Basket",accessory:"e.g. bonnet, headband, hat"};
+// ---- taxonomy persistence (option lists editable from Settings) ----
+const PALETTE=["#e06b94","#5a93d6","#a47cd1","#48b08c","#d59a3f","#e0a06b","#6fb1c9","#cf6f6f","#7b9e3f","#b06fd1"];
+function applyTax(t){
+ if(!t||typeof t!=="object")return;
+ if(Array.isArray(t.sessions))SESSION_CATS=t.sessions;
+ if(t.catCode&&typeof t.catCode==="object")CAT_CODE=t.catCode;
+ if(t.catColor&&typeof t.catColor==="object")CAT_COLOR=t.catColor;
+ if(t.kindByCat&&typeof t.kindByCat==="object")KIND_BY_CAT=t.kindByCat;
+ if(t.styleOpts&&typeof t.styleOpts==="object")STYLE_OPTS=t.styleOpts;
+ if(t.setupStyle&&typeof t.setupStyle==="object")SETUP_STYLE=t.setupStyle;
+ if(t.subtypeOpts&&typeof t.subtypeOpts==="object")SUBTYPE_OPTS=t.subtypeOpts;
+ if(t.propSubtypesByCat&&typeof t.propSubtypesByCat==="object")PROP_SUBTYPES_BY_CAT=t.propSubtypesByCat;
+ if(t.sizeByCat&&typeof t.sizeByCat==="object")SIZE_BY_CAT=t.sizeByCat;
+ if(Array.isArray(t.noGender))NO_GENDER=t.noGender;
+}
+function currentTax(){
+ return {sessions:SESSION_CATS,catCode:CAT_CODE,catColor:CAT_COLOR,kindByCat:KIND_BY_CAT,styleOpts:STYLE_OPTS,setupStyle:SETUP_STYLE,subtypeOpts:SUBTYPE_OPTS,propSubtypesByCat:PROP_SUBTYPES_BY_CAT,sizeByCat:SIZE_BY_CAT,noGender:NO_GENDER};
+}
+async function loadTax(){
+ if(!sb)return null;
+ try{
+  const {data}=await sb.from("app_settings").select("value").eq("key","taxonomy").maybeSingle();
+  if(data&&data.value){applyTax(data.value);return data.value;}
+  await sb.from("app_settings").upsert({key:"taxonomy",value:currentTax(),updated_at:new Date().toISOString()});
+  return currentTax();
+ }catch(e){return null;}
+}
+async function saveTax(){
+ if(!sb)return {error:{message:"offline"}};
+ try{const {error}=await sb.from("app_settings").upsert({key:"taxonomy",value:currentTax(),updated_at:new Date().toISOString()});return {error};}
+ catch(e){return {error:e};}
+}
 function SizePicker({value,onChange,opts=SIZE_OPTS}){
  const cur=(value||"").split(",").map(s=>s.trim()).filter(Boolean);
  const toggle=s=>{const next=cur.includes(s)?cur.filter(x=>x!==s):[...cur,s];onChange(next.join(", "));};
@@ -846,7 +879,7 @@ function NewInventory({initCat=""}){
 }
 
 // ---- sidebar ----
-const NAV=[{id:"dashboard",label:"Home",icon:I.home},{id:"catalog",label:"Catalog",icon:I.grid},{id:"showcase",label:"Website Showcase",icon:I.globe},{id:"categories",label:"Categories",icon:I.layers}];
+const NAV=[{id:"dashboard",label:"Home",icon:I.home},{id:"catalog",label:"Catalog",icon:I.grid},{id:"showcase",label:"Website Showcase",icon:I.globe},{id:"categories",label:"Categories",icon:I.layers},{id:"settings",label:"Settings",icon:I.gear}];
 const SOON=[{label:"Customers",icon:I.users}];
 function Sidebar({view,setView,themes,setBr,source,signOut,email,dohaCount,setInvLoc,locCounts={}}){
  return <aside style={{width:236,background:"var(--panel)",borderRight:"1px solid var(--line)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh"}}>
@@ -884,12 +917,108 @@ function LoginScreen(){
 }
 
 // ---- app ----
+// ---- Settings: edit option lists (sessions, kinds, styles, sub-types, sizes) ----
+function ListEditor({items=[],onChange,ph="Add…"}){
+ const [val,setVal]=useState(""); const [edit,setEdit]=useState(-1); const [etxt,setEtxt]=useState("");
+ const add=()=>{const v=val.trim();if(!v||items.includes(v))return;onChange([...items,v]);setVal("");};
+ const rm=i=>onChange(items.filter((_,j)=>j!==i));
+ const commit=()=>{const v=etxt.trim();if(v&&!items.some((x,j)=>x===v&&j!==edit))onChange(items.map((x,j)=>j===edit?v:x));setEdit(-1);};
+ const chip={display:"inline-flex",alignItems:"center",gap:5,background:"var(--panel)",border:"1px solid var(--line2)",borderRadius:20,padding:"4px 5px 4px 11px",fontSize:12.5,fontWeight:600,color:"var(--soft)"};
+ const inp={padding:"5px 9px",borderRadius:8,border:"1px solid var(--line2)",fontSize:12.5,background:"var(--panel)",color:"var(--ink)"};
+ return <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>
+  {items.map((it,i)=> edit===i
+   ? <input key={i} autoFocus value={etxt} onChange={e=>setEtxt(e.target.value)} onBlur={commit} onKeyDown={e=>{if(e.key==="Enter")commit();if(e.key==="Escape")setEdit(-1);}} style={{...inp,width:Math.max(60,etxt.length*8+24)}}/>
+   : <span key={i} style={chip}><span onClick={()=>{setEdit(i);setEtxt(it);}} title="Click to rename" style={{cursor:"text"}}>{it}</span><button type="button" onClick={()=>rm(i)} title="Remove" style={{display:"inline-flex",border:"none",background:"transparent",color:"var(--muted)",cursor:"pointer",padding:0}}><Icon d={I.x} s={13}/></button></span>)}
+  <input value={val} onChange={e=>setVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")add();}} placeholder={ph} style={{...inp,width:150}}/>
+  <button type="button" onClick={add} style={{padding:"5px 11px",borderRadius:8,border:"1px solid var(--line2)",background:"var(--panel)",color:"var(--soft)",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ Add</button>
+ </div>;
+}
+function Field({label,children,hint}){
+ return <div style={{marginBottom:13}}>
+  <div style={{fontSize:11,fontWeight:700,letterSpacing:.4,textTransform:"uppercase",color:"var(--muted)",marginBottom:6}}>{label}{hint&&<span style={{fontWeight:500,textTransform:"none",letterSpacing:0,marginLeft:7,color:"var(--muted)"}}>{hint}</span>}</div>
+  {children}
+ </div>;
+}
+function Settings({onSaved,notify}){
+ const [t,setT]=useState(()=>JSON.parse(JSON.stringify(currentTax())));
+ const [saving,setSaving]=useState(false); const [newSess,setNewSess]=useState("");
+ const sessions=t.sessions||[];
+ const dirty=JSON.stringify(t)!==JSON.stringify(currentTax());
+ const mget=(k,s)=>((t[k]||{})[s])||[];
+ const setSub=(k,s,arr)=>setT(p=>({...p,[k]:{...(p[k]||{}),[s]:arr}}));
+ const setCode=(s,v)=>setT(p=>({...p,catCode:{...p.catCode,[s]:(v||"").toUpperCase().slice(0,3)}}));
+ const setColor=(s,v)=>setT(p=>({...p,catColor:{...p.catColor,[s]:v}}));
+ const toggleNoGender=s=>setT(p=>({...p,noGender:(p.noGender||[]).includes(s)?p.noGender.filter(x=>x!==s):[...(p.noGender||[]),s]}));
+ const renameSession=(old,raw)=>{const nw=(raw||"").trim();if(!nw||nw===old||sessions.includes(nw))return;
+  setT(p=>{const mv=m=>{if(!m)return m;const n={...m};if(old in n){n[nw]=n[old];delete n[old];}return n;};
+   return {...p,sessions:p.sessions.map(s=>s===old?nw:s),catCode:mv(p.catCode),catColor:mv(p.catColor),kindByCat:mv(p.kindByCat),styleOpts:mv(p.styleOpts),setupStyle:mv(p.setupStyle),sizeByCat:mv(p.sizeByCat),propSubtypesByCat:mv(p.propSubtypesByCat),noGender:(p.noGender||[]).map(s=>s===old?nw:s)};});};
+ const removeSession=s=>{if(!window.confirm("Remove session “"+s+"”?\nExisting items keep their data — it just disappears from the menus."))return;
+  setT(p=>{const del=m=>{if(!m)return m;const n={...m};delete n[s];return n;};
+   return {...p,sessions:p.sessions.filter(x=>x!==s),catCode:del(p.catCode),catColor:del(p.catColor),kindByCat:del(p.kindByCat),styleOpts:del(p.styleOpts),setupStyle:del(p.setupStyle),sizeByCat:del(p.sizeByCat),propSubtypesByCat:del(p.propSubtypesByCat),noGender:(p.noGender||[]).filter(x=>x!==s)};});};
+ const addSession=()=>{const nm=newSess.trim();if(!nm||sessions.includes(nm))return;
+  const code=(nm.replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase())||"XX";
+  setT(p=>({...p,sessions:[...p.sessions,nm],catCode:{...p.catCode,[nm]:code},catColor:{...p.catColor,[nm]:PALETTE[p.sessions.length%PALETTE.length]},kindByCat:{...p.kindByCat,[nm]:["outfit","prop","backdrop","accessory"]}}));
+  setNewSess("");};
+ const setKindSub=(k,arr)=>setT(p=>({...p,subtypeOpts:{...p.subtypeOpts,[k]:arr}}));
+ const save=async()=>{setSaving(true);applyTax(t);const {error}=await saveTax();setSaving(false);
+  if(error){notify&&notify("Couldn't save settings: "+(error.message||error));}
+  else{onSaved&&onSaved();notify&&notify("Settings saved ✓");}};
+ const reset=()=>setT(JSON.parse(JSON.stringify(currentTax())));
+ const card={background:"var(--panel)",border:"1px solid var(--line)",borderRadius:14,padding:"16px 18px",marginBottom:14};
+ const subKinds=Object.keys(t.subtypeOpts||{});
+ return <div style={{flex:1,overflow:"auto"}}>
+  <div style={{position:"sticky",top:0,zIndex:5,background:"var(--bg)",borderBottom:"1px solid var(--line)",padding:"16px 26px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+   <div>
+    <div style={{fontSize:18,fontWeight:700,color:"var(--ink)"}}>Settings</div>
+    <div style={{fontSize:12.5,color:"var(--muted)",marginTop:2}}>Add or edit the option lists used across the inventory. Changes apply everywhere after you save.</div>
+   </div>
+   <div style={{display:"flex",gap:9,alignItems:"center"}}>
+    {dirty&&<span style={{fontSize:12,color:"#cf8a1e",fontWeight:600}}>Unsaved changes</span>}
+    {dirty&&<button onClick={reset} style={{padding:"8px 14px",borderRadius:9,border:"1px solid var(--line2)",background:"var(--panel)",color:"var(--soft)",fontSize:13,fontWeight:600,cursor:"pointer"}}>Discard</button>}
+    <button onClick={save} disabled={!dirty||saving} style={{padding:"8px 18px",borderRadius:9,border:"none",background:dirty?"var(--ink)":"var(--line2)",color:"#fff",fontSize:13,fontWeight:700,cursor:dirty?"pointer":"default",opacity:saving?.6:1}}>{saving?"Saving…":"Save changes"}</button>
+   </div>
+  </div>
+  <div style={{padding:"20px 26px",maxWidth:920}}>
+   <div style={{fontSize:13,fontWeight:700,color:"var(--ink)",margin:"4px 0 12px"}}>Session types</div>
+   {sessions.map(s=>{const color=(t.catColor||{})[s]||"#9a9ca8";const kind=mget("kindByCat",s);const showProp=kind.includes("prop");
+    return <div key={s} style={{...card,borderLeft:`4px solid ${color}`}}>
+     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+      <Dot c={color} s={11}/>
+      <input value={s} onChange={e=>renameSession(s,e.target.value)} style={{fontSize:15.5,fontWeight:700,color:"var(--ink)",border:"none",borderBottom:"1px dashed var(--line2)",background:"transparent",padding:"2px 2px",minWidth:120}}/>
+      <span style={{flex:1}}/>
+      <label style={{fontSize:11.5,fontWeight:600,color:"var(--muted)",display:"flex",alignItems:"center",gap:5}}>Code
+       <input value={(t.catCode||{})[s]||""} onChange={e=>setCode(s,e.target.value)} style={{width:46,padding:"4px 7px",borderRadius:7,border:"1px solid var(--line2)",fontSize:12,fontWeight:700,textTransform:"uppercase",background:"var(--panel)",color:"var(--ink)"}}/></label>
+      <label style={{fontSize:11.5,fontWeight:600,color:"var(--muted)",display:"flex",alignItems:"center",gap:5}}>Color
+       <input type="color" value={color} onChange={e=>setColor(s,e.target.value)} style={{width:30,height:26,padding:0,border:"1px solid var(--line2)",borderRadius:6,background:"none",cursor:"pointer"}}/></label>
+      <label style={{fontSize:11.5,fontWeight:600,color:"var(--soft)",display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}>
+       <input type="checkbox" checked={(t.noGender||[]).includes(s)} onChange={()=>toggleNoGender(s)}/>No gender</label>
+      <button type="button" onClick={()=>removeSession(s)} title="Remove session" style={{display:"inline-flex",border:"1px solid var(--line2)",background:"var(--panel)",color:"var(--danger)",borderRadius:8,padding:"5px 8px",cursor:"pointer"}}><Icon d={I.trash} s={14} c="var(--danger)"/></button>
+     </div>
+     <Field label="Item kinds"><ListEditor items={kind} onChange={a=>setSub("kindByCat",s,a)} ph="add kind…"/></Field>
+     <Field label="Styles / collections" hint="optional — e.g. dress collections"><ListEditor items={mget("styleOpts",s)} onChange={a=>setSub("styleOpts",s,a)} ph="add style…"/></Field>
+     <Field label="Setup / reveal types" hint="optional — for theme/setup looks"><ListEditor items={mget("setupStyle",s)} onChange={a=>setSub("setupStyle",s,a)} ph="add type…"/></Field>
+     <Field label="Sizes / ages" hint="optional"><ListEditor items={mget("sizeByCat",s)} onChange={a=>setSub("sizeByCat",s,a)} ph="add size…"/></Field>
+     {showProp&&<Field label="Prop sub-types" hint="optional — overrides default prop list for this session"><ListEditor items={mget("propSubtypesByCat",s)} onChange={a=>setSub("propSubtypesByCat",s,a)} ph="add prop type…"/></Field>}
+    </div>;})}
+   <div style={{...card,borderStyle:"dashed",display:"flex",alignItems:"center",gap:9}}>
+    <input value={newSess} onChange={e=>setNewSess(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addSession();}} placeholder="New session type name…" style={{flex:1,padding:"8px 11px",borderRadius:9,border:"1px solid var(--line2)",fontSize:13,background:"var(--panel)",color:"var(--ink)"}}/>
+    <button type="button" onClick={addSession} style={{padding:"8px 16px",borderRadius:9,border:"none",background:"var(--ink)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>+ Add session</button>
+   </div>
+   <div style={{fontSize:13,fontWeight:700,color:"var(--ink)",margin:"22px 0 12px"}}>Sub-types by kind <span style={{fontWeight:500,color:"var(--muted)"}}>— shared across all sessions</span></div>
+   <div style={card}>
+    {subKinds.map(k=><Field key={k} label={k}><ListEditor items={(t.subtypeOpts||{})[k]||[]} onChange={a=>setKindSub(k,a)} ph={"add "+k+" type…"}/></Field>)}
+   </div>
+  </div>
+ </div>;
+}
 function App(){
  const [themes,setThemes]=useState(()=>D.themes.map(t=>({...t})));
  const [source,setSource]=useState("local");
  const [invRows,setInvRows]=useState([]);
  const loadInv=()=>{if(sb)sb.from("inv_item").select("*,inv_item_location(location,quantity,times_selected)").then(({data})=>setInvRows(data||[]));};
+ const [taxV,setTaxV]=useState(0);
  useEffect(()=>{loadInv()},[]);
+ useEffect(()=>{loadTax().then(()=>setTaxV(v=>v+1))},[]);
  // SINGLE SOURCE: map inv_item rows into the shape the catalogue views expect
  const allThemes=useMemo(()=>invRows.map(r=>({id:r.id,name:r.name,category:r.session_type,gender:r.gender||"",branches:(r.inv_item_location||[]).map(l=>l.location),display:!!r.website_display,selection_count:r.times_selected||0,image:r.photo_url||"",notes:r.notes||"",__inv:true,_row:r})),[invRows]);
  const [toast,setToast]=useState("");
@@ -935,6 +1064,7 @@ function App(){
      {view==="catalog"&&<NewInventory initCat={catInit}/>}
      {view==="showcase"&&<Showcase themes={allThemes} onOpen={setSel}/>}
      {view==="categories"&&<Categories themes={allThemes} go={openCat}/>}
+     {view==="settings"&&<Settings key={taxV} onSaved={()=>setTaxV(v=>v+1)} notify={notify}/>}
    </main>
    {selLive&&selLive.__inv&&<InvEdit item={selLive._row} onClose={()=>setSel(null)} onSaved={()=>{setSel(null);loadInv();}}/>}
    {selLive&&!selLive.__inv&&<Drawer t={selLive} onClose={()=>setSel(null)} onToggle={toggle} onEdit={t=>{setSel(null);setForm(t)}} onDelete={delTheme}/>}
