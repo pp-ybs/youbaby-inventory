@@ -565,12 +565,15 @@ const KIND_CODE={outfit:"OF",fabric:"FB",prop:"PR",backdrop:"BD",wrap:"WR",acces
 const ITEM_KINDS=["outfit","fabric","prop","backdrop","wrap","accessory","other"];
 const SESSION_CATS=["Newborn","Infant","Sitter","Cake Smash","Maternity","Christmas"];
 const GENDERS_T=["Girl","Boy","Twins","Neutral"];
+// per-category Style (subcategory) options + which categories skip gender
+const STYLE_OPTS={Maternity:["Classic Black","Classic White","Fabrics","Elegant","Exclusive Setups","Private Collection","Outdoor","New"]};
+const NO_GENDER=["Maternity"];
 const codePrefix=(cat,seg)=>(CAT_CODE[cat]||((cat||"XX").replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase()||"XX"))+"-"+seg;
 async function nextCode(cat,seg){const p=codePrefix(cat,seg)+"-";if(!sb)return p+"001";const {data}=await sb.from("inv_item").select("code").like("code",p+"%");let mx=0;(data||[]).forEach(r=>{const m=/(\d+)\s*$/.exec(r.code||"");if(m)mx=Math.max(mx,parseInt(m[1],10))});return p+String(mx+1).padStart(3,"0");}
 function Barcode({value,height=46}){const ref=useRef(null);useEffect(()=>{if(ref.current&&window.JsBarcode&&value){try{window.JsBarcode(ref.current,value,{format:"CODE128",height,fontSize:13,margin:6,displayValue:true});}catch(e){}}},[value,height]);return <svg ref={ref} style={{maxWidth:"100%"}}/>;}
 
 function AddInvItem({onClose,onSaved}){
- const [f,setF]=useState({type:"item",kind:"outfit",session_type:"Newborn",gender:"",size:"",name:"",color:"",brand:"",condition:"Good",photo_url:"",website_display:false,notes:""});
+ const [f,setF]=useState({type:"item",kind:"outfit",session_type:"Newborn",gender:"",subcategory:"",size:"",name:"",color:"",brand:"",condition:"Good",photo_url:"",website_display:false,notes:""});
  const [locs,setLocs]=useState({});
  const [busy,setBusy]=useState(false),[err,setErr]=useState(""),[saved,setSaved]=useState(null);
  const set=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -582,7 +585,7 @@ function AddInvItem({onClose,onSaved}){
    if(!valid||busy)return;setBusy(true);setErr("");
    try{
      const code=await nextCode(f.session_type,seg);
-     const row={code,type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.session_type,gender:f.gender||null,size:f.size||null,color:f.color||null,brand:f.brand||null,photo_url:f.photo_url||null,condition:f.condition,website_display:!!f.website_display,notes:f.notes||null};
+     const row={code,type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.session_type,subcategory:f.subcategory||null,gender:NO_GENDER.includes(f.session_type)?null:(f.gender||null),size:f.size||null,color:f.color||null,brand:f.brand||null,photo_url:f.photo_url||null,condition:f.condition,website_display:!!f.website_display,notes:f.notes||null};
      const {data,error}=await sb.from("inv_item").insert(row).select().single();if(error)throw error;
      const locRows=chosen.map(b=>({item_id:data.id,location:b,quantity:Number(locs[b].qty)||1}));
      if(locRows.length){const {error:e2}=await sb.from("inv_item_location").insert(locRows);if(e2)throw e2;}
@@ -611,7 +614,9 @@ function AddInvItem({onClose,onSaved}){
          {on&&<span style={{fontSize:11.5,color:"var(--muted)"}}>qty <input type="number" min="1" value={locs[b].qty} onChange={e=>setLocs(p=>({...p,[b]:{on:true,qty:e.target.value}}))} style={{width:64,marginLeft:6}}/></span>}</div>})}</div></div>
        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
          <div><span style={lab}>{f.type==="item"?"4":"3"} · CATEGORY</span><select value={f.session_type} onChange={e=>set("session_type",e.target.value)}>{SESSION_CATS.map(c=><option key={c}>{c}</option>)}</select></div>
-         <div><span style={lab}>{f.type==="item"?"5":"4"} · GENDER</span><select value={f.gender} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS_T.map(g=><option key={g}>{g}</option>)}</select></div>
+         {STYLE_OPTS[f.session_type]
+           ? <div><span style={lab}>{f.type==="item"?"5":"4"} · STYLE</span><select value={f.subcategory} onChange={e=>set("subcategory",e.target.value)}><option value="">—</option>{STYLE_OPTS[f.session_type].map(s=><option key={s}>{s}</option>)}</select></div>
+           : <div><span style={lab}>{f.type==="item"?"5":"4"} · GENDER</span><select value={f.gender} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS_T.map(g=><option key={g}>{g}</option>)}</select></div>}
          <div><span style={lab}>{f.type==="item"?"6":"5"} · SIZE</span><input value={f.size} onChange={e=>set("size",e.target.value)} placeholder="One size / M–L / 9–12 m"/></div>
          <div><span style={lab}>CONDITION</span><select value={f.condition} onChange={e=>set("condition",e.target.value)}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>
          <div style={{gridColumn:"1/-1"}}><span style={lab}>NAME / DESCRIPTION *</span><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Brown Corduroy Overalls"/></div>
@@ -629,14 +634,76 @@ function AddInvItem({onClose,onSaved}){
    </div></div>;
 }
 
+function InvEdit({item,onClose,onSaved}){
+ const [f,setF]=useState({...item});
+ const [locs,setLocs]=useState({});
+ const [links,setLinks]=useState([]);      // component links where this item is the parent
+ const [all,setAll]=useState([]);
+ const [busy,setBusy]=useState(false),[err,setErr]=useState("");
+ const set=(k,v)=>setF(p=>({...p,[k]:v}));
+ useEffect(()=>{(async()=>{if(!sb)return;
+   const {data:l}=await sb.from("inv_item_location").select("*").eq("item_id",item.id);
+   const m={};(l||[]).forEach(r=>{m[r.location]={on:true,qty:r.quantity,times:r.times_selected||0}});setLocs(m);
+   const {data:tl}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",item.id);setLinks((tl||[]).map(x=>x.component_item_id));
+   const {data:av}=await sb.from("inv_item").select("id,code,name,kind,type").neq("id",item.id).order("name");setAll(av||[]);
+ })()},[]);
+ useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
+ const isMat=STYLE_OPTS[f.session_type];
+ const totalSel=BR.reduce((s,b)=>s+(locs[b]&&locs[b].on?(Number(locs[b].times)||0):0),0);
+ const save=async()=>{if(busy)return;setBusy(true);setErr("");
+   try{
+     await sb.from("inv_item").update({name:f.name,type:f.type,kind:f.type==="item"?f.kind:null,session_type:f.session_type,subcategory:f.subcategory||null,gender:NO_GENDER.includes(f.session_type)?null:(f.gender||null),size:f.size||null,color:f.color||null,brand:f.brand||null,condition:f.condition,photo_url:f.photo_url||null,notes:f.notes||null,website_display:!!f.website_display,times_selected:totalSel}).eq("id",item.id);
+     const on=BR.filter(b=>locs[b]&&locs[b].on),off=BR.filter(b=>!(locs[b]&&locs[b].on));
+     if(on.length)await sb.from("inv_item_location").upsert(on.map(b=>({item_id:item.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0})));
+     for(const b of off)await sb.from("inv_item_location").delete().eq("item_id",item.id).eq("location",b);
+     onSaved&&onSaved();
+   }catch(e){setErr(e.message||String(e));}setBusy(false);};
+ const toggleLink=async(cid)=>{if(links.includes(cid)){setLinks(l=>l.filter(x=>x!==cid));await sb.from("inv_theme_item").delete().eq("theme_id",item.id).eq("component_item_id",cid);}else{setLinks(l=>[...l,cid]);await sb.from("inv_theme_item").insert({theme_id:item.id,component_item_id:cid});}};
+ const lab={display:"block",fontSize:10.5,fontWeight:700,color:"var(--muted)",letterSpacing:".06em",marginBottom:5};
+ return <div style={{position:"fixed",inset:0,background:"#1a1a2433",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+   <div className="scroll fade" style={{width:580,maxWidth:"96vw",maxHeight:"92vh",background:"var(--panel)",borderRadius:18,boxShadow:"0 30px 80px rgba(20,20,30,.25)",overflow:"auto"}}>
+     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 24px",borderBottom:"1px solid var(--line)",position:"sticky",top:0,background:"var(--panel)",zIndex:1}}>
+       <div><span style={{fontWeight:700,fontSize:16}}>Edit · {f.code}</span><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{f.type==="theme"?"Theme":f.kind} · {f.session_type}</div></div>
+       <button onClick={onClose} style={{padding:4}}><Icon d={I.x} s={19} c="var(--muted)"/></button></div>
+     {f.photo_url&&<div style={{padding:"16px 24px 0"}}><img src={f.photo_url} style={{width:"100%",maxHeight:360,objectFit:"contain",borderRadius:12,border:"1px solid var(--line)",background:"var(--panel2)"}} onError={e=>e.target.style.display="none"}/></div>}
+     <div style={{padding:24,display:"flex",flexDirection:"column",gap:18}}>
+       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+         <div style={{gridColumn:"1/-1"}}><span style={lab}>NAME *</span><input value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
+         <div><span style={lab}>CATEGORY</span><select value={f.session_type||""} onChange={e=>set("session_type",e.target.value)}>{SESSION_CATS.map(c=><option key={c}>{c}</option>)}</select></div>
+         {isMat
+           ? <div><span style={lab}>STYLE</span><select value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)}><option value="">—</option>{STYLE_OPTS[f.session_type].map(s=><option key={s}>{s}</option>)}</select></div>
+           : <div><span style={lab}>GENDER</span><select value={f.gender||""} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS_T.map(g=><option key={g}>{g}</option>)}</select></div>}
+         <div><span style={lab}>SIZE</span><input value={f.size||""} onChange={e=>set("size",e.target.value)} placeholder="One size / M–L"/></div>
+         <div><span style={lab}>CONDITION</span><select value={f.condition||"Good"} onChange={e=>set("condition",e.target.value)}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>
+         <div style={{gridColumn:"1/-1"}}><span style={lab}>PHOTO</span><PhotoField value={f.photo_url||""} onChange={v=>set("photo_url",v)} prefix="inv"/></div>
+         <div style={{gridColumn:"1/-1"}}><span style={lab}>NOTES</span><textarea rows={2} value={f.notes||""} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical"}}/></div>
+       </div>
+       <div><span style={lab}>LOCATIONS · QTY · TIMES SELECTED <span style={{color:"var(--muted)",fontWeight:400}}>(per studio · total {totalSel})</span></span>
+         <div style={{display:"flex",flexDirection:"column",gap:7}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <div key={b} style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+           <button type="button" onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1,times:(p[b]&&p[b].times)||0}}))} style={{width:130,textAlign:"left",padding:"7px 12px",borderRadius:9,border:`1px solid ${on?(BR_COLOR[b]||"var(--ink)"):"var(--line2)"}`,background:on?(BR_COLOR[b]||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,display:"flex",alignItems:"center",gap:8}}><Dot c={on?"#fff":BR_COLOR[b]} s={7}/>{b}</button>
+           {on&&<><span style={{fontSize:11.5,color:"var(--muted)"}}>qty <input type="number" min="0" value={locs[b].qty} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],qty:e.target.value}}))} style={{width:58,marginLeft:4}}/></span><span style={{fontSize:11.5,color:"var(--muted)"}}>selected <input type="number" min="0" value={locs[b].times} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],times:e.target.value}}))} style={{width:64,marginLeft:4}}/></span></>}</div>})}</div></div>
+       <div><span style={lab}>LINKED ITEMS <span style={{color:"var(--muted)",fontWeight:400}}>(components — outfit / backdrop / props that go with this)</span></span>
+         <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:8}}>{links.length===0&&<span style={{fontSize:12,color:"var(--muted)"}}>None yet.</span>}{links.map(id=>{const o=all.find(a=>a.id===id);return <span key={id} style={{display:"inline-flex",alignItems:"center",gap:6,background:"var(--panel2)",border:"1px solid var(--line2)",borderRadius:20,padding:"3px 6px 3px 10px",fontSize:12}}>{o?(o.name||o.code):id}<button onClick={()=>toggleLink(id)} style={{display:"flex",padding:1}}><Icon d={I.x} s={13} c="var(--muted)"/></button></span>})}</div>
+         <select value="" onChange={e=>{if(e.target.value)toggleLink(e.target.value)}} style={{width:"100%"}}><option value="">+ link an item…</option>{all.filter(a=>!links.includes(a.id)).map(a=><option key={a.id} value={a.id}>{(a.name||a.code)}{a.kind?" · "+a.kind:""}</option>)}</select>
+       </div>
+       <div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 14px"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"}</span></div>
+       {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8}}>{err}</div>}
+       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+         <button onClick={onClose} style={{padding:"11px 20px",border:"1px solid var(--line2)",borderRadius:10,fontWeight:600}}>Cancel</button>
+         <button onClick={save} disabled={busy} style={{padding:"11px 22px",background:"var(--ink)",color:"#fff",borderRadius:10,fontWeight:600}}>{busy?"Saving…":"Save changes"}</button></div>
+     </div></div></div>;
+}
+
 function NewInventory(){
- const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState("");
+ const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("new");
  const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sb.from("inv_item").select("*,inv_item_location(location,quantity,status)").order("created_at",{ascending:false});if(error)setErr(error.message);setRows(data||[]);};
  useEffect(()=>{load()},[]);
  if(rows===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
  const locOf=r=>(r.inv_item_location||[]).map(x=>x.location);
- const filtered=rows.filter(r=>(!typeF||r.type===typeF)&&(!loc||locOf(r).includes(loc))&&(!q||((r.name||"")+" "+(r.code||"")).toLowerCase().includes(q.trim().toLowerCase())));
- const card=r=><div key={r.id} className="fade" style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",overflow:"hidden",boxShadow:"var(--shadow)",display:"flex",flexDirection:"column"}}>
+ const selOf=r=>(r.inv_item_location||[]).reduce((s,x)=>s+(x.times_selected||0),0);
+ const filtered=rows.filter(r=>(!typeF||r.type===typeF)&&(!loc||locOf(r).includes(loc))&&(!q||((r.name||"")+" "+(r.code||"")).toLowerCase().includes(q.trim().toLowerCase())))
+   .sort((a,b)=>sort==="popular"?(loc?((b.inv_item_location||[]).find(x=>x.location===loc)?.times_selected||0)-((a.inv_item_location||[]).find(x=>x.location===loc)?.times_selected||0):selOf(b)-selOf(a)):(new Date(b.created_at)-new Date(a.created_at)));
+ const card=r=><div key={r.id} onClick={()=>setEdit(r)} className="fade" style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",overflow:"hidden",boxShadow:"var(--shadow)",cursor:"pointer",display:"flex",flexDirection:"column"}}>
    <div style={{position:"relative",width:"100%",aspectRatio:"4/3",background:"var(--panel2)"}}>
      {r.photo_url?<img src={r.photo_url} loading="lazy" alt={r.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#a47cd1c0",fontSize:11,fontWeight:600}}><Icon d={I.image} s={26} c="#a47cd190"/></div>}
      <span style={{position:"absolute",top:9,left:9}}><Chip label={r.type==="theme"?"theme":r.kind||"item"} color={dTC(r.kind||(r.type==="theme"?"setup":""))} solid sm/></span>
@@ -644,8 +711,9 @@ function NewInventory(){
    <div style={{padding:"11px 13px",display:"flex",flexDirection:"column",gap:7,flex:1}}>
      <span style={{fontWeight:600,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name||"—"}</span>
      <div style={{background:"#fff",borderRadius:6,padding:"3px 4px",alignSelf:"flex-start",border:"1px solid var(--line)"}}><Barcode value={r.code} height={34}/></div>
-     <div style={{fontSize:11,color:"var(--soft)"}}>{r.session_type}{r.gender?" · "+r.gender:""}{r.size?" · "+r.size:""}</div>
-     <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{(r.inv_item_location||[]).map(l=><span key={l.location} style={{fontSize:10,fontWeight:600,color:BR_COLOR[l.location]||"var(--soft)",background:"var(--panel2)",border:`1px solid ${BR_COLOR[l.location]||"var(--line2)"}`,borderRadius:20,padding:"1px 8px"}}>{l.location} ·{l.quantity}</span>)}</div>
+     <div style={{fontSize:11,color:"var(--soft)"}}>{r.session_type}{r.subcategory?" · "+r.subcategory:""}{r.gender?" · "+r.gender:""}{r.size?" · "+r.size:""}</div>
+     <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{(r.inv_item_location||[]).map(l=><span key={l.location} title={"selected "+(l.times_selected||0)} style={{fontSize:10,fontWeight:600,color:BR_COLOR[l.location]||"var(--soft)",background:"var(--panel2)",border:`1px solid ${BR_COLOR[l.location]||"var(--line2)"}`,borderRadius:20,padding:"1px 8px"}}>{l.location} ·{l.quantity}</span>)}</div>
+     {selOf(r)>0&&<div style={{fontSize:10.5,color:"var(--gold)",fontWeight:600,display:"flex",alignItems:"center",gap:4}}><Icon d={I.cursor} s={11} c="#f3c64a" fill="#f3c64a" sw={0}/>{selOf(r)} selected</div>}
    </div></div>;
  return <div className="scroll fade" style={{flex:1,padding:"26px 30px"}}>
    <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
@@ -661,10 +729,12 @@ function NewInventory(){
    </div>
    <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:22}}>
      <select value={typeF} onChange={e=>setTypeF(e.target.value)} style={{width:"auto"}}><option value="">All (themes + items)</option><option value="theme">Themes</option><option value="item">Items</option></select>
+     <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}><option value="new">Newest</option><option value="popular">Most selected{loc?" (in "+loc+")":""}</option></select>
      <div style={{position:"relative",flex:1,minWidth:180}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name / code…" style={{paddingLeft:34}}/></div>
    </div>
    {filtered.length?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(214px,1fr))",gap:16}}>{filtered.map(card)}</div>:<div style={{color:"var(--muted)",fontSize:13,padding:"30px 0"}}>Nothing here yet — tap “Add item”.</div>}
    {add&&<AddInvItem onClose={()=>setAdd(false)} onSaved={load}/>}
+   {edit&&<InvEdit item={edit} onClose={()=>setEdit(null)} onSaved={()=>{setEdit(null);load();}}/>}
  </div>;
 }
 
