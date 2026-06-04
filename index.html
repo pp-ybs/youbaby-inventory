@@ -111,7 +111,7 @@ const ELEC_CATS=["Cameras & Lenses","Lighting","Power & Storage","Computers & De
 const elecCat = r => ELEC_CAT[r.subcategory]||"Other";
 const NO_SERIAL = new Set(["Key","Furniture","Studio Prop","Helium Tank","Diffuser","Appliance"]);
 const NO_VALUE = new Set(["Key"]);
-const ASSET_TYPES=Object.keys(ELEC_CAT); // suggestion list for the asset Type field
+let ASSET_TYPES=Object.keys(ELEC_CAT); // editable suggestion list for the asset Type field
 const ELEC_CAT_COLOR={"Cameras & Lenses":"#3e7bfa","Lighting":"#f0a23c","Power & Storage":"#22b573","Computers & Devices":"#7c4dff","Studio Equipment":"#18b8c4","Studio Props":"#22b573","Furniture":"#ff8f5e","Consumables":"#48b08c","Appliances":"#ff6468","Keys":"#9aa0b0","Other":"#9aa0b0"};
 // pick a friendly icon + tint for items without a photo, based on type/kind
 function itemIcon(r){
@@ -1100,10 +1100,11 @@ function applyTax(t){
  if(t.propSubtypesByCat&&typeof t.propSubtypesByCat==="object")PROP_SUBTYPES_BY_CAT=t.propSubtypesByCat;
  if(t.sizeByCat&&typeof t.sizeByCat==="object")SIZE_BY_CAT=t.sizeByCat;
  if(Array.isArray(t.noGender))NO_GENDER=t.noGender;
+ if(Array.isArray(t.assetTypes)&&t.assetTypes.length)ASSET_TYPES=t.assetTypes;
  if(t.defaultCurrency)DEFAULT_CCY=t.defaultCurrency;
 }
 function currentTax(){
- return {sessions:SESSION_CATS,catCode:CAT_CODE,catColor:CAT_COLOR,kindByCat:KIND_BY_CAT,styleOpts:STYLE_OPTS,setupStyle:SETUP_STYLE,subtypeOpts:SUBTYPE_OPTS,propSubtypesByCat:PROP_SUBTYPES_BY_CAT,sizeByCat:SIZE_BY_CAT,noGender:NO_GENDER,defaultCurrency:DEFAULT_CCY};
+ return {sessions:SESSION_CATS,catCode:CAT_CODE,catColor:CAT_COLOR,kindByCat:KIND_BY_CAT,styleOpts:STYLE_OPTS,setupStyle:SETUP_STYLE,subtypeOpts:SUBTYPE_OPTS,propSubtypesByCat:PROP_SUBTYPES_BY_CAT,sizeByCat:SIZE_BY_CAT,noGender:NO_GENDER,defaultCurrency:DEFAULT_CCY,assetTypes:ASSET_TYPES};
 }
 async function loadTax(){
  if(!sb)return null;
@@ -1134,7 +1135,8 @@ async function addTaxOption(kind,session,raw){
  }else if(kind==="setup"&&session){SETUP_STYLE[session]=[...new Set([...(SETUP_STYLE[session]||[]),v])];
  }else if(kind==="size"&&session){SIZE_BY_CAT[session]=[...new Set([...(SIZE_BY_CAT[session]||SIZE_OPTS),v])];
  }else if(kind==="propsub"&&session){PROP_SUBTYPES_BY_CAT[session]=[...new Set([...(PROP_SUBTYPES_BY_CAT[session]||PROP_SUBTYPES),v])];
- }else if(kind==="subkind"&&session){SUBTYPE_OPTS[session]=[...new Set([...(SUBTYPE_OPTS[session]||[]),v])];}
+ }else if(kind==="subkind"&&session){SUBTYPE_OPTS[session]=[...new Set([...(SUBTYPE_OPTS[session]||[]),v])];
+ }else if(kind==="assettype"){if(!ASSET_TYPES.includes(v))ASSET_TYPES=[...ASSET_TYPES,v];}
  await saveTax();_taxBump();return v;
 }
 // a <select> that carries an inline "+ Add new…" affordance, so option lists are editable from the card
@@ -1352,7 +1354,7 @@ function AddInvItem({onClose,onSaved,init={}}){
            <div style={{display:"flex",flexDirection:"column",gap:14}}>
              <div><span style={lab}>Name / description <span style={{color:"var(--danger)",textTransform:"none",letterSpacing:0}}>*</span></span><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Brown Corduroy Overalls" style={{...inputStyle,fontSize:15,fontWeight:500,width:"100%",border:`1.5px solid ${f.name.trim()?"var(--line2)":"#e8c4c4"}`,borderRadius:10}}/></div>
              <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12,alignItems:"start"}}>
-               {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} list="assettypesA" placeholder="e.g. Camera, Lens, Furniture" style={inputStyle}/><datalist id="assettypesA">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
+               {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!ASSET_TYPES.includes(v))addTaxOption("assettype",null,v);}} list="assettypesA" placeholder="e.g. Camera, Lens, Furniture" style={inputStyle}/><datalist id="assettypesA">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
                {isAsset&&<div><span style={lab}>Status</span><select value={f.op_status} onChange={e=>set("op_status",e.target.value)} style={inputStyle}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
                {isAsset&&!NO_SERIAL.has(f.subcategory)&&<div><span style={lab}>Serial no</span><input value={f.serial_no} onChange={e=>set("serial_no",e.target.value)} placeholder="serial / IMEI" style={inputStyle}/></div>}
                {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"Key holder":"Assigned to / held at"}</span><input value={f.assignee} onChange={e=>set("assignee",e.target.value)} list="staffnamesA" placeholder="person or room" style={inputStyle}/></div>}
@@ -1515,7 +1517,7 @@ function InvEdit({item,onClose,onSaved}){
          </div></div>}
          {!isAsset&&<div><span style={lab}>Category</span><TaxSelect value={f.session_type||""} onChange={v=>set("session_type",v)} options={SESSION_CATS} onAdd={v=>addTaxOption("session",null,v)} placeholder="New session type…" addLabel="+ Add session type…"/></div>}
          {!isAsset&&f.type==="item"&&<div><span style={lab}>Kind</span><TaxSelect value={f.kind||""} onChange={v=>set("kind",v)} options={kindsE} onAdd={v=>addTaxOption("kind",f.session_type,v)} placeholder="New kind…" addLabel="+ Add kind…"/></div>}
-         {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)} list="assettypesE" placeholder="e.g. Camera, Lens, Furniture"/><datalist id="assettypesE">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
+         {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!ASSET_TYPES.includes(v))addTaxOption("assettype",null,v);}} list="assettypesE" placeholder="e.g. Camera, Lens, Furniture"/><datalist id="assettypesE">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
          {isAsset&&<div><span style={lab}>Status</span><select value={f.op_status||"Available"} onChange={e=>set("op_status",e.target.value)}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
          {isAsset&&!NO_SERIAL.has(f.subcategory)&&<div><span style={lab}>Serial no</span><input value={f.serial_no||""} onChange={e=>set("serial_no",e.target.value)} placeholder="serial / IMEI"/></div>}
          {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"KEY HOLDER":"ASSIGNED TO / HELD AT"}</span><input value={f.assignee||""} onChange={e=>set("assignee",e.target.value)} list="staffnamesE" placeholder="person or room"/></div>}
@@ -2089,6 +2091,10 @@ function Settings({onSaved,notify,rows=[],email,signOut,onNav}){
    <div style={{...card,borderStyle:"dashed",display:"flex",alignItems:"center",gap:9}}>
     <input value={newSess} onChange={e=>setNewSess(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addSession();}} placeholder="New session type name…" style={{flex:1,padding:"8px 11px",borderRadius:9,border:"1px solid var(--line2)",fontSize:13,background:"var(--panel)",color:"var(--ink)"}}/>
     <button type="button" onClick={addSession} style={{padding:"8px 16px",borderRadius:9,border:"none",background:"var(--ink)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>+ Add session</button>
+   </div>
+   <div style={{fontSize:13,fontWeight:700,color:"var(--ink)",margin:"22px 0 12px"}}>Equipment &amp; asset types <span style={{fontWeight:500,color:"var(--muted)"}}>— the Type list for Equipment / Others items</span></div>
+   <div style={card}>
+    <ListEditor items={t.assetTypes||ASSET_TYPES} onChange={a=>setT(p=>({...p,assetTypes:a}))} ph="add a type… e.g. Tripod"/>
    </div>
    <div style={{fontSize:13,fontWeight:700,color:"var(--ink)",margin:"22px 0 12px"}}>Sub-types by kind <span style={{fontWeight:500,color:"var(--muted)"}}>— shared across all sessions</span></div>
    <div style={card}>
