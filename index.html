@@ -1177,7 +1177,7 @@ function AddInvItem({onClose,onSaved,init={}}){
  const OPSTATUS=["Available","In use","In repair","Retired","For sale"];
  const [locs,setLocs]=useState(()=>{const m={};(init.locs||[]).forEach(b=>{if(BR.includes(b))m[b]={on:true,qty:1,times:0};});return m;});
  const [linkIds,setLinkIds]=useState([]),[cand,setCand]=useState([]);
- useEffect(()=>{if(sb)sb.from("inv_item").select("id,code,name,kind,type,photo_url,session_type").order("name").then(({data})=>setCand(data||[]))},[]);
+ useEffect(()=>{if(sb)sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").order("name").then(({data})=>setCand(data||[]))},[]);
  const [busy,setBusy]=useState(false),[err,setErr]=useState(""),[saved,setSaved]=useState(null);
  const [kAdd,setKAdd]=useState(false),[kTxt,setKTxt]=useState("");
  const [moreOpen,setMoreOpen]=useState(false);
@@ -1337,9 +1337,9 @@ function AddInvItem({onClose,onSaved,init={}}){
            </div>
          </Section>
 
-         {/* LINKS */}
-         {!isAsset&&<Section title={f.type==="theme"?"Items in this setup":"Link to setup(s)"} hint="optional" accent="#9a6fd1">
-           <ItemPicker pool={cand.filter(a=>f.type==="theme"?a.type==="item":a.type==="theme")} selectedIds={linkIds} onToggle={id=>setLinkIds(l=>l.includes(id)?l.filter(x=>x!==id):[...l,id])} emptyHint={f.type==="theme"?"None yet — pick outfits / props / backdrops below.":"None yet — pick the setup(s) this belongs to."}/>
+         {/* LINKS — only a theme attaches items/outfits to itself */}
+         {!isAsset&&f.type==="theme"&&<Section title="Items in this setup" hint="optional · outfits / props / backdrops" accent="#9a6fd1">
+           <ItemPicker pool={cand.filter(a=>a.type==="item"&&a.item_group==="shoot")} selectedIds={linkIds} onToggle={id=>setLinkIds(l=>l.includes(id)?l.filter(x=>x!==id):[...l,id])} emptyHint="None yet — pick outfits / props / backdrops below."/>
          </Section>}
 
          {/* TAGS & VISIBILITY */}
@@ -1417,7 +1417,7 @@ function InvEdit({item,onClose,onSaved}){
    const m={};(l||[]).forEach(r=>{m[r.location]={on:true,qty:r.quantity,times:r.times_selected||0,cond:r.condition||item.condition||"Good",size:r.size||item.size||"",date:r.acquired_on||(item.created_at?item.created_at.slice(0,10):"")}});setLocs(m);
    if(item.type==="theme"){const {data:tl}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",item.id);setLinks((tl||[]).map(x=>x.component_item_id));}
    else{const {data:tl}=await sb.from("inv_theme_item").select("theme_id").eq("component_item_id",item.id);setLinks((tl||[]).map(x=>x.theme_id));}
-   const {data:av}=await sb.from("inv_item").select("id,code,name,kind,type,photo_url,session_type").neq("id",item.id).order("name");setAll(av||[]);
+   const {data:av}=await sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").neq("id",item.id).order("name");setAll(av||[]);
  })()},[]);
  useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
  const kindsE=KIND_BY_CAT[f.session_type]||ITEM_KINDS;
@@ -1519,8 +1519,8 @@ function InvEdit({item,onClose,onSaved}){
            <button type="button" onClick={doXfer} disabled={!xfer.from||!xfer.to} style={{padding:"5px 12px",borderRadius:8,border:"1px solid var(--line2)",background:"var(--panel)",color:"var(--soft)",fontWeight:600,fontSize:11.5,cursor:xfer.from&&xfer.to?"pointer":"default",opacity:xfer.from&&xfer.to?1:.5}}>Move</button>
            <span style={{fontSize:10.5}}>(applied when you Save)</span>
          </div></div>
-       {!isAsset&&<div><span style={lab}>{f.type==="theme"?"ITEMS IN THIS SETUP":"LINKED TO SETUP(S)"} <span style={{color:"var(--muted)",fontWeight:400}}>({f.type==="theme"?"outfit / backdrop / props":"the setup(s) this belongs to"})</span></span>
-         <ItemPicker pool={all.filter(a=>item.type==="theme"?a.type==="item":a.type==="theme")} selectedIds={links} onToggle={id=>toggleLink(id)} emptyHint={item.type==="theme"?"None yet — pick outfits / props / backdrops below.":"None yet — pick the setup(s) this belongs to."}/>
+       {!isAsset&&item.type==="theme"&&<div><span style={lab}>ITEMS IN THIS SETUP <span style={{color:"var(--muted)",fontWeight:400}}>(outfit / backdrop / props)</span></span>
+         <ItemPicker pool={all.filter(a=>a.type==="item"&&a.item_group==="shoot")} selectedIds={links} onToggle={id=>toggleLink(id)} emptyHint="None yet — pick outfits / props / backdrops below."/>
        </div>}
        {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>(shows under the New filter)</span></span></div>}
        {(f.type==="theme"&&(f.session_type==="Cake Smash"||f.session_type==="Sitter"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("Real balloon")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Real balloon"])]:(f.static_tags||[]).filter(x=>x!=="Real balloon"))}/><span style={{fontSize:13,fontWeight:500}}>Real balloon <span style={{color:"var(--muted)",fontWeight:400}}>(off = plain theme — Cake Smash &amp; Sitter)</span></span></div>}
