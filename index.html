@@ -1171,9 +1171,41 @@ const codePrefix=(cat,seg)=>(CAT_CODE[cat]||((cat||"XX").replace(/[^A-Za-z]/g,""
 async function nextCode(cat,seg){const p=codePrefix(cat,seg)+"-";if(!sb)return p+"001";const {data}=await sb.from("inv_item").select("code").like("code",p+"%");let mx=0;(data||[]).forEach(r=>{const m=/(\d+)\s*$/.exec(r.code||"");if(m)mx=Math.max(mx,parseInt(m[1],10))});return p+String(mx+1).padStart(3,"0");}
 function Barcode({value,height=46}){const ref=useRef(null);useEffect(()=>{if(ref.current&&window.JsBarcode&&value){try{window.JsBarcode(ref.current,value,{format:"CODE128",height,fontSize:13,margin:6,displayValue:true});}catch(e){}}},[value,height]);return <svg ref={ref} style={{maxWidth:"100%"}}/>;}
 
+// pick the exact showcase board + section an item should publish into
+function WebsitePlacement({studios=[],session,type,kind,gender,value=[],onChange}){
+ const [secs,setSecs]=useState([]);
+ const [addB,setAddB]=useState(""),[addT,setAddT]=useState("");
+ useEffect(()=>{if(sb)sb.from("showcase_section").select("id,board,title,sort,dyn").order("sort").then(({data})=>setSecs(data||[]))},[]);
+ const showKind=type==="theme"?"Themes & setups":(type==="item"&&kind==="outfit")?"Outfits":null;
+ const sel=new Set(value);
+ const toggle=id=>{const n=new Set(sel);n.has(id)?n.delete(id):n.add(id);onChange([...n]);};
+ const mk=async(board)=>{const t=addT.trim();if(!t||!sb){setAddB("");return;}const mx=Math.max(0,...secs.filter(s=>s.board===board).map(s=>s.sort||0));const {data}=await sb.from("showcase_section").insert({board,title:t,sort:mx+1,dyn:false}).select().single();if(data){setSecs(s=>[...s,data]);onChange([...value,data.id]);}setAddB("");setAddT("");};
+ if(!showKind) return <div style={{fontSize:12,color:"var(--muted)"}}>Only setups (themes) and outfits appear in the public website galleries.</div>;
+ if(!studios.length||!session) return <div style={{fontSize:12,color:"var(--muted)"}}>Pick the studio(s) and session above first — then choose where it appears.</div>;
+ const needGender=!NO_GENDER.includes(session);
+ const genSegs=!needGender?[null]:((gender&&gender!=="Unisex"&&gender!=="Neutral")?[gender==="Girl"?"Girls":gender==="Boy"?"Boys":"Twins"]:["Girls","Boys","Twins"]);
+ const boards=[];studios.forEach(st=>genSegs.forEach(g=>boards.push([st,session,showKind,g].filter(Boolean).join(" · "))));
+ const chip=(label,on,onClick,dim)=><button type="button" key={label} onClick={onClick} disabled={!!dim} style={{fontSize:11.5,fontWeight:600,padding:"5px 11px",borderRadius:20,border:`1px solid ${on?"var(--ink)":"var(--line2)"}`,background:on?"var(--ink)":"var(--panel)",color:on?"#fff":dim?"var(--muted)":"var(--soft)",cursor:dim?"default":"pointer",opacity:dim?.7:1}}>{label}{on?" ✓":""}</button>;
+ const selNames=value.map(id=>secs.find(x=>x.id===id)).filter(Boolean);
+ return <div style={{display:"flex",flexDirection:"column",gap:12}}>
+   {boards.map(b=>{const bsecs=secs.filter(s=>s.board===b);return <div key={b}>
+     <div style={{fontSize:12,fontWeight:700,color:"var(--ink)",marginBottom:6}}>{b}</div>
+     <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+       {bsecs.filter(s=>!s.dyn).map(s=>chip(s.title,sel.has(s.id),()=>toggle(s.id)))}
+       {bsecs.filter(s=>s.dyn).map(s=>chip(s.title+" · auto",false,null,true))}
+       {addB===b?<span style={{display:"inline-flex",gap:5,alignItems:"center"}}><input autoFocus value={addT} onChange={e=>setAddT(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();mk(b);}else if(e.key==="Escape"){setAddB("");setAddT("");}}} placeholder="section name…" style={{width:130,minHeight:30,fontSize:12}}/><button type="button" onMouseDown={e=>{e.preventDefault();mk(b);}} style={{padding:"6px 10px",borderRadius:7,border:"none",background:"var(--ink)",color:"#fff",fontSize:11.5,fontWeight:600}}>Add</button></span>
+        :<button type="button" onClick={()=>{setAddB(b);setAddT("");}} style={{fontSize:11.5,fontWeight:600,padding:"5px 11px",borderRadius:20,border:"1px dashed var(--line2)",background:"var(--panel)",color:"var(--soft)"}}>+ New section</button>}
+     </div>
+   </div>;})}
+   {selNames.length>0?<div style={{background:"#eef7f0",border:"1px solid #b9e3c6",borderRadius:8,padding:"9px 12px"}}>
+     <div style={{fontSize:10.5,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",color:"#1f9d57",marginBottom:5}}>Will appear here</div>
+     <div style={{display:"flex",flexDirection:"column",gap:3}}>{selNames.map(s=><div key={s.id} style={{fontSize:12,color:"#176b3e",fontWeight:600}}>{s.board} › {s.title}</div>)}</div>
+   </div>:<div style={{fontSize:11.5,color:"var(--muted)"}}>Not placed yet — pick a section above (or create one) to make it live on the site.</div>}
+ </div>;
+}
 function AddInvItem({onClose,onSaved,init={}}){
  const ig=init.grp||"shoot";
- const [f,setF]=useState({grp:ig,sessionRel:ig==="shoot",type:init.type||"item",kind:init.kind||"outfit",session_type:init.session_type||"Newborn",gender:init.gender||"",subcategory:init.subcategory||"",size:"",dimensions:"",name:"",color:"",condition:"Good",serial_no:"",assignee:"",op_status:"Available",value:"",value_currency:DEFAULT_CCY,purchase_date:"",acquired_on:today(),perLocDate:false,photo_url:"",extra_photos:[],purchase_url:"",usable_for:[],static_tags:init.static_tags||[],website_display:!!init.website_display,notes:""});
+ const [f,setF]=useState({grp:ig,sessionRel:ig==="shoot",type:init.type||"item",kind:init.kind||"outfit",session_type:init.session_type||"Newborn",gender:init.gender||"",subcategory:init.subcategory||"",size:"",dimensions:"",name:"",color:"",condition:"Good",serial_no:"",assignee:"",op_status:"Available",value:"",value_currency:DEFAULT_CCY,purchase_date:"",acquired_on:today(),perLocDate:false,photo_url:"",extra_photos:[],purchase_url:"",usable_for:[],static_tags:init.static_tags||[],website_display:!!init.website_display,placeSections:[],notes:""});
  const OPSTATUS=["Available","In use","In repair","Retired","For sale"];
  const [locs,setLocs]=useState(()=>{const m={};(init.locs||[]).forEach(b=>{if(BR.includes(b))m[b]={on:true,qty:1,times:0};});return m;});
  const [linkIds,setLinkIds]=useState([]),[cand,setCand]=useState([]);
@@ -1223,11 +1255,12 @@ function AddInvItem({onClose,onSaved,init={}}){
    if(!valid||busy)return;setBusy(true);setErr("");
    try{
      const code=await nextCode(catForCode,seg);
-     const row={code,item_group:f.grp||(f.sessionRel?"shoot":"supplies"),type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.sessionRel?f.session_type:null,subcategory:f.subcategory||null,gender:(!f.sessionRel||NO_GENDER.includes(f.session_type))?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:isAsset?(f.op_status||"Available"):null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:f.condition,website_display:!!f.website_display,notes:f.notes||null};
+     const row={code,item_group:f.grp||(f.sessionRel?"shoot":"supplies"),type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.sessionRel?f.session_type:null,subcategory:f.subcategory||null,gender:(!f.sessionRel||NO_GENDER.includes(f.session_type))?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:isAsset?(f.op_status||"Available"):null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:f.condition,website_display:(f.placeSections||[]).length>0,notes:f.notes||null};
      const {data,error}=await sb.from("inv_item").insert({...row,times_selected:chosen.reduce((s,b)=>s+(Number(locs[b].times)||0),0)}).select().single();if(error)throw error;
      const locRows=chosen.map(b=>({item_id:data.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:f.condition,size:f.kind==="outfit"?(locs[b].size||null):null,acquired_on:(f.perLocDate?(locs[b].date||f.acquired_on):f.acquired_on)||null}));
      if(locRows.length){const {error:e2}=await sb.from("inv_item_location").insert(locRows);if(e2)throw e2;}
      if(linkIds.length)await sb.from("inv_theme_item").insert(linkIds.map(cid=>f.type==="theme"?({theme_id:data.id,component_item_id:cid}):({theme_id:cid,component_item_id:data.id})));
+     if((f.placeSections||[]).length)await sb.from("showcase_section_item").insert(f.placeSections.map(sid=>({section_id:sid,item_id:data.id})));
      setSaved({...data,_locs:locRows});onSaved&&onSaved(data);
    }catch(e){setErr(e.message||String(e));}
    setBusy(false);
@@ -1347,7 +1380,7 @@ function AddInvItem({onClose,onSaved,init={}}){
            <div style={{display:"flex",flexDirection:"column",gap:8}}>
              {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<label style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px",cursor:"pointer"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>· shows under the New filter</span></span></label>}
              {(f.type==="theme"&&(f.session_type==="Cake Smash"||f.session_type==="Sitter"))&&<label style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px",cursor:"pointer"}}><Toggle on={(f.static_tags||[]).includes("Real balloon")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Real balloon"])]:(f.static_tags||[]).filter(x=>x!=="Real balloon"))}/><span style={{fontSize:13,fontWeight:500}}>Real balloon <span style={{color:"var(--muted)",fontWeight:400}}>· off = plain theme (Cake Smash &amp; Sitter)</span></span></label>}
-             {!isAsset&&<label style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px",cursor:"pointer"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"} <span style={{color:"var(--muted)",fontWeight:400}}>· still needs to be added to a Showcase section to actually appear</span></span></label>}
+             {!isAsset&&<div style={{background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"12px 14px"}}><div style={{fontSize:12.5,fontWeight:700,marginBottom:9}}>Show on website <span style={{color:"var(--muted)",fontWeight:400}}>· choose exactly where it appears</span></div><WebsitePlacement studios={chosen} session={f.session_type} type={f.type} kind={f.kind} gender={f.gender} value={f.placeSections||[]} onChange={v=>set("placeSections",v)}/></div>}
            </div>
          </Section>
 
@@ -1412,7 +1445,9 @@ function InvEdit({item,onClose,onSaved}){
  const archive=async()=>{const na=!f.archived;setBusy(true);setErr("");if(sb){const {error}=await sb.from("inv_item").update({archived:na,archived_at:na?new Date().toISOString():null}).eq("id",item.id);if(error){setErr("Couldn't "+(na?"archive":"restore")+": "+error.message);setBusy(false);return;}}onSaved&&onSaved();};
  const doXfer=()=>{const {from,to}=xfer,q=Number(xfer.qty)||0;if(!from||!to||from===to||q<=0)return;setLocs(p=>{const fq=Math.max(0,(Number((p[from]||{}).qty)||0)-q);const nf={...(p[from]||{}),qty:fq,on:fq>0?(p[from]||{}).on:false};const ex=p[to]||{};const nt={on:true,qty:(Number(ex.qty)||0)+q,times:ex.times||0,cond:ex.cond||(p[from]||{}).cond||"Good",date:ex.date||today()};return {...p,[from]:nf,[to]:nt};});setXfer({from:"",to:"",qty:1});};
  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+ const [place,setPlace]=useState([]),[place0,setPlace0]=useState([]);
  useEffect(()=>{(async()=>{if(!sb)return;
+   const {data:pl}=await sb.from("showcase_section_item").select("section_id").eq("item_id",item.id);const pids=[...new Set((pl||[]).map(x=>x.section_id))];setPlace(pids);setPlace0(pids);
    const {data:l}=await sb.from("inv_item_location").select("*").eq("item_id",item.id);
    const m={};(l||[]).forEach(r=>{m[r.location]={on:true,qty:r.quantity,times:r.times_selected||0,cond:r.condition||item.condition||"Good",size:r.size||item.size||"",date:r.acquired_on||(item.created_at?item.created_at.slice(0,10):"")}});setLocs(m);
    if(item.type==="theme"){const {data:tl}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",item.id);setLinks((tl||[]).map(x=>x.component_item_id));}
@@ -1443,7 +1478,10 @@ function InvEdit({item,onClose,onSaved}){
      let code=f.code;if(code&&!code.startsWith(codePrefix(catE,segE)+"-"))code=await nextCode(catE,segE);
      const on=BR.filter(b=>locs[b]&&locs[b].on),off=BR.filter(b=>!(locs[b]&&locs[b].on));
      const itemCond=on.length?(locs[on[0]].cond||f.condition||"Good"):(f.condition||"Good");
-     await sb.from("inv_item").update({code,name:f.name,type:f.type,kind:f.type==="item"?f.kind:null,session_type:f.session_type,subcategory:f.subcategory||null,gender:NO_GENDER.includes(f.session_type)?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:f.op_status||null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:itemCond,notes:f.notes||null,website_display:!!f.website_display,times_selected:totalSel}).eq("id",item.id);
+     await sb.from("inv_item").update({code,name:f.name,type:f.type,kind:f.type==="item"?f.kind:null,session_type:f.session_type,subcategory:f.subcategory||null,gender:NO_GENDER.includes(f.session_type)?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:f.op_status||null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:itemCond,notes:f.notes||null,website_display:place.length>0,times_selected:totalSel}).eq("id",item.id);
+     {const add=place.filter(id=>!place0.includes(id)),rem=place0.filter(id=>!place.includes(id));
+      if(add.length)await sb.from("showcase_section_item").insert(add.map(sid=>({section_id:sid,item_id:item.id})));
+      for(const sid of rem)await sb.from("showcase_section_item").delete().eq("item_id",item.id).eq("section_id",sid);}
      if(on.length)await sb.from("inv_item_location").upsert(on.map(b=>({item_id:item.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:(locs[b].cond||"Good"),size:f.kind==="outfit"?(locs[b].size||null):null,acquired_on:locs[b].date||null})));
      for(const b of off)await sb.from("inv_item_location").delete().eq("item_id",item.id).eq("location",b);
      onSaved&&onSaved();
@@ -1524,7 +1562,7 @@ function InvEdit({item,onClose,onSaved}){
        </div>}
        {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>(shows under the New filter)</span></span></div>}
        {(f.type==="theme"&&(f.session_type==="Cake Smash"||f.session_type==="Sitter"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("Real balloon")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Real balloon"])]:(f.static_tags||[]).filter(x=>x!=="Real balloon"))}/><span style={{fontSize:13,fontWeight:500}}>Real balloon <span style={{color:"var(--muted)",fontWeight:400}}>(off = plain theme — Cake Smash &amp; Sitter)</span></span></div>}
-       {!isAsset&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"}</span></div>}
+       {!isAsset&&<div style={{background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"12px 14px"}}><div style={{fontSize:12.5,fontWeight:700,marginBottom:9}}>Show on website <span style={{color:"var(--muted)",fontWeight:400}}>· choose exactly where it appears</span></div><WebsitePlacement studios={BR.filter(b=>locs[b]&&locs[b].on)} session={f.session_type} type={f.type} kind={f.kind} gender={f.gender} value={place} onChange={setPlace}/></div>}
        {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8}}>{err}</div>}
        <div style={{display:"flex",gap:10,alignItems:"center"}}>
          {del?<span style={{display:"flex",alignItems:"center",gap:8,marginRight:"auto"}}><span style={{fontSize:12.5,color:"var(--danger)",fontWeight:600}}>Delete this card?</span><button onClick={remove} disabled={busy} style={{padding:"9px 14px",background:"var(--danger)",color:"#fff",borderRadius:8,fontWeight:600,fontSize:12.5}}>Yes, delete</button><button onClick={()=>setDel(false)} style={{fontSize:12.5,color:"var(--soft)",fontWeight:600}}>No</button></span>
