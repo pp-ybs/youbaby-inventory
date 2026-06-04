@@ -104,15 +104,15 @@ const ELEC_CAT={Camera:"Cameras & Lenses",Lens:"Cameras & Lenses","Lens Adaptor"
  Flash:"Lighting","Continuous Light":"Lighting","Trigger/Receiver":"Lighting","Softbox/Modifier":"Lighting",Umbrella:"Lighting",Reflector:"Lighting","Light Stand":"Lighting","Boom Stand":"Lighting",
  "Battery/Charger":"Power & Storage","SD Card":"Power & Storage",
  Computer:"Computers & Devices",Phone:"Computers & Devices",Tablet:"Computers & Devices",Printer:"Computers & Devices","Card Machine":"Computers & Devices",CCTV:"Computers & Devices",Audio:"Computers & Devices",
- Furniture:"Furniture",Appliance:"Appliances",Diffuser:"Appliances",
- "Studio Prop":"Studio Props","Helium Tank":"Studio Equipment",Trolley:"Studio Equipment","Posing Bed":"Studio Equipment",
+ Furniture:"Furniture",Appliance:"Consumables",Diffuser:"Consumables",
+ "Studio Prop":"Studio Props","Helium Tank":"Consumables",Trolley:"Studio Equipment","Posing Bed":"Studio Equipment",
  Key:"Keys",Other:"Other"};
-const ELEC_CATS=["Cameras & Lenses","Lighting","Power & Storage","Computers & Devices","Studio Equipment","Studio Props","Furniture","Appliances","Keys","Other"];
+const ELEC_CATS=["Cameras & Lenses","Lighting","Power & Storage","Computers & Devices","Studio Equipment","Studio Props","Furniture","Consumables","Appliances","Keys","Other"];
 const elecCat = r => ELEC_CAT[r.subcategory]||"Other";
 const NO_SERIAL = new Set(["Key","Furniture","Studio Prop","Helium Tank","Diffuser","Appliance"]);
 const NO_VALUE = new Set(["Key"]);
 const ASSET_TYPES=Object.keys(ELEC_CAT); // suggestion list for the asset Type field
-const ELEC_CAT_COLOR={"Cameras & Lenses":"#3e7bfa","Lighting":"#f0a23c","Power & Storage":"#22b573","Computers & Devices":"#7c4dff","Studio Equipment":"#18b8c4","Studio Props":"#22b573","Furniture":"#ff8f5e","Appliances":"#ff6468","Keys":"#9aa0b0","Other":"#9aa0b0"};
+const ELEC_CAT_COLOR={"Cameras & Lenses":"#3e7bfa","Lighting":"#f0a23c","Power & Storage":"#22b573","Computers & Devices":"#7c4dff","Studio Equipment":"#18b8c4","Studio Props":"#22b573","Furniture":"#ff8f5e","Consumables":"#48b08c","Appliances":"#ff6468","Keys":"#9aa0b0","Other":"#9aa0b0"};
 // pick a friendly icon + tint for items without a photo, based on type/kind
 function itemIcon(r){
   const sc=r.subcategory||"";
@@ -1250,7 +1250,7 @@ function AddInvItem({onClose,onSaved,init={}}){
  </div>;
  const isMobile=typeof window!=="undefined" && window.innerWidth<640;
  // Persistent breadcrumb under the title — replaces the old in-section "Path" box.
- const pathSegs=(()=>{ const segs=[]; segs.push(f.grp==="shoot"?"Session inventory":f.grp==="electronics"?"Equipment":"Consumables"); if(chosen.length) segs.push(chosen.join(", ")); if(f.sessionRel&&f.session_type) segs.push(f.session_type); if(!isAsset){ const t = f.type==="theme" ? (f.session_type==="Gender Reveal"?"Reveal":"Setup") : (f.kind?ucf(f.kind):"Item"); segs.push(t); } if(showGender&&f.gender) segs.push(f.gender); return segs; })();
+ const pathSegs=(()=>{ const segs=[]; segs.push(f.grp==="shoot"?"Session inventory":f.grp==="electronics"?"Equipment":"Others"); if(chosen.length) segs.push(chosen.join(", ")); if(f.sessionRel&&f.session_type) segs.push(f.session_type); if(!isAsset){ const t = f.type==="theme" ? (f.session_type==="Gender Reveal"?"Reveal":"Setup") : (f.kind?ucf(f.kind):"Item"); segs.push(t); } if(showGender&&f.gender) segs.push(f.gender); return segs; })();
  const pathBreadcrumb=<div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",fontSize:11.5}}>{pathSegs.map((s,i)=><React.Fragment key={i}>{i>0&&<span style={{color:"var(--muted)"}}>›</span>}<span style={{fontWeight:600,color:"var(--ink)"}}>{s}</span></React.Fragment>)}{!chosen.length&&<span style={{color:"var(--muted)",fontStyle:"italic"}}>· pick a studio</span>}</div>;
  const grpAccent=f.grp==="shoot"?"#3e7bfa":f.grp==="electronics"?"#7c4dff":"#ff8f5e";
  // What's missing for save — used in the sticky bar
@@ -1280,7 +1280,7 @@ function AddInvItem({onClose,onSaved,init={}}){
          {/* PLACEMENT — mirrors the Catalog drilldown (Group → Studio → Session → Type → Kind → Gender) */}
          <Section title="Placement" hint="where this item lives in the catalogue" accent={grpAccent}>
            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-             <div><span style={lab}>Group</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{pill(f.grp==="shoot",()=>setF(p=>({...p,grp:"shoot",sessionRel:true})),"Session inventory","#3e7bfa")}{pill(f.grp==="electronics",()=>setF(p=>({...p,grp:"electronics",sessionRel:false,type:"item",kind:"other"})),"Equipment","#7c4dff")}{pill(f.grp==="facility",()=>setF(p=>({...p,grp:"facility",sessionRel:false,type:"item",kind:"other"})),"Consumables","#ff8f5e")}</div></div>
+             <div><span style={lab}>Group</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{pill(f.grp==="shoot",()=>setF(p=>({...p,grp:"shoot",sessionRel:true})),"Session inventory","#3e7bfa")}{pill(f.grp==="electronics",()=>setF(p=>({...p,grp:"electronics",sessionRel:false,type:"item",kind:"other"})),"Equipment","#7c4dff")}{pill(f.grp==="facility",()=>setF(p=>({...p,grp:"facility",sessionRel:false,type:"item",kind:"other"})),"Others","#ff8f5e")}</div></div>
              <div><span style={lab}>Location(s)<span style={labHint}>· tap the studios it's in</span></span>
                <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <button type="button" key={b} onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1,times:(p[b]&&p[b].times)||0}}))} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:9,border:`1.5px solid ${on?BR_COLOR[b]:"var(--line2)"}`,background:on?BR_COLOR[b]+"1c":"var(--panel)",color:on?BR_COLOR[b]:"var(--soft)",fontSize:13,fontWeight:on?700:600,minHeight:38,transition:"all .12s"}}><Dot c={BR_COLOR[b]} s={8}/>{b}</button>})}</div>
                {chosen.length>0&&<div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(220px,1fr))",gap:8,marginTop:10}}>{chosen.map(b=><div key={b} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"var(--panel2)",border:`1px solid ${BR_COLOR[b]}44`,borderRadius:8}}>
@@ -1610,7 +1610,7 @@ function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
          </div>
        </div>}
        {tab==="Specifications"&&<div>
-         <Row k="Group" v={r.item_group==="shoot"?"Session inventory":r.item_group==="facility"?"Consumables":"Equipment"}/>
+         <Row k="Group" v={r.item_group==="shoot"?"Session inventory":r.item_group==="facility"?"Others":"Equipment"}/>
          <Row k="Category / type" v={r.subcategory||r.session_type||ucf(r.kind||"")}/>
          <Row k="Status" v={r.op_status}/>
          <Row k="Serial no" v={r.serial_no}/>
@@ -1666,7 +1666,7 @@ function NewInventory({initCat=""}){
  const togglePick=id=>setPicked(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
  const isElecView=groupF==="electronics"||groupF==="facility";
  const vm=vmode||(isElecView?"list":"grid");
- const GL={shoot:"Session inventory",electronics:"Equipment",facility:"Consumables"};
+ const GL={shoot:"Session inventory",electronics:"Equipment",facility:"Others"};
  const catSel=isElecView?ecatF:catF;
  const needGenderCat=c=>!!c&&!NO_GENDER.includes(c);
  const BUCKETS=[["theme","Themes & setups",I.layers],["outfit","Outfits",I.shirt],["items","Items",I.box]];
