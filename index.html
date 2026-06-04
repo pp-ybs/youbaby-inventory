@@ -69,6 +69,10 @@ const D = window.YBS_DATA || {themes:[],categories:[],branches:[]};
 const SB_URL="https://ahysgpjnhldhdeinymrd.supabase.co";
 const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFoeXNncGpuaGxkaGRlaW55bXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTk3MTYsImV4cCI6MjA5MTM5NTcxNn0.qq4BA212jK39iiQP8X4dADDb7Wm9Id2ygEvRdKqlvxg";
 const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null;
+// who's logged in (for comment authorship) + a cached staff-name list for assignment
+let ME="";
+let STAFF_CACHE=null;
+async function loadStaffNames(){if(STAFF_CACHE)return STAFF_CACHE;if(!sb){STAFF_CACHE=[];return STAFF_CACHE;}try{const {data}=await sb.from("staff").select("name").order("name");STAFF_CACHE=[...new Set((data||[]).map(s=>s.name).filter(Boolean))];}catch(e){STAFF_CACHE=[];}return STAFF_CACHE;}
 
 const CATS=['Cake Smash','Sitter','Maternity','Infant','Newborn'];
 let CAT_COLOR={'Cake Smash':'#8a8f9c','Sitter':'#8a8f9c','Maternity':'#8a8f9c','Infant':'#8a8f9c','Newborn':'#8a8f9c','Children':'#8a8f9c','Gender Reveal':'#8a8f9c'};
@@ -1178,6 +1182,8 @@ function AddInvItem({onClose,onSaved,init={}}){
  const [kAdd,setKAdd]=useState(false),[kTxt,setKTxt]=useState("");
  const [moreOpen,setMoreOpen]=useState(false);
  const [aiBusy,setAiBusy]=useState(false),[aiMsg,setAiMsg]=useState(""),[aiPreview,setAiPreview]=useState(null);
+ const [staffNames,setStaffNames]=useState([]);
+ useEffect(()=>{loadStaffNames().then(setStaffNames)},[]);
  const set=(k,v)=>setF(p=>({...p,[k]:v}));
  const addKind=async()=>{const v=kTxt.trim();if(v){await addTaxOption("kind",f.session_type,v);set("kind",v);}setKTxt("");setKAdd(false);};
  const seg=f.type==="theme"?"SET":(KIND_CODE[f.kind]||"IT");
@@ -1316,7 +1322,9 @@ function AddInvItem({onClose,onSaved,init={}}){
                {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} list="assettypesA" placeholder="e.g. Camera, Lens, Furniture" style={inputStyle}/><datalist id="assettypesA">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
                {isAsset&&<div><span style={lab}>Status</span><select value={f.op_status} onChange={e=>set("op_status",e.target.value)} style={inputStyle}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
                {isAsset&&!NO_SERIAL.has(f.subcategory)&&<div><span style={lab}>Serial no</span><input value={f.serial_no} onChange={e=>set("serial_no",e.target.value)} placeholder="serial / IMEI" style={inputStyle}/></div>}
-               {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"Key holder":"Assigned to / held at"}</span><input value={f.assignee} onChange={e=>set("assignee",e.target.value)} placeholder="person or room" style={inputStyle}/></div>}
+               {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"Key holder":"Assigned to / held at"}</span><input value={f.assignee} onChange={e=>set("assignee",e.target.value)} list="staffnamesA" placeholder="person or room" style={inputStyle}/></div>}
+               {!isAsset&&<div><span style={lab}>Assigned to<span style={labHint}>· optional</span></span><input value={f.assignee} onChange={e=>set("assignee",e.target.value)} list="staffnamesA" placeholder="person responsible" style={inputStyle}/></div>}
+               <datalist id="staffnamesA">{staffNames.map(n=><option key={n} value={n}/>)}</datalist>
                {showStyle&&<div><span style={lab}>Style</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={STYLE_OPTS[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("style",f.session_type,v)} placeholder="New style…" addLabel="+ Add style…"/></div>}
                {showSetupStyle&&<div><span style={lab}>Reveal type</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={SETUP_STYLE[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("setup",f.session_type,v)} placeholder="New reveal type…" addLabel="+ Add reveal type…"/></div>}
                {showSub&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!subList.includes(v))addTaxOption(f.kind==="prop"?"propsub":"subkind",f.kind==="prop"?f.session_type:f.kind,v);}} list="subopts" placeholder={SUBTYPE_PH[f.kind]||""} style={inputStyle}/><datalist id="subopts">{subList.map(s=><option key={s} value={s}/>)}</datalist></div>}
@@ -1384,6 +1392,8 @@ function InvEdit({item,onClose,onSaved}){
  const [all,setAll]=useState([]);
  const [busy,setBusy]=useState(false),[err,setErr]=useState(""),[del,setDel]=useState(false),[xfer,setXfer]=useState({from:"",to:"",qty:1});
  const [genBusy,setGenBusy]=useState(false),[genMsg,setGenMsg]=useState("");
+ const [staffNames,setStaffNames]=useState([]);
+ useEffect(()=>{loadStaffNames().then(setStaffNames)},[]);
  const generatePhoto=async()=>{
    if(genBusy||!item.id) return;
    const isAsset=item.item_group!=="shoot";
@@ -1470,7 +1480,9 @@ function InvEdit({item,onClose,onSaved}){
          {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)} list="assettypesE" placeholder="e.g. Camera, Lens, Furniture"/><datalist id="assettypesE">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
          {isAsset&&<div><span style={lab}>Status</span><select value={f.op_status||"Available"} onChange={e=>set("op_status",e.target.value)}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
          {isAsset&&!NO_SERIAL.has(f.subcategory)&&<div><span style={lab}>Serial no</span><input value={f.serial_no||""} onChange={e=>set("serial_no",e.target.value)} placeholder="serial / IMEI"/></div>}
-         {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"KEY HOLDER":"ASSIGNED TO / HELD AT"}</span><input value={f.assignee||""} onChange={e=>set("assignee",e.target.value)} placeholder="person or room"/></div>}
+         {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"KEY HOLDER":"ASSIGNED TO / HELD AT"}</span><input value={f.assignee||""} onChange={e=>set("assignee",e.target.value)} list="staffnamesE" placeholder="person or room"/></div>}
+         {!isAsset&&<div><span style={lab}>Assigned to <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><input value={f.assignee||""} onChange={e=>set("assignee",e.target.value)} list="staffnamesE" placeholder="person responsible"/></div>}
+         <datalist id="staffnamesE">{staffNames.map(n=><option key={n} value={n}/>)}</datalist>
          {isAsset&&f.subcategory!=="Key"&&<div><span style={lab}>Origin <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><input value={f.origin||""} onChange={e=>set("origin",e.target.value)} placeholder="e.g. brand / source"/></div>}
          {showStyle&&<div><span style={lab}>Style</span><TaxSelect value={f.subcategory||""} onChange={v=>set("subcategory",v)} options={STYLE_OPTS[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("style",f.session_type,v)} placeholder="New style…" addLabel="+ Add style…"/></div>}
          {showSetupStyle&&<div><span style={lab}>Reveal type</span><TaxSelect value={f.subcategory||""} onChange={v=>set("subcategory",v)} options={SETUP_STYLE[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("setup",f.session_type,v)} placeholder="New reveal type…" addLabel="+ Add reveal type…"/></div>}
@@ -1550,6 +1562,17 @@ const ST_COL=s=>s==="Available"?"#16a34a":s==="In use"?"#2563eb":s==="In repair"
 function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
  const [tab,setTab]=useState("Overview");
  const [comp,setComp]=useState([]);
+ const [staffNames,setStaffNames]=useState([]);
+ const [assignee,setAssignee]=useState(r.assignee||"");
+ const [comments,setComments]=useState([]);
+ const [cbody,setCbody]=useState(""),[cflag,setCflag]=useState("");
+ useEffect(()=>{loadStaffNames().then(setStaffNames)},[]);
+ useEffect(()=>{setAssignee(r.assignee||"");if(sb)sb.from("item_comment").select("*").eq("item_id",r.id).order("created_at",{ascending:false}).then(({data})=>setComments(data||[]));},[r.id]);
+ const saveAssignee=async v=>{setAssignee(v);if(sb)await sb.from("inv_item").update({assignee:v||null}).eq("id",r.id);};
+ const addComment=async()=>{const b=cbody.trim();if(!b)return;const row={item_id:r.id,author:ME||"Staff",body:b,flag:cflag||null};if(sb){const {data}=await sb.from("item_comment").insert(row).select().single();if(data)setComments(c=>[data,...c]);}else{setComments(c=>[{...row,id:Math.random(),created_at:new Date().toISOString()},...c]);}setCbody("");setCflag("");};
+ const delComment=async id=>{setComments(c=>c.filter(x=>x.id!==id));if(sb)await sb.from("item_comment").delete().eq("id",id);};
+ const CFLAGS=[["","Note"],["Issue","Issue"],["Broken","Broken"],["Maintenance","Maintenance"]];
+ const flagColor=fl=>fl==="Broken"?"#ff5a5f":fl==="Issue"?"#f0a23c":fl==="Maintenance"?"#7c4dff":"#8a8f9c";
  useEffect(()=>{(async()=>{if(!sb){setComp([]);return;}let ids=[];
    if(r.type==="theme"){const {data}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",r.id);ids=(data||[]).map(x=>x.component_item_id);}
    else{const {data}=await sb.from("inv_theme_item").select("theme_id").eq("component_item_id",r.id);ids=(data||[]).map(x=>x.theme_id);}
@@ -1570,11 +1593,13 @@ function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
        <div style={{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap"}}><span style={{fontSize:18,fontWeight:700,letterSpacing:"-.01em"}}>{r.name||"—"}</span>{st&&<span style={{fontSize:11.5,fontWeight:600,color:ST_COL(st),display:"inline-flex",alignItems:"center",gap:5}}><Dot c={ST_COL(st)} s={6}/>{st}</span>}</div>
        <div style={{fontSize:12,color:"var(--muted)",marginTop:3}}><span style={{fontFamily:"ui-monospace,monospace"}}>{r.code}</span>{r.brand?" · "+r.brand:""}{sub?" · "+sub:""}</div>
      </div>
-     <div style={{display:"flex",gap:4,padding:"10px 16px 0"}}>{tabs.map(t=><button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:"8px 0",fontSize:12.5,fontWeight:600,color:tab===t?"var(--ink)":"var(--muted)",borderBottom:`2px solid ${tab===t?"var(--ink)":"transparent"}`}}>{t}</button>)}</div>
+     <div style={{display:"flex",gap:4,padding:"10px 16px 0"}}>{tabs.map(t=><button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:"8px 0",fontSize:12.5,fontWeight:600,color:tab===t?"var(--ink)":"var(--muted)",borderBottom:`2px solid ${tab===t?"var(--ink)":"transparent"}`}}>{t==="Activity"&&comments.length?"Activity · "+comments.length:t}</button>)}</div>
      <div style={{padding:"16px 20px 24px"}}>
        {tab==="Overview"&&<div>
          <div style={{width:"100%",aspectRatio:"16/10",borderRadius:8,overflow:"hidden",background:"var(--panel2)",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:14}}>{r.photo_url?<img src={r.photo_url} style={{width:"100%",height:"100%",objectFit:"contain"}}/>:<Icon d={ic.d} s={40} c={ic.c} sw={1.5}/>}</div>
-         {isAsset&&<div style={{background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"12px 14px",marginBottom:12}}><div style={{fontSize:11,fontWeight:700,color:"var(--muted)",marginBottom:6}}>Assigned to / held at</div><div style={{fontSize:13.5,fontWeight:600}}>{r.assignee||"— not assigned —"}</div></div>}
+         <div style={{background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"12px 14px",marginBottom:12}}><div style={{fontSize:11,fontWeight:700,color:"var(--muted)",marginBottom:6}}>{isAsset?"Assigned to / held at":"Assigned to"}</div>
+           <input list="ipstaff" value={assignee} onChange={e=>setAssignee(e.target.value)} onBlur={e=>{if((e.target.value||"")!==(r.assignee||""))saveAssignee(e.target.value);}} placeholder="— not assigned — type a name" style={{width:"100%",fontSize:13.5,fontWeight:600,padding:"7px 10px",borderRadius:7,border:"1px solid var(--line2)",background:"var(--panel)"}}/>
+           <datalist id="ipstaff">{staffNames.map(n=><option key={n} value={n}/>)}</datalist></div>
          <div style={{fontSize:11,fontWeight:700,color:"var(--muted)",margin:"4px 0 6px"}}>Locations</div>
          {locs.length?locs.map(l=><div key={l.location} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid var(--line)"}}><Dot c={BR_COLOR[l.location]||"#bbb"} s={8}/><span style={{fontSize:13,fontWeight:600,flex:1}}>{l.location}</span>{!isAsset&&l.condition&&<span style={{fontSize:11.5,color:COND_COLOR[l.condition],fontWeight:600,marginRight:10}}>{l.condition}</span>}<span style={{fontSize:12.5,color:"var(--soft)"}}>qty {l.quantity}</span></div>):<div style={lab}>No locations.</div>}
          {r.value!=null&&r.value!==""&&<Row k="Value" v={(r.value_currency||"")+" "+r.value}/>}
@@ -1604,7 +1629,26 @@ function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
          <Row k="First acquired" v={acq?fmtDate(acq):null}/>
          <Row k="In use for" v={acq?ageLabel(acq):null}/>
          {tracksUse(r)&&<Row k="Times selected" v={invSel(r)}/>}
-         <div style={{marginTop:16,padding:"20px",textAlign:"center",color:"var(--muted)",fontSize:12.5,background:"var(--panel2)",borderRadius:8}}>No check-out history yet.<br/>Check-out / return tracking is coming next.</div>
+         <div style={{marginTop:18}}>
+           <div style={{fontSize:11,fontWeight:700,color:"var(--muted)",marginBottom:8}}>Comments &amp; flags</div>
+           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>{CFLAGS.map(([fl,lbl])=>{const on=cflag===fl;const c=flagColor(fl);return <button key={lbl} type="button" onClick={()=>setCflag(fl)} style={{fontSize:11.5,fontWeight:600,padding:"5px 11px",borderRadius:20,border:`1px solid ${on?c:"var(--line2)"}`,background:on?c+"1c":"var(--panel)",color:on?c:"var(--soft)",cursor:"pointer"}}>{lbl}</button>;})}</div>
+           <textarea rows={2} value={cbody} onChange={e=>setCbody(e.target.value)} placeholder="Add a comment — e.g. lens cap missing, needs cleaning…" style={{width:"100%",resize:"vertical",fontSize:12.5,padding:"8px 10px",borderRadius:8,border:"1px solid var(--line2)",background:"var(--panel)"}}/>
+           <div style={{display:"flex",justifyContent:"flex-end",marginTop:6}}><button onClick={addComment} disabled={!cbody.trim()} style={{padding:"8px 16px",borderRadius:8,border:"none",background:cbody.trim()?"var(--ink)":"var(--line2)",color:"#fff",fontWeight:600,fontSize:12.5,cursor:cbody.trim()?"pointer":"default"}}>Post</button></div>
+           <div style={{display:"flex",flexDirection:"column",gap:9,marginTop:10}}>
+             {comments.length===0&&<div style={{fontSize:12,color:"var(--muted)",padding:"4px 0"}}>No comments yet.</div>}
+             {comments.map(c=><div key={c.id} className="trow" style={{border:"1px solid var(--line)",borderRadius:8,padding:"9px 11px"}}>
+               <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:3}}>
+                 {c.flag&&<span style={{fontSize:9.5,fontWeight:700,textTransform:"uppercase",letterSpacing:".03em",color:flagColor(c.flag),background:flagColor(c.flag)+"1c",borderRadius:6,padding:"2px 7px"}}>{c.flag}</span>}
+                 <span style={{fontSize:11.5,fontWeight:600,color:"var(--soft)"}}>{c.author||"Staff"}</span>
+                 <span style={{fontSize:10.5,color:"var(--muted)"}}>{c.created_at?fmtDate(c.created_at):""}</span>
+                 <span style={{flex:1}}/>
+                 <button onClick={()=>delComment(c.id)} title="Delete" style={{padding:2}}><Icon d={I.x} s={13} c="var(--muted)"/></button>
+               </div>
+               <div style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.45,whiteSpace:"pre-wrap"}}>{c.body}</div>
+             </div>)}
+           </div>
+         </div>
+         <div style={{marginTop:16,padding:"14px",textAlign:"center",color:"var(--muted)",fontSize:12,background:"var(--panel2)",borderRadius:8}}>Check-out / return tracking is coming next.</div>
        </div>}
      </div>
      <div style={{position:"sticky",bottom:0,background:"var(--panel)",borderTop:"1px solid var(--line)",padding:"12px 20px",display:"flex",gap:9}}>
@@ -1783,14 +1827,15 @@ function NewInventory({initCat=""}){
        const allOn=filtered.length>0&&filtered.every(r=>picked.has(r.id));
        const cell={display:"flex",alignItems:"center"};
        const SortH=({label,a,d,w})=>{const on=sort===a||sort===d;return <button onClick={()=>setSort(sort===a?d:a)} style={{display:"flex",alignItems:"center",gap:4,color:on?"var(--ink)":"var(--muted)",fontWeight:on?700:600,fontSize:11,...(w?{width:w}:{flex:1}),cursor:"pointer",textAlign:"left"}}>{label}{on&&<span style={{fontSize:8}}>{sort===a?"▲":"▼"}</span>}</button>;};
-       return <div style={{overflowX:"auto",borderRadius:9,border:"1px solid var(--line)",boxShadow:"var(--shadow)",background:"var(--panel)"}}><div style={{minWidth:isElecView?840:900}}>
-         <div style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px",borderBottom:"1px solid var(--line)"}}><span style={{width:18,...cell}}><input type="checkbox" checked={allOn} onChange={()=>setPicked(allOn?new Set():new Set(filtered.map(r=>r.id)))} style={{width:15,height:15,cursor:"pointer"}}/></span><SortH label="Name" a="az" d="za"/><SortH label="Category" a="catA" d="catZ" w={130}/><SortH label="Status" a="statA" d="statZ" w={110}/><SortH label="Condition" a="cond" d="condbest" w={110}/><span style={{width:140,fontSize:11,fontWeight:600,color:"var(--muted)"}}>{isElecView?"Storage location":"Studios"}</span>{!isElecView&&<span style={{width:50,...cell,justifyContent:"center",fontSize:11,fontWeight:600,color:"var(--muted)"}}>Web</span>}<span style={{width:30}}/></div>
+       return <div style={{overflowX:"auto",borderRadius:9,border:"1px solid var(--line)",boxShadow:"var(--shadow)",background:"var(--panel)"}}><div style={{minWidth:isElecView?980:1040}}>
+         <div style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px",borderBottom:"1px solid var(--line)"}}><span style={{width:18,...cell}}><input type="checkbox" checked={allOn} onChange={()=>setPicked(allOn?new Set():new Set(filtered.map(r=>r.id)))} style={{width:15,height:15,cursor:"pointer"}}/></span><SortH label="Name" a="az" d="za"/><SortH label="Category" a="catA" d="catZ" w={130}/><SortH label="Status" a="statA" d="statZ" w={110}/><SortH label="Condition" a="cond" d="condbest" w={110}/><span style={{width:130,fontSize:11,fontWeight:600,color:"var(--muted)"}}>Assigned to</span><span style={{width:140,fontSize:11,fontWeight:600,color:"var(--muted)"}}>{isElecView?"Storage location":"Studios"}</span>{!isElecView&&<span style={{width:50,...cell,justifyContent:"center",fontSize:11,fontWeight:600,color:"var(--muted)"}}>Web</span>}<span style={{width:30}}/></div>
          {filtered.map(r=>{const ic=itemIcon(r);const st=colStat(r);const isStatus=!!r.op_status;const c=ST_COL(st);const cond=condOf(r);const on=picked.has(r.id);return <div key={r.id} onClick={()=>setDetail(r)} className="trow fade" style={{display:"flex",alignItems:"center",gap:14,padding:"11px 18px",borderTop:"1px solid var(--line)",cursor:"pointer"}}>
            <span style={{width:18,...cell}} onClick={e=>{e.stopPropagation();togglePick(r.id);}}><input type="checkbox" checked={on} readOnly style={{width:15,height:15,cursor:"pointer"}}/></span>
            <div style={{display:"flex",alignItems:"center",gap:12,flex:1,minWidth:0}}><div style={{width:40,height:40,borderRadius:8,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--panel2)"}}>{r.photo_url?<img src={r.photo_url} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon d={ic.d} s={19} c={ic.c} sw={1.7}/>}</div><div style={{minWidth:0}}><div style={{fontWeight:600,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</div><div style={{fontSize:11,color:"var(--muted)",fontFamily:"ui-monospace,SFMono-Regular,monospace"}}>{r.code}</div></div></div>
            <span style={{width:130}}>{colCat(r)?<span style={{display:"inline-block",fontSize:11.5,fontWeight:500,color:"var(--soft)",border:"1px solid var(--line2)",borderRadius:8,padding:"3px 10px",whiteSpace:"nowrap",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis"}}>{colCat(r)}</span>:<span style={{color:"var(--muted)"}}>—</span>}</span>
            <span style={{width:110}}>{isStatus?<span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,fontWeight:600,color:c,background:c+"1c",borderRadius:20,padding:"3px 9px"}}><Dot c={c} s={5}/>{st}</span>:<span style={{fontSize:12.5,color:"var(--muted)"}}>{st||"—"}</span>}</span>
            <span style={{width:110,fontSize:12.5,color:cond?COND_COLOR[cond]:"var(--muted)",fontWeight:cond?500:400,display:"inline-flex",alignItems:"center",gap:6}}>{cond&&<Dot c={COND_COLOR[cond]} s={6}/>}{cond||"—"}</span>
+           <span style={{width:130,fontSize:12.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.assignee?<span style={{display:"inline-flex",alignItems:"center",gap:5,color:"var(--soft)",fontWeight:600}}><Icon d={I.users} s={13} c="var(--muted)" sw={1.7}/>{r.assignee}</span>:<span style={{color:"var(--line2)"}}>—</span>}</span>
            <span style={{width:140,fontSize:12.5,color:"var(--soft)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{(r.inv_item_location||[]).map(l=>l.location).join(", ")||"—"}</span>
            {!isElecView&&<span style={{width:50,...cell,justifyContent:"center"}} title={isPub(r)?"Published — it's in the Website Showcase":"Not on website — add it in Website Showcase to publish"}><Icon d={I.globe} s={16} c={isPub(r)?"#16a34a":"var(--line2)"}/></span>}
            <span style={{width:30,...cell,justifyContent:"flex-end"}}><button className="rowdel" onClick={e=>removeItem(r,e)} title="Remove item" style={{display:"flex",padding:4,color:"var(--danger)"}}><Icon d={I.trash} s={15} c="var(--danger)"/></button></span>
@@ -2082,7 +2127,7 @@ function App(){
  const [toast,setToast]=useState("");
  const notify=m=>{setToast(m);setTimeout(()=>setToast(""),4500);};
  const [session,setSession]=useState(sb?undefined:null);
- useEffect(()=>{if(!sb)return;sb.auth.getSession().then(({data})=>setSession(data.session));const {data:sub}=sb.auth.onAuthStateChange((_e,s)=>setSession(s));return ()=>sub.subscription.unsubscribe()},[]);
+ useEffect(()=>{if(!sb)return;sb.auth.getSession().then(({data})=>{setSession(data.session);ME=(data.session&&data.session.user&&data.session.user.email)||"";});const {data:sub}=sb.auth.onAuthStateChange((_e,s)=>{setSession(s);ME=(s&&s.user&&s.user.email)||"";});return ()=>sub.subscription.unsubscribe()},[]);
  const [view,setView]=useState(()=>/^#show=/.test(window.location.hash||"")?"showcase":"dashboard");
  const [catInit,setCatInit]=useState("");
  const [sel,setSel]=useState(null); const [form,setForm]=useState(null); // form = {} for new, theme for edit
