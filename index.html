@@ -1835,7 +1835,7 @@ function NewInventory({initCat=""}){
      const tile=(key,onClick,icd,icc,title,subT)=><button key={key} onClick={onClick} className="fade" style={{textAlign:"left",display:"flex",alignItems:"center",gap:13,background:"var(--panel)",border:"1px solid var(--line)",borderRadius:9,padding:16,boxShadow:"var(--shadow)",cursor:"pointer"}}><div style={{width:46,height:46,borderRadius:8,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:icc+"16"}}><Icon d={icd} s={23} c={icc} sw={1.7}/></div><div style={{flex:1,minWidth:0}}><div style={{fontWeight:700,fontSize:14}}>{title}</div><div style={{fontSize:12,color:"var(--muted)",marginTop:2}}>{subT}</div></div><Icon d={I.chev} s={18} c="var(--muted)"/></button>;
      const tgrid=ch=><div className="cardgrid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))",gap:12}}>{ch}</div>;
      // Level 0 — pick a group
-     if(!groupF){const gicon={shoot:I.layers,electronics:I.camera,facility:I.sofa};return tgrid(["shoot","electronics","facility"].map(g=>{const n=rows.filter(r=>!r.archived&&(r.item_group||"shoot")===g).length;return n?tile(g,()=>pickGroup(g),gicon[g],"#7c8291",GL[g],n+" items"):null;}));}
+     if(!groupF){const gicon={shoot:I.layers,electronics:I.camera,facility:I.box};return tgrid(["shoot","electronics","facility"].map(g=>{const n=rows.filter(r=>!r.archived&&(r.item_group||"shoot")===g).length;return tile(g,()=>pickGroup(g),gicon[g],"#7c8291",GL[g],n+(n===1?" item":" items"));}));}
      // Level 1 — pick a studio
      if(drillStudio){const dataLocs=[...new Set(rows.filter(r=>m(r,"loc")).flatMap(locOf).filter(Boolean))];
        const studios=[...BR,...dataLocs.filter(l=>!BR.includes(l)).sort()];
