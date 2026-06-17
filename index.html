@@ -776,7 +776,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
        </div>
      </div>
    </div>}
-   {addNew!==null&&<AddInvItem init={{grp:"shoot",session_type:scSession||"Newborn",type:scKind==="Outfits"?"item":"theme",kind:"outfit",gender:needGender?(GENDER_VAL[scGender]||""):"",locs:scLoc?[scLoc]:[]}} onClose={()=>setAddNew(null)} onSaved={async(row)=>{if(row&&row.id&&typeof addNew==="string"){await sb.from("showcase_section_item").insert({section_id:addNew,item_id:row.id});}onItemsChanged&&onItemsChanged();load();}}/>}
+   {addNew!==null&&<AddInvItem init={{grp:"shoot",session_type:scSession||"Newborn",type:scKind==="Outfits"?"item":"theme",kind:"outfit",gender:needGender?(GENDER_VAL[scGender]||""):"",locs:scLoc?[scLoc]:[],website_display:true}} onClose={()=>setAddNew(null)} onSaved={async(row)=>{if(row&&row.id&&typeof addNew==="string"){await sb.from("showcase_section_item").insert({section_id:addNew,item_id:row.id});}onItemsChanged&&onItemsChanged();load();}}/>}
    {editItem&&<InvEdit item={editItem} onClose={()=>setEditItem(null)} onSaved={()=>{setEditItem(null);load();onItemsChanged&&onItemsChanged();}}/>}
  </div>;
 }
