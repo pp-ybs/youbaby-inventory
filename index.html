@@ -97,6 +97,10 @@ const invSel = r => (r.inv_item_location||[]).reduce((s,x)=>s+(x.times_selected|
 const invQty = r => (r.inv_item_location||[]).reduce((s,x)=>s+(x.quantity||0),0);
 const tracksUse = r => r.type==="theme"||r.kind==="outfit"; // only setups & outfits count selections
 const ucf = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : s;   // First-letter capital
+// fuzzy name similarity (Dice bigram coefficient) for duplicate detection
+const _normName = s => (s||"").toLowerCase().replace(/[^a-z0-9 ]/g,"").replace(/\s+/g," ").trim();
+const _bigrams = s => { const r=new Set(); for(let i=0;i<s.length-1;i++) r.add(s.slice(i,i+2)); return r; };
+const nameSim = (a,b) => { a=_normName(a); b=_normName(b); if(!a||!b) return 0; if(a===b) return 1; const A=_bigrams(a),B=_bigrams(b); if(!A.size||!B.size) return 0; let inter=0; A.forEach(x=>{ if(B.has(x)) inter++; }); return 2*inter/(A.size+B.size); };
 const FLBL={fontSize:11,fontWeight:600,color:"var(--muted)",marginRight:6,minWidth:62,display:"inline-block"};
 const fchip=(key,on,onClick,text,count,col)=><button type="button" key={key} onClick={onClick} style={{padding:"6px 13px",borderRadius:8,border:`1px solid ${on?"#cdd2dc":"var(--line2)"}`,background:on?"#eef1f5":"var(--panel)",color:on?"var(--ink)":"var(--soft)",fontSize:12,fontWeight:on?700:500,cursor:"pointer",transition:"all .12s",whiteSpace:"nowrap"}}>{text}{count!=null&&<span style={{opacity:.5,marginLeft:5,fontWeight:600}}>{count}</span>}</button>;
 // ---- Electronics & Inventory: type → parent category, and which fields each type uses ----
@@ -1225,6 +1229,20 @@ function AddInvItem({onClose,onSaved,init={}}){
  const catForCode=f.sessionRel?f.session_type:"GEN";
  const chosen=BR.filter(b=>locs[b]&&locs[b].on);
  const valid=f.name.trim()&&(!f.sessionRel||f.session_type)&&chosen.length>0;
+ // duplicate detection — session items only (equipment can have many identical units)
+ const dupes=useMemo(()=>{const nm=f.name.trim();if(!f.sessionRel||nm.length<3)return [];
+   return cand.filter(c=>c.item_group==="shoot"&&c.session_type===f.session_type&&(f.type==="theme"?c.type==="theme":(c.type==="item"&&c.kind===f.kind))&&nameSim(c.name,nm)>=0.6)
+     .map(c=>({...c,score:nameSim(c.name,nm)})).sort((a,b)=>b.score-a.score).slice(0,3);
+ },[f.name,f.sessionRel,f.session_type,f.type,f.kind,cand]);
+ const mergeInto=async(c)=>{if(busy||!chosen.length)return;setBusy(true);setErr("");
+   try{const {data:exist}=await sb.from("inv_item_location").select("location").eq("item_id",c.id);
+     const have=new Set((exist||[]).map(x=>x.location));const addB=chosen.filter(b=>!have.has(b));
+     if(addB.length)await sb.from("inv_item_location").insert(addB.map(b=>({item_id:c.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:f.condition,acquired_on:(f.perLocDate?(locs[b].date||f.acquired_on):f.acquired_on)||null})));
+     if((f.placeSections||[]).length)await sb.from("showcase_section_item").insert(f.placeSections.map(sid=>({section_id:sid,item_id:c.id})));
+     if((f.placeSections||[]).length)await sb.from("inv_item").update({website_display:true}).eq("id",c.id);
+     onSaved&&onSaved({id:c.id,name:c.name});onClose&&onClose();
+   }catch(e){setErr(e.message||String(e));setBusy(false);}
+ };
  const kinds=f.sessionRel?(KIND_BY_CAT[f.session_type]||ITEM_KINDS):GENERAL_KINDS;
  useEffect(()=>{if(f.type==="item"&&!kinds.includes(f.kind))set("kind",kinds[0]||"other")},[f.session_type,f.sessionRel,f.type]);
  const showStyle=f.sessionRel&&STYLE_OPTS[f.session_type]&&f.type==="item"&&f.kind==="outfit";
@@ -1364,7 +1382,16 @@ function AddInvItem({onClose,onSaved,init={}}){
          {/* DETAILS — Name first, then aligned 2-col grid of secondary fields */}
          <Section title="Details" accent="var(--ink)">
            <div style={{display:"flex",flexDirection:"column",gap:14}}>
-             <div><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}><span style={{...lab,marginBottom:0}}>Name / description <span style={{color:"var(--danger)",textTransform:"none",letterSpacing:0}}>*</span></span><span style={{flex:1}}/><button type="button" onClick={aiName} disabled={aiBusy} title="Generate a name from the photo + category" style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:7,border:"none",background:aiBusy?"var(--panel2)":"linear-gradient(135deg,#3e7bfa,#7c4dff)",color:aiBusy?"var(--muted)":"#fff",fontSize:11,fontWeight:700,cursor:aiBusy?"default":"pointer"}}>{aiBusy?"…":"✨ Name it"}</button></div><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Brown Corduroy Overalls" style={{...inputStyle,fontSize:15,fontWeight:500,width:"100%",border:`1.5px solid ${f.name.trim()?"var(--line2)":"#e8c4c4"}`,borderRadius:10}}/></div>
+             <div><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}><span style={{...lab,marginBottom:0}}>Name / description <span style={{color:"var(--danger)",textTransform:"none",letterSpacing:0}}>*</span></span><span style={{flex:1}}/><button type="button" onClick={aiName} disabled={aiBusy} title="Generate a name from the photo + category" style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:7,border:"none",background:aiBusy?"var(--panel2)":"linear-gradient(135deg,#3e7bfa,#7c4dff)",color:aiBusy?"var(--muted)":"#fff",fontSize:11,fontWeight:700,cursor:aiBusy?"default":"pointer"}}>{aiBusy?"…":"✨ Name it"}</button></div><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Brown Corduroy Overalls" style={{...inputStyle,fontSize:15,fontWeight:500,width:"100%",border:`1.5px solid ${f.name.trim()?(dupes.length?"#e0a23c":"var(--line2)"):"#e8c4c4"}`,borderRadius:10}}/>
+             {dupes.length>0&&<div style={{marginTop:8,background:"#fff7ea",border:"1px solid #f0cd8a",borderRadius:9,padding:"10px 12px"}}>
+               <div style={{fontSize:11.5,fontWeight:700,color:"#9a6a12",marginBottom:6}}>⚠ Possible duplicate — this may already exist</div>
+               <div style={{display:"flex",flexDirection:"column",gap:6}}>{dupes.map(c=><div key={c.id} style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                 <div style={{width:30,height:30,borderRadius:6,overflow:"hidden",flexShrink:0,background:"var(--panel2)",display:"flex",alignItems:"center",justifyContent:"center"}}>{c.photo_url?<img src={c.photo_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon d={I.image} s={14} c="#c4c7d2"/>}</div>
+                 <span style={{fontSize:12.5,fontWeight:600,flex:1,minWidth:80}}>{c.name}</span>
+                 <button type="button" onClick={()=>mergeInto(c)} disabled={busy||!chosen.length} title={chosen.length?"Add the selected studio(s) to this existing item":"Pick the studio(s) above first"} style={{padding:"6px 11px",borderRadius:7,border:"none",background:chosen.length&&!busy?"var(--ink)":"var(--line2)",color:"#fff",fontSize:11.5,fontWeight:700,cursor:chosen.length&&!busy?"pointer":"default",whiteSpace:"nowrap"}}>Same — add {chosen.length?chosen.join(" + "):"studio"} to it</button>
+               </div>)}</div>
+               <div style={{fontSize:11,color:"var(--muted)",marginTop:6}}>Genuinely different? Just keep filling this in.</div>
+             </div>}</div>
              <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12,alignItems:"start"}}>
                {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!ASSET_TYPES.includes(v))addTaxOption("assettype",null,v);}} list="assettypesA" placeholder="e.g. Camera, Lens, Furniture" style={inputStyle}/><datalist id="assettypesA">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
                {isAsset&&<div><span style={lab}>Status</span><select value={f.op_status} onChange={e=>set("op_status",e.target.value)} style={inputStyle}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
