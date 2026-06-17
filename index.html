@@ -1247,10 +1247,21 @@ function AddInvItem({onClose,onSaved,init={}}){
    try{
      const res = await fetch(SB_URL+"/functions/v1/suggest-item",{method:"POST",headers:{"content-type":"application/json","apikey":SB_KEY,"authorization":"Bearer "+SB_KEY},body:JSON.stringify({photo_url:f.photo_url||"",type:f.type,kind:f.kind,session_type:f.session_type,gender:f.gender,color:f.color,name:f.name,notes:f.notes})});
      const j = await res.json().catch(()=>({ok:false,reason:"bad_response"}));
-     if(!j.ok){ setAiMsg(j.reason==="no_api_key" ? "AI not configured — ask your admin to set ANTHROPIC_API_KEY in Supabase secrets." : ("Couldn't get a suggestion: "+(j.message||j.reason||"unknown"))); return; }
-     setAiPreview(j.suggestion||{});
+     if(!j.ok){ setAiMsg(j.reason==="no_api_key" ? "AI not configured — set ANTHROPIC_API_KEY in Supabase secrets." : ("Couldn't get a suggestion: "+(j.message||j.reason||"unknown"))); }
+     else setAiPreview(j.suggestion||{});
    }catch(e){ setAiMsg(String(e?.message||e)); }
-   setAiBusy(false);
+   finally{ setAiBusy(false); }
+ };
+ const aiName=async()=>{
+   if(aiBusy)return; setAiBusy(true); setAiMsg("");
+   try{
+     const res = await fetch(SB_URL+"/functions/v1/suggest-item",{method:"POST",headers:{"content-type":"application/json","apikey":SB_KEY,"authorization":"Bearer "+SB_KEY},body:JSON.stringify({photo_url:f.photo_url||"",type:f.type,kind:f.kind,session_type:f.session_type,gender:f.gender,color:f.color,name:f.name,notes:f.notes})});
+     const j = await res.json().catch(()=>({ok:false,reason:"bad_response"}));
+     if(!j.ok){ setAiMsg(j.reason==="no_api_key" ? "AI not configured — set ANTHROPIC_API_KEY in Supabase secrets." : ("Couldn't generate a name: "+(j.message||j.reason||"unknown"))); }
+     else if(j.suggestion&&j.suggestion.name){ set("name",j.suggestion.name); }
+     else setAiMsg("No name returned — try adding a photo.");
+   }catch(e){ setAiMsg(String(e?.message||e)); }
+   finally{ setAiBusy(false); }
  };
  const applyAi=(field)=>{ if(!aiPreview||!aiPreview[field])return; set(field, aiPreview[field]); setAiPreview(p=>({...p,[field]:""})); };
  const applyAllAi=()=>{ if(!aiPreview)return; ["name","color","subcategory","notes"].forEach(k=>{ if(aiPreview[k]) set(k, aiPreview[k]); }); setAiPreview(null); };
@@ -1353,7 +1364,7 @@ function AddInvItem({onClose,onSaved,init={}}){
          {/* DETAILS — Name first, then aligned 2-col grid of secondary fields */}
          <Section title="Details" accent="var(--ink)">
            <div style={{display:"flex",flexDirection:"column",gap:14}}>
-             <div><span style={lab}>Name / description <span style={{color:"var(--danger)",textTransform:"none",letterSpacing:0}}>*</span></span><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Brown Corduroy Overalls" style={{...inputStyle,fontSize:15,fontWeight:500,width:"100%",border:`1.5px solid ${f.name.trim()?"var(--line2)":"#e8c4c4"}`,borderRadius:10}}/></div>
+             <div><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}><span style={{...lab,marginBottom:0}}>Name / description <span style={{color:"var(--danger)",textTransform:"none",letterSpacing:0}}>*</span></span><span style={{flex:1}}/><button type="button" onClick={aiName} disabled={aiBusy} title="Generate a name from the photo + category" style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:7,border:"none",background:aiBusy?"var(--panel2)":"linear-gradient(135deg,#3e7bfa,#7c4dff)",color:aiBusy?"var(--muted)":"#fff",fontSize:11,fontWeight:700,cursor:aiBusy?"default":"pointer"}}>{aiBusy?"…":"✨ Name it"}</button></div><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Brown Corduroy Overalls" style={{...inputStyle,fontSize:15,fontWeight:500,width:"100%",border:`1.5px solid ${f.name.trim()?"var(--line2)":"#e8c4c4"}`,borderRadius:10}}/></div>
              <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12,alignItems:"start"}}>
                {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!ASSET_TYPES.includes(v))addTaxOption("assettype",null,v);}} list="assettypesA" placeholder="e.g. Camera, Lens, Furniture" style={inputStyle}/><datalist id="assettypesA">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
                {isAsset&&<div><span style={lab}>Status</span><select value={f.op_status} onChange={e=>set("op_status",e.target.value)} style={inputStyle}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
