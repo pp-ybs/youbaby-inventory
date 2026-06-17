@@ -1243,6 +1243,22 @@ function AddInvItem({onClose,onSaved,init={}}){
      onSaved&&onSaved({id:c.id,name:c.name});onClose&&onClose();
    }catch(e){setErr(e.message||String(e));setBusy(false);}
  };
+ // visual duplicate check — compares the uploaded photo against existing items' photos via AI
+ const [photoDupe,setPhotoDupe]=useState(null),[matchBusy,setMatchBusy]=useState(false),[matchMsg,setMatchMsg]=useState("");
+ const checkPhoto=async()=>{
+   if(matchBusy||!f.photo_url||!f.sessionRel)return;
+   const pool=cand.filter(c=>c.item_group==="shoot"&&c.session_type===f.session_type&&(f.type==="theme"?c.type==="theme":(c.type==="item"&&c.kind===f.kind))&&c.photo_url)
+     .map(c=>({...c,_s:nameSim(c.name,f.name)})).sort((a,b)=>b._s-a._s).slice(0,8);
+   if(!pool.length){setMatchMsg("No existing items with photos to compare yet — this looks new.");setPhotoDupe(null);return;}
+   setMatchBusy(true);setMatchMsg("");setPhotoDupe(null);
+   try{const res=await fetch(SB_URL+"/functions/v1/match-photo",{method:"POST",headers:{"content-type":"application/json","apikey":SB_KEY,"authorization":"Bearer "+SB_KEY},body:JSON.stringify({photo_url:f.photo_url,candidates:pool.map(c=>({id:c.id,name:c.name,photo_url:c.photo_url}))})});
+     const j=await res.json().catch(()=>({ok:false,reason:"bad_response"}));
+     if(!j.ok){setMatchMsg(j.reason==="no_api_key"?"AI not configured — set ANTHROPIC_API_KEY in Supabase secrets.":("Couldn't check: "+(j.message||j.reason||"unknown")));}
+     else if(j.match_id){const c=pool.find(x=>x.id===j.match_id);if(c)setPhotoDupe({...c,confidence:j.confidence,reason:j.reason});else setMatchMsg("No visual match — looks new ✓");}
+     else setMatchMsg("No visual match — looks new ✓");
+   }catch(e){setMatchMsg(String(e?.message||e));}
+   finally{setMatchBusy(false);}
+ };
  const kinds=f.sessionRel?(KIND_BY_CAT[f.session_type]||ITEM_KINDS):GENERAL_KINDS;
  useEffect(()=>{if(f.type==="item"&&!kinds.includes(f.kind))set("kind",kinds[0]||"other")},[f.session_type,f.sessionRel,f.type]);
  const showStyle=f.sessionRel&&STYLE_OPTS[f.session_type]&&f.type==="item"&&f.kind==="outfit";
@@ -1370,6 +1386,19 @@ function AddInvItem({onClose,onSaved,init={}}){
              <button type="button" onClick={()=>set("photo_url","")} title="Remove cover" style={{position:"absolute",top:10,right:10,width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,.95)",border:"1px solid var(--line2)",boxShadow:"0 2px 8px rgba(0,0,0,.18)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon d={I.x} s={17} c="var(--danger)"/></button>
            </div>}
            <div style={{marginBottom:12}}><span style={lab}>{f.photo_url?"Replace cover":"Cover photo"}</span><PhotoField value={f.photo_url||""} onChange={v=>set("photo_url",v)} prefix="inv"/></div>
+           {f.sessionRel&&f.photo_url&&<div style={{marginBottom:12}}>
+             <button type="button" onClick={checkPhoto} disabled={matchBusy} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"7px 13px",borderRadius:8,border:"1px solid var(--line2)",background:"var(--panel)",color:"var(--soft)",fontSize:12,fontWeight:700,cursor:matchBusy?"default":"pointer"}}>{matchBusy?"Comparing photos…":"🔍 Already have this? Check the photo"}</button>
+             {matchMsg&&!photoDupe&&<div style={{marginTop:7,fontSize:12,color:matchMsg.includes("looks new")?"var(--ok)":"var(--muted)"}}>{matchMsg}</div>}
+             {photoDupe&&<div style={{marginTop:9,background:"#fff7ea",border:"1px solid #f0cd8a",borderRadius:9,padding:"10px 12px"}}>
+               <div style={{fontSize:11.5,fontWeight:700,color:"#9a6a12",marginBottom:7}}>📸 Same product found{photoDupe.confidence?` · ${Math.round(photoDupe.confidence*100)}% sure`:""}</div>
+               <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                 <div style={{width:42,height:42,borderRadius:7,overflow:"hidden",flexShrink:0,background:"var(--panel2)",display:"flex",alignItems:"center",justifyContent:"center"}}>{photoDupe.photo_url?<img src={photoDupe.photo_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon d={I.image} s={16} c="#c4c7d2"/>}</div>
+                 <div style={{flex:1,minWidth:90}}><div style={{fontSize:12.5,fontWeight:700}}>{photoDupe.name}</div>{photoDupe.reason&&<div style={{fontSize:11,color:"var(--muted)"}}>{photoDupe.reason}</div>}</div>
+                 <button type="button" onClick={()=>mergeInto(photoDupe)} disabled={busy||!chosen.length} title={chosen.length?"Add the selected studio(s) to this existing item":"Pick the studio(s) above first"} style={{padding:"7px 12px",borderRadius:7,border:"none",background:chosen.length&&!busy?"var(--ink)":"var(--line2)",color:"#fff",fontSize:11.5,fontWeight:700,cursor:chosen.length&&!busy?"pointer":"default",whiteSpace:"nowrap"}}>Same — add {chosen.length?chosen.join(" + "):"studio"} to it</button>
+               </div>
+               <div style={{fontSize:11,color:"var(--muted)",marginTop:7}}>Not the same? <button type="button" onClick={()=>setPhotoDupe(null)} style={{color:"var(--accent)",fontWeight:600,background:"none",border:"none",cursor:"pointer",padding:0}}>Dismiss & keep adding</button></div>
+             </div>}
+           </div>}
            <div><span style={lab}>More photos<span style={labHint}>· extra angles or variants</span></span><Gallery photos={f.extra_photos} onChange={v=>set("extra_photos",v)} prefix="inv"/></div>
            {aiMsg&&<div style={{marginTop:10,fontSize:12,padding:"9px 12px",borderRadius:8,background:"#fbecea",color:"var(--danger)",border:"1px solid #f3b8b3"}}>{aiMsg}</div>}
            {aiPreview&&<div style={{marginTop:12,padding:"12px 14px",borderRadius:10,background:"linear-gradient(135deg,#eaf1ff,#f3edff)",border:"1px solid #c7d6ff"}}>
