@@ -1167,6 +1167,23 @@ const codePrefix=(cat,seg)=>(CAT_CODE[cat]||((cat||"XX").replace(/[^A-Za-z]/g,""
 async function nextCode(cat,seg){const p=codePrefix(cat,seg)+"-";if(!sb)return p+"001";const {data}=await sb.from("inv_item").select("code").like("code",p+"%");let mx=0;(data||[]).forEach(r=>{const m=/(\d+)\s*$/.exec(r.code||"");if(m)mx=Math.max(mx,parseInt(m[1],10))});return p+String(mx+1).padStart(3,"0");}
 function Barcode({value,height=46}){const ref=useRef(null);useEffect(()=>{if(ref.current&&window.JsBarcode&&value){try{window.JsBarcode(ref.current,value,{format:"CODE128",height,fontSize:13,margin:6,displayValue:true});}catch(e){}}},[value,height]);return <svg ref={ref} style={{maxWidth:"100%"}}/>;}
 
+// Section card used by AddInvItem (and InvEdit if we adopt it there). Hoisted
+// to module scope so its component identity is stable across renders — if it
+// lived inside AddInvItem, every keystroke would create a new function and
+// React would remount all children (causing the form to scroll up + inputs
+// to lose focus mid-typing). See: https://react.dev/learn/preserving-and-resetting-state
+function Section({title,hint,accent,right,children}){
+ return <div style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:11,padding:0,overflow:"visible",position:"relative"}}>
+   <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:accent||"var(--accent)",borderTopLeftRadius:11,borderBottomLeftRadius:11}}/>
+   <div style={{display:"flex",alignItems:"center",gap:10,padding:"13px 16px 0 18px"}}>
+     <span style={{fontSize:11,fontWeight:700,color:accent||"var(--ink)",letterSpacing:".08em",textTransform:"uppercase"}}>{title}</span>
+     {hint&&<span style={{fontSize:11.5,color:"var(--muted)",fontWeight:500,flex:1}}>{hint}</span>}
+     {right}
+   </div>
+   <div style={{padding:"12px 16px 16px 18px"}}>{children}</div>
+ </div>;
+}
+
 function AddInvItem({onClose,onSaved,init={}}){
  const ig=init.grp||"shoot";
  const [f,setF]=useState({grp:ig,sessionRel:ig==="shoot",type:init.type||"item",kind:init.kind||"outfit",session_type:init.session_type||"Newborn",gender:init.gender||"",subcategory:init.subcategory||"",size:"",dimensions:"",name:"",color:"",condition:"Good",serial_no:"",assignee:"",op_status:"Available",value:"",value_currency:DEFAULT_CCY,purchase_date:"",acquired_on:today(),perLocDate:false,photo_url:"",extra_photos:[],purchase_url:"",usable_for:[],static_tags:init.static_tags||[],website_display:!!init.website_display,notes:""});
@@ -1232,16 +1249,7 @@ function AddInvItem({onClose,onSaved,init={}}){
  const labHint={color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0,marginLeft:4};
  const inputStyle={minHeight:44,fontSize:14,padding:"10px 12px"};
  const pill=(on,onClick,txt,col)=><button type="button" onClick={onClick} style={{padding:"9px 14px",borderRadius:9,border:`1.5px solid ${on?(col||"var(--ink)"):"var(--line2)"}`,background:on?(col||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:13,fontWeight:600,minHeight:38,transition:"all .12s"}}>{txt}</button>;
- // Section card with a left-edge accent stripe instead of step-number dots — calmer, more scannable.
- const Section=({title,hint,accent,right,children})=><div style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:11,padding:0,overflow:"visible",position:"relative"}}>
-   <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:accent||"var(--accent)",borderTopLeftRadius:11,borderBottomLeftRadius:11}}/>
-   <div style={{display:"flex",alignItems:"center",gap:10,padding:"13px 16px 0 18px"}}>
-     <span style={{fontSize:11,fontWeight:700,color:accent||"var(--ink)",letterSpacing:".08em",textTransform:"uppercase"}}>{title}</span>
-     {hint&&<span style={{fontSize:11.5,color:"var(--muted)",fontWeight:500,flex:1}}>{hint}</span>}
-     {right}
-   </div>
-   <div style={{padding:"12px 16px 16px 18px"}}>{children}</div>
- </div>;
+ // (Section is hoisted to module scope above AddInvItem — defining it inside would create a new component identity on every keystroke, which made React unmount/remount all children, causing the form to scroll up and inputs to lose focus.)
  const isMobile=typeof window!=="undefined" && window.innerWidth<640;
  // Persistent breadcrumb under the title — replaces the old in-section "Path" box.
  const pathSegs=(()=>{ const segs=[]; segs.push(f.grp==="shoot"?"Session inventory":f.grp==="electronics"?"Equipment":"Consumables"); if(chosen.length) segs.push(chosen.join(", ")); if(f.sessionRel&&f.session_type) segs.push(f.session_type); if(!isAsset){ const t = f.type==="theme" ? (f.session_type==="Gender Reveal"?"Reveal":"Setup") : (f.kind?ucf(f.kind):"Item"); segs.push(t); } if(showGender&&f.gender) segs.push(f.gender); return segs; })();
