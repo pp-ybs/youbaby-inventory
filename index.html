@@ -69,6 +69,10 @@ const D = window.YBS_DATA || {themes:[],categories:[],branches:[]};
 const SB_URL="https://ahysgpjnhldhdeinymrd.supabase.co";
 const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFoeXNncGpuaGxkaGRlaW55bXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTk3MTYsImV4cCI6MjA5MTM5NTcxNn0.qq4BA212jK39iiQP8X4dADDb7Wm9Id2ygEvRdKqlvxg";
 const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null;
+// who's logged in (for comment authorship) + a cached staff-name list for assignment
+let ME="";
+let STAFF_CACHE=null;
+async function loadStaffNames(){if(STAFF_CACHE)return STAFF_CACHE;if(!sb){STAFF_CACHE=[];return STAFF_CACHE;}try{const {data}=await sb.from("staff").select("name").order("name");STAFF_CACHE=[...new Set((data||[]).map(s=>s.name).filter(Boolean))];}catch(e){STAFF_CACHE=[];}return STAFF_CACHE;}
 
 const CATS=['Cake Smash','Sitter','Maternity','Infant','Newborn'];
 let CAT_COLOR={'Cake Smash':'#8a8f9c','Sitter':'#8a8f9c','Maternity':'#8a8f9c','Infant':'#8a8f9c','Newborn':'#8a8f9c','Children':'#8a8f9c','Gender Reveal':'#8a8f9c'};
@@ -93,6 +97,10 @@ const invSel = r => (r.inv_item_location||[]).reduce((s,x)=>s+(x.times_selected|
 const invQty = r => (r.inv_item_location||[]).reduce((s,x)=>s+(x.quantity||0),0);
 const tracksUse = r => r.type==="theme"||r.kind==="outfit"; // only setups & outfits count selections
 const ucf = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : s;   // First-letter capital
+// fuzzy name similarity (Dice bigram coefficient) for duplicate detection
+const _normName = s => (s||"").toLowerCase().replace(/[^a-z0-9 ]/g,"").replace(/\s+/g," ").trim();
+const _bigrams = s => { const r=new Set(); for(let i=0;i<s.length-1;i++) r.add(s.slice(i,i+2)); return r; };
+const nameSim = (a,b) => { a=_normName(a); b=_normName(b); if(!a||!b) return 0; if(a===b) return 1; const A=_bigrams(a),B=_bigrams(b); if(!A.size||!B.size) return 0; let inter=0; A.forEach(x=>{ if(B.has(x)) inter++; }); return 2*inter/(A.size+B.size); };
 const FLBL={fontSize:11,fontWeight:600,color:"var(--muted)",marginRight:6,minWidth:62,display:"inline-block"};
 const fchip=(key,on,onClick,text,count,col)=><button type="button" key={key} onClick={onClick} style={{padding:"6px 13px",borderRadius:8,border:`1px solid ${on?"#cdd2dc":"var(--line2)"}`,background:on?"#eef1f5":"var(--panel)",color:on?"var(--ink)":"var(--soft)",fontSize:12,fontWeight:on?700:500,cursor:"pointer",transition:"all .12s",whiteSpace:"nowrap"}}>{text}{count!=null&&<span style={{opacity:.5,marginLeft:5,fontWeight:600}}>{count}</span>}</button>;
 // ---- Electronics & Inventory: type → parent category, and which fields each type uses ----
@@ -100,15 +108,15 @@ const ELEC_CAT={Camera:"Cameras & Lenses",Lens:"Cameras & Lenses","Lens Adaptor"
  Flash:"Lighting","Continuous Light":"Lighting","Trigger/Receiver":"Lighting","Softbox/Modifier":"Lighting",Umbrella:"Lighting",Reflector:"Lighting","Light Stand":"Lighting","Boom Stand":"Lighting",
  "Battery/Charger":"Power & Storage","SD Card":"Power & Storage",
  Computer:"Computers & Devices",Phone:"Computers & Devices",Tablet:"Computers & Devices",Printer:"Computers & Devices","Card Machine":"Computers & Devices",CCTV:"Computers & Devices",Audio:"Computers & Devices",
- Furniture:"Furniture",Appliance:"Appliances",Diffuser:"Appliances",
- "Studio Prop":"Studio Props","Helium Tank":"Studio Equipment",Trolley:"Studio Equipment","Posing Bed":"Studio Equipment",
+ Furniture:"Furniture",Appliance:"Consumables",Diffuser:"Consumables",
+ "Studio Prop":"Studio Props","Helium Tank":"Consumables",Trolley:"Studio Equipment","Posing Bed":"Studio Equipment",
  Key:"Keys",Other:"Other"};
-const ELEC_CATS=["Cameras & Lenses","Lighting","Power & Storage","Computers & Devices","Studio Equipment","Studio Props","Furniture","Appliances","Keys","Other"];
+const ELEC_CATS=["Cameras & Lenses","Lighting","Power & Storage","Computers & Devices","Studio Equipment","Studio Props","Furniture","Consumables","Appliances","Keys","Other"];
 const elecCat = r => ELEC_CAT[r.subcategory]||"Other";
 const NO_SERIAL = new Set(["Key","Furniture","Studio Prop","Helium Tank","Diffuser","Appliance"]);
 const NO_VALUE = new Set(["Key"]);
-const ASSET_TYPES=Object.keys(ELEC_CAT); // suggestion list for the asset Type field
-const ELEC_CAT_COLOR={"Cameras & Lenses":"#3e7bfa","Lighting":"#f0a23c","Power & Storage":"#22b573","Computers & Devices":"#7c4dff","Studio Equipment":"#18b8c4","Studio Props":"#22b573","Furniture":"#ff8f5e","Appliances":"#ff6468","Keys":"#9aa0b0","Other":"#9aa0b0"};
+let ASSET_TYPES=Object.keys(ELEC_CAT); // editable suggestion list for the asset Type field
+const ELEC_CAT_COLOR={"Cameras & Lenses":"#3e7bfa","Lighting":"#f0a23c","Power & Storage":"#22b573","Computers & Devices":"#7c4dff","Studio Equipment":"#18b8c4","Studio Props":"#22b573","Furniture":"#ff8f5e","Consumables":"#48b08c","Appliances":"#ff6468","Keys":"#9aa0b0","Other":"#9aa0b0"};
 // pick a friendly icon + tint for items without a photo, based on type/kind
 function itemIcon(r){
   const sc=r.subcategory||"";
@@ -599,6 +607,7 @@ function PubTile({it,onClick}){
    <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{position:"relative",width:"100%",aspectRatio:por?"3/4":"4/3",borderRadius:12,overflow:"hidden",background:"#ececec",boxShadow:"0 1px 5px rgba(0,0,0,.07)"}}>
      {cur?<img src={cur} loading="lazy" onLoad={e=>{const im=e.target;if(im.naturalWidth&&im.naturalHeight)setPor(im.naturalHeight>=im.naturalWidth);}} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:"#c4c4c4",fontSize:12}}>No image</div>}
      {it.size&&<span style={{position:"absolute",top:7,right:7,fontSize:9.5,fontWeight:700,background:"rgba(0,0,0,.55)",color:"#fff",borderRadius:6,padding:"2px 7px"}}>{it.size}</span>}
+     {it.excl&&<span style={{position:"absolute",top:7,left:7,fontSize:8.5,fontWeight:800,letterSpacing:".06em",color:"#caa24a",background:"rgba(20,20,28,.82)",borderRadius:6,padding:"3px 7px"}}>EXCLUSIVE</span>}
      {n>1&&<>
        {idx>0&&<button onClick={e=>step(e,-1)} aria-label="Previous photo" style={{position:"absolute",left:6,top:"50%",transform:"translateY(-50%)",width:28,height:28,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.85)",color:"#1a1a1a",fontSize:17,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 4px rgba(0,0,0,.2)"}}>‹</button>}
        {idx<n-1&&<button onClick={e=>step(e,1)} aria-label="Next photo" style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",width:28,height:28,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.85)",color:"#1a1a1a",fontSize:17,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 4px rgba(0,0,0,.2)"}}>›</button>}
@@ -624,8 +633,8 @@ function PublicShowcase({scope}){
    let pool=items.filter(i=>(i.branches||[]).includes(p.loc)&&i.session_type===p.session&&(!gv||genHit(i.gender,gv))&&(p.kind==="Outfits"?i.kind==="outfit":p.kind==="Themes & setups"?i.type==="theme":true));
    const isNew=i=>Array.isArray(i.static_tags)&&i.static_tags.includes("New");
    if(s.rule==="popular")pool=[...pool].sort((a,b)=>(b.times_selected||0)-(a.times_selected||0));else pool=[...pool.filter(isNew),...pool.filter(i=>!isNew(i))];
-   return pool.slice(0,24).map(i=>({img:i.photo_url,extras:Array.isArray(i.extra_photos)?i.extra_photos:[],name:i.name,size:i.size}));};
- const secItems=s=>s.dyn?dyn(s,s.board):links.filter(l=>l.section_id===s.id).map(l=>({img:l.photo_url,extras:Array.isArray(l.extra_photos)?l.extra_photos:[],name:l.name,size:l.size}));
+   return pool.slice(0,24).map(i=>({img:i.photo_url,extras:Array.isArray(i.extra_photos)?i.extra_photos:[],name:i.name,size:i.size,excl:Array.isArray(i.static_tags)&&i.static_tags.includes("Exclusive")}));};
+ const secItems=s=>s.dyn?dyn(s,s.board):links.filter(l=>l.section_id===s.id).map(l=>({img:l.photo_url,extras:Array.isArray(l.extra_photos)?l.extra_photos:[],name:l.name,size:l.size,excl:Array.isArray(l.static_tags)&&l.static_tags.includes("Exclusive")}));
  const titleOf=b=>{const p=parse(b);return [p.session,p.gender].filter(Boolean).join(" · ")||p.loc||"Our work";};
  // Resolve the studio/branch this preview link is for (taken from the top-level scope OR the only board's loc).
  const scopeLoc=scope?parse(scope).loc:null;
@@ -675,7 +684,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const [secs,setSecs]=useState([]),[links,setLinks]=useState([]),[picker,setPicker]=useState(null),[pq,setPq]=useState(""),[loaded,setLoaded]=useState(false);
  const [scLoc,setScLoc]=useState(""),[scSession,setScSession]=useState(""),[scGender,setScGender]=useState(""),[scKind,setScKind]=useState("");
  const [addNew,setAddNew]=useState(null),[coverV,setCoverV]=useState(0),[copied,setCopied]=useState(false),[editItem,setEditItem]=useState(null);
- const load=async()=>{if(!sb){setLoaded(true);return;}await loadCovers();const {data:s}=await sb.from("showcase_section").select("*").order("sort");const {data:l}=await sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender)").order("sort");setSecs(s||[]);setLinks(l||[]);setLoaded(true);};
+ const load=async()=>{if(!sb){setLoaded(true);return;}await loadCovers();const {data:s}=await sb.from("showcase_section").select("*").order("sort");const {data:l}=await sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender,static_tags)").order("sort");setSecs(s||[]);setLinks(l||[]);setLoaded(true);};
  useEffect(()=>{load()},[]);
  // jump to a board from a #show= deep link (internal)
  useEffect(()=>{const m=/^#show=(.*)$/.exec(window.location.hash||"");if(!m)return;const parts=decodeURIComponent(m[1]).split(" · ");if(!parts[0])return;setScLoc(parts[0]);setScSession(parts[1]||"");const k=parts.find(x=>["Themes & setups","Outfits"].includes(x));if(k)setScKind(k);const g=parts.find(x=>["Girls","Boys","Twins"].includes(x));if(g)setScGender(g);},[]);
@@ -708,8 +717,8 @@ function Showcase({themes,onOpen,onItemsChanged}){
    const isNew=t=>t._row&&Array.isArray(t._row.static_tags)&&t._row.static_tags.includes("New");
    if(s.rule==="popular")pool=[...pool].sort((a,b)=>(b.selection_count||0)-(a.selection_count||0));
    else pool=[...pool.filter(isNew),...pool.filter(t=>!isNew(t))];
-   return pool.slice(0,12).map(t=>({key:t.id,id:t.id,img:t.image||(t._row&&t._row.photo_url),name:t.name,size:t._row&&t._row.size}));};
- const secItems=(s)=>s.dyn?dynFill(s,s.board):itemsOf(s.id).map(l=>({key:l.id,id:l.item_id,linkId:l.id,img:l.inv_item&&l.inv_item.photo_url,name:l.inv_item&&l.inv_item.name,size:l.inv_item&&l.inv_item.size}));
+   return pool.slice(0,12).map(t=>({key:t.id,id:t.id,img:t.image||(t._row&&t._row.photo_url),name:t.name,size:t._row&&t._row.size,excl:t._row&&Array.isArray(t._row.static_tags)&&t._row.static_tags.includes("Exclusive")}));};
+ const secItems=(s)=>s.dyn?dynFill(s,s.board):itemsOf(s.id).map(l=>({key:l.id,id:l.item_id,linkId:l.id,img:l.inv_item&&l.inv_item.photo_url,name:l.inv_item&&l.inv_item.name,size:l.inv_item&&l.inv_item.size,excl:l.inv_item&&Array.isArray(l.inv_item.static_tags)&&l.inv_item.static_tags.includes("Exclusive")}));
  const publicUrl=()=>window.location.origin+window.location.pathname+"#p="+encodeURIComponent(scope);
  const shareLink=()=>{if(navigator.clipboard)navigator.clipboard.writeText(publicUrl());setCopied(true);setTimeout(()=>setCopied(false),2200);};
  const openExternal=()=>window.open(publicUrl(),"_blank");
@@ -751,9 +760,9 @@ function Showcase({themes,onOpen,onItemsChanged}){
        <input value={s.note||""} onChange={e=>upd(s.id,{note:e.target.value})} placeholder="Optional note (e.g. +DRESS 600 AED · studio only)" style={{fontSize:12,color:"var(--muted)",border:"none",background:"transparent",width:"100%",padding:"0 0 10px"}}/>
        {s.dyn?
          <div><div style={{fontSize:11.5,color:"var(--muted)",marginBottom:8}}>Auto-filled · {s.rule==="popular"?"most-selected":"newest / tagged New"} for this page. Updates itself.</div>
-           <div style={{display:"flex",gap:9,flexWrap:"wrap"}}>{its.length?its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:78,height:96,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:8.5,color:"#fff",background:"rgba(0,0,0,.5)",padding:"2px 4px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>):<span style={{fontSize:12,color:"var(--muted)"}}>No matching items yet.</span>}</div></div>
+           <div style={{display:"flex",gap:9,flexWrap:"wrap"}}>{its.length?its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:78,height:96,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:3,left:3,fontSize:7,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:8.5,color:"#fff",background:"rgba(0,0,0,.5)",padding:"2px 4px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>):<span style={{fontSize:12,color:"var(--muted)"}}>No matching items yet.</span>}</div></div>
          :<div style={{display:"flex",gap:9,flexWrap:"wrap",alignItems:"center"}}>
-         {its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:78,height:96,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}<button onClick={e=>{e.stopPropagation();rmItem(it.linkId);}} title="Remove from this section" style={{position:"absolute",top:3,right:3,width:18,height:18,borderRadius:"50%",background:"rgba(0,0,0,.6)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.x} s={11} c="#fff"/></button><div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:8.5,color:"#fff",background:"rgba(0,0,0,.5)",padding:"2px 4px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>)}
+         {its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:78,height:96,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:3,left:3,fontSize:7,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}<button onClick={e=>{e.stopPropagation();rmItem(it.linkId);}} title="Remove from this section" style={{position:"absolute",top:3,right:3,width:18,height:18,borderRadius:"50%",background:"rgba(0,0,0,.6)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.x} s={11} c="#fff"/></button><div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:8.5,color:"#fff",background:"rgba(0,0,0,.5)",padding:"2px 4px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>)}
          <button onClick={()=>{setPq("");setPicker(s.id);}} style={{width:78,height:96,borderRadius:8,border:"1.5px dashed var(--line2)",color:"var(--soft)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,fontSize:11,fontWeight:600}}><Icon d={I.plus} s={18} c="var(--soft)"/>Add</button>
        </div>}
      </div>;})}
@@ -1096,10 +1105,11 @@ function applyTax(t){
  if(t.propSubtypesByCat&&typeof t.propSubtypesByCat==="object")PROP_SUBTYPES_BY_CAT=t.propSubtypesByCat;
  if(t.sizeByCat&&typeof t.sizeByCat==="object")SIZE_BY_CAT=t.sizeByCat;
  if(Array.isArray(t.noGender))NO_GENDER=t.noGender;
+ if(Array.isArray(t.assetTypes)&&t.assetTypes.length)ASSET_TYPES=t.assetTypes;
  if(t.defaultCurrency)DEFAULT_CCY=t.defaultCurrency;
 }
 function currentTax(){
- return {sessions:SESSION_CATS,catCode:CAT_CODE,catColor:CAT_COLOR,kindByCat:KIND_BY_CAT,styleOpts:STYLE_OPTS,setupStyle:SETUP_STYLE,subtypeOpts:SUBTYPE_OPTS,propSubtypesByCat:PROP_SUBTYPES_BY_CAT,sizeByCat:SIZE_BY_CAT,noGender:NO_GENDER,defaultCurrency:DEFAULT_CCY};
+ return {sessions:SESSION_CATS,catCode:CAT_CODE,catColor:CAT_COLOR,kindByCat:KIND_BY_CAT,styleOpts:STYLE_OPTS,setupStyle:SETUP_STYLE,subtypeOpts:SUBTYPE_OPTS,propSubtypesByCat:PROP_SUBTYPES_BY_CAT,sizeByCat:SIZE_BY_CAT,noGender:NO_GENDER,defaultCurrency:DEFAULT_CCY,assetTypes:ASSET_TYPES};
 }
 async function loadTax(){
  if(!sb)return null;
@@ -1130,7 +1140,8 @@ async function addTaxOption(kind,session,raw){
  }else if(kind==="setup"&&session){SETUP_STYLE[session]=[...new Set([...(SETUP_STYLE[session]||[]),v])];
  }else if(kind==="size"&&session){SIZE_BY_CAT[session]=[...new Set([...(SIZE_BY_CAT[session]||SIZE_OPTS),v])];
  }else if(kind==="propsub"&&session){PROP_SUBTYPES_BY_CAT[session]=[...new Set([...(PROP_SUBTYPES_BY_CAT[session]||PROP_SUBTYPES),v])];
- }else if(kind==="subkind"&&session){SUBTYPE_OPTS[session]=[...new Set([...(SUBTYPE_OPTS[session]||[]),v])];}
+ }else if(kind==="subkind"&&session){SUBTYPE_OPTS[session]=[...new Set([...(SUBTYPE_OPTS[session]||[]),v])];
+ }else if(kind==="assettype"){if(!ASSET_TYPES.includes(v))ASSET_TYPES=[...ASSET_TYPES,v];}
  await saveTax();_taxBump();return v;
 }
 // a <select> that carries an inline "+ Add new…" affordance, so option lists are editable from the card
@@ -1184,23 +1195,87 @@ function Section({title,hint,accent,right,children}){
  </div>;
 }
 
+// pick the exact showcase board + section an item should publish into
+function WebsitePlacement({studios=[],session,type,kind,gender,value=[],onChange}){
+ const [secs,setSecs]=useState([]);
+ const [addB,setAddB]=useState(""),[addT,setAddT]=useState("");
+ useEffect(()=>{if(sb)sb.from("showcase_section").select("id,board,title,sort,dyn").order("sort").then(({data})=>setSecs(data||[]))},[]);
+ const showKind=type==="theme"?"Themes & setups":(type==="item"&&kind==="outfit")?"Outfits":null;
+ const sel=new Set(value);
+ const toggle=id=>{const n=new Set(sel);n.has(id)?n.delete(id):n.add(id);onChange([...n]);};
+ const mk=async(board)=>{const t=addT.trim();if(!t||!sb){setAddB("");return;}const mx=Math.max(0,...secs.filter(s=>s.board===board).map(s=>s.sort||0));const {data}=await sb.from("showcase_section").insert({board,title:t,sort:mx+1,dyn:false}).select().single();if(data){setSecs(s=>[...s,data]);onChange([...value,data.id]);}setAddB("");setAddT("");};
+ if(!showKind) return <div style={{fontSize:12,color:"var(--muted)"}}>Only setups (themes) and outfits appear in the public website galleries.</div>;
+ if(!studios.length||!session) return <div style={{fontSize:12,color:"var(--muted)"}}>Pick the studio(s) and session above first — then choose where it appears.</div>;
+ const needGender=!NO_GENDER.includes(session);
+ const genSegs=!needGender?[null]:((gender&&gender!=="Unisex"&&gender!=="Neutral")?[gender==="Girl"?"Girls":gender==="Boy"?"Boys":"Twins"]:["Girls","Boys","Twins"]);
+ const boards=[];studios.forEach(st=>genSegs.forEach(g=>boards.push([st,session,showKind,g].filter(Boolean).join(" · "))));
+ const chip=(label,on,onClick,dim)=><button type="button" key={label} onClick={onClick} disabled={!!dim} style={{fontSize:11.5,fontWeight:600,padding:"5px 11px",borderRadius:20,border:`1px solid ${on?"var(--ink)":"var(--line2)"}`,background:on?"var(--ink)":"var(--panel)",color:on?"#fff":dim?"var(--muted)":"var(--soft)",cursor:dim?"default":"pointer",opacity:dim?.7:1}}>{label}{on?" ✓":""}</button>;
+ const selNames=value.map(id=>secs.find(x=>x.id===id)).filter(Boolean);
+ return <div style={{display:"flex",flexDirection:"column",gap:12}}>
+   {boards.map(b=>{const bsecs=secs.filter(s=>s.board===b);return <div key={b}>
+     <div style={{fontSize:12,fontWeight:700,color:"var(--ink)",marginBottom:6}}>{b}</div>
+     <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+       {bsecs.filter(s=>!s.dyn).map(s=>chip(s.title,sel.has(s.id),()=>toggle(s.id)))}
+       {bsecs.filter(s=>s.dyn).map(s=>chip(s.title+" · auto",false,null,true))}
+       {addB===b?<span style={{display:"inline-flex",gap:5,alignItems:"center"}}><input autoFocus value={addT} onChange={e=>setAddT(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();mk(b);}else if(e.key==="Escape"){setAddB("");setAddT("");}}} placeholder="section name…" style={{width:130,minHeight:30,fontSize:12}}/><button type="button" onMouseDown={e=>{e.preventDefault();mk(b);}} style={{padding:"6px 10px",borderRadius:7,border:"none",background:"var(--ink)",color:"#fff",fontSize:11.5,fontWeight:600}}>Add</button></span>
+        :<button type="button" onClick={()=>{setAddB(b);setAddT("");}} style={{fontSize:11.5,fontWeight:600,padding:"5px 11px",borderRadius:20,border:"1px dashed var(--line2)",background:"var(--panel)",color:"var(--soft)"}}>+ New section</button>}
+     </div>
+   </div>;})}
+   {selNames.length>0?<div style={{background:"#eef7f0",border:"1px solid #b9e3c6",borderRadius:8,padding:"9px 12px"}}>
+     <div style={{fontSize:10.5,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",color:"#1f9d57",marginBottom:5}}>Will appear here</div>
+     <div style={{display:"flex",flexDirection:"column",gap:3}}>{selNames.map(s=><div key={s.id} style={{fontSize:12,color:"#176b3e",fontWeight:600}}>{s.board} › {s.title}</div>)}</div>
+   </div>:<div style={{fontSize:11.5,color:"var(--muted)"}}>Not placed yet — pick a section above (or create one) to make it live on the site.</div>}
+ </div>;
+}
 function AddInvItem({onClose,onSaved,init={}}){
  const ig=init.grp||"shoot";
- const [f,setF]=useState({grp:ig,sessionRel:ig==="shoot",type:init.type||"item",kind:init.kind||"outfit",session_type:init.session_type||"Newborn",gender:init.gender||"",subcategory:init.subcategory||"",size:"",dimensions:"",name:"",color:"",condition:"Good",serial_no:"",assignee:"",op_status:"Available",value:"",value_currency:DEFAULT_CCY,purchase_date:"",acquired_on:today(),perLocDate:false,photo_url:"",extra_photos:[],purchase_url:"",usable_for:[],static_tags:init.static_tags||[],website_display:!!init.website_display,notes:""});
+ const [f,setF]=useState({grp:ig,sessionRel:ig==="shoot",type:init.type||"item",kind:init.kind||"outfit",session_type:init.session_type||"Newborn",gender:init.gender||"",subcategory:init.subcategory||"",size:"",dimensions:"",name:"",color:"",condition:"Good",serial_no:"",assignee:"",op_status:"Available",value:"",value_currency:DEFAULT_CCY,purchase_date:"",acquired_on:today(),perLocDate:false,photo_url:"",extra_photos:[],purchase_url:"",usable_for:[],static_tags:init.static_tags||[],website_display:!!init.website_display,placeSections:[],notes:""});
  const OPSTATUS=["Available","In use","In repair","Retired","For sale"];
  const [locs,setLocs]=useState(()=>{const m={};(init.locs||[]).forEach(b=>{if(BR.includes(b))m[b]={on:true,qty:1,times:0};});return m;});
  const [linkIds,setLinkIds]=useState([]),[cand,setCand]=useState([]);
- useEffect(()=>{if(sb)sb.from("inv_item").select("id,code,name,kind,type,photo_url,session_type").order("name").then(({data})=>setCand(data||[]))},[]);
+ useEffect(()=>{if(sb)sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").order("name").then(({data})=>setCand(data||[]))},[]);
  const [busy,setBusy]=useState(false),[err,setErr]=useState(""),[saved,setSaved]=useState(null);
  const [kAdd,setKAdd]=useState(false),[kTxt,setKTxt]=useState("");
  const [moreOpen,setMoreOpen]=useState(false);
  const [aiBusy,setAiBusy]=useState(false),[aiMsg,setAiMsg]=useState(""),[aiPreview,setAiPreview]=useState(null);
+ const [staffNames,setStaffNames]=useState([]);
+ useEffect(()=>{loadStaffNames().then(setStaffNames)},[]);
  const set=(k,v)=>setF(p=>({...p,[k]:v}));
  const addKind=async()=>{const v=kTxt.trim();if(v){await addTaxOption("kind",f.session_type,v);set("kind",v);}setKTxt("");setKAdd(false);};
  const seg=f.type==="theme"?"SET":(KIND_CODE[f.kind]||"IT");
  const catForCode=f.sessionRel?f.session_type:"GEN";
  const chosen=BR.filter(b=>locs[b]&&locs[b].on);
  const valid=f.name.trim()&&(!f.sessionRel||f.session_type)&&chosen.length>0;
+ // duplicate detection — session items only (equipment can have many identical units)
+ const dupes=useMemo(()=>{const nm=f.name.trim();if(!f.sessionRel||nm.length<3)return [];
+   return cand.filter(c=>c.item_group==="shoot"&&c.session_type===f.session_type&&(f.type==="theme"?c.type==="theme":(c.type==="item"&&c.kind===f.kind))&&nameSim(c.name,nm)>=0.6)
+     .map(c=>({...c,score:nameSim(c.name,nm)})).sort((a,b)=>b.score-a.score).slice(0,3);
+ },[f.name,f.sessionRel,f.session_type,f.type,f.kind,cand]);
+ const mergeInto=async(c)=>{if(busy||!chosen.length)return;setBusy(true);setErr("");
+   try{const {data:exist}=await sb.from("inv_item_location").select("location").eq("item_id",c.id);
+     const have=new Set((exist||[]).map(x=>x.location));const addB=chosen.filter(b=>!have.has(b));
+     if(addB.length)await sb.from("inv_item_location").insert(addB.map(b=>({item_id:c.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:f.condition,acquired_on:(f.perLocDate?(locs[b].date||f.acquired_on):f.acquired_on)||null})));
+     if((f.placeSections||[]).length)await sb.from("showcase_section_item").insert(f.placeSections.map(sid=>({section_id:sid,item_id:c.id})));
+     if((f.placeSections||[]).length)await sb.from("inv_item").update({website_display:true}).eq("id",c.id);
+     onSaved&&onSaved({id:c.id,name:c.name});onClose&&onClose();
+   }catch(e){setErr(e.message||String(e));setBusy(false);}
+ };
+ // visual duplicate check — compares the uploaded photo against existing items' photos via AI
+ const [photoDupe,setPhotoDupe]=useState(null),[matchBusy,setMatchBusy]=useState(false),[matchMsg,setMatchMsg]=useState("");
+ const checkPhoto=async()=>{
+   if(matchBusy||!f.photo_url||!f.sessionRel)return;
+   const pool=cand.filter(c=>c.item_group==="shoot"&&c.session_type===f.session_type&&(f.type==="theme"?c.type==="theme":(c.type==="item"&&c.kind===f.kind))&&c.photo_url)
+     .map(c=>({...c,_s:nameSim(c.name,f.name)})).sort((a,b)=>b._s-a._s).slice(0,8);
+   if(!pool.length){setMatchMsg("No existing items with photos to compare yet — this looks new.");setPhotoDupe(null);return;}
+   setMatchBusy(true);setMatchMsg("");setPhotoDupe(null);
+   try{const res=await fetch(SB_URL+"/functions/v1/match-photo",{method:"POST",headers:{"content-type":"application/json","apikey":SB_KEY,"authorization":"Bearer "+SB_KEY},body:JSON.stringify({photo_url:f.photo_url,candidates:pool.map(c=>({id:c.id,name:c.name,photo_url:c.photo_url}))})});
+     const j=await res.json().catch(()=>({ok:false,reason:"bad_response"}));
+     if(!j.ok){setMatchMsg(j.reason==="no_api_key"?"AI not configured — set ANTHROPIC_API_KEY in Supabase secrets.":("Couldn't check: "+(j.message||j.reason||"unknown")));}
+     else if(j.match_id){const c=pool.find(x=>x.id===j.match_id);if(c)setPhotoDupe({...c,confidence:j.confidence,reason:j.reason});else setMatchMsg("No visual match — looks new ✓");}
+     else setMatchMsg("No visual match — looks new ✓");
+   }catch(e){setMatchMsg(String(e?.message||e));}
+   finally{setMatchBusy(false);}
+ };
  const kinds=f.sessionRel?(KIND_BY_CAT[f.session_type]||ITEM_KINDS):GENERAL_KINDS;
  useEffect(()=>{if(f.type==="item"&&!kinds.includes(f.kind))set("kind",kinds[0]||"other")},[f.session_type,f.sessionRel,f.type]);
  const showStyle=f.sessionRel&&STYLE_OPTS[f.session_type]&&f.type==="item"&&f.kind==="outfit";
@@ -1223,10 +1298,21 @@ function AddInvItem({onClose,onSaved,init={}}){
    try{
      const res = await fetch(SB_URL+"/functions/v1/suggest-item",{method:"POST",headers:{"content-type":"application/json","apikey":SB_KEY,"authorization":"Bearer "+SB_KEY},body:JSON.stringify({photo_url:f.photo_url||"",type:f.type,kind:f.kind,session_type:f.session_type,gender:f.gender,color:f.color,name:f.name,notes:f.notes})});
      const j = await res.json().catch(()=>({ok:false,reason:"bad_response"}));
-     if(!j.ok){ setAiMsg(j.reason==="no_api_key" ? "AI not configured — ask your admin to set ANTHROPIC_API_KEY in Supabase secrets." : ("Couldn't get a suggestion: "+(j.message||j.reason||"unknown"))); return; }
-     setAiPreview(j.suggestion||{});
+     if(!j.ok){ setAiMsg(j.reason==="no_api_key" ? "AI not configured — set ANTHROPIC_API_KEY in Supabase secrets." : ("Couldn't get a suggestion: "+(j.message||j.reason||"unknown"))); }
+     else setAiPreview(j.suggestion||{});
    }catch(e){ setAiMsg(String(e?.message||e)); }
-   setAiBusy(false);
+   finally{ setAiBusy(false); }
+ };
+ const aiName=async()=>{
+   if(aiBusy)return; setAiBusy(true); setAiMsg("");
+   try{
+     const res = await fetch(SB_URL+"/functions/v1/suggest-item",{method:"POST",headers:{"content-type":"application/json","apikey":SB_KEY,"authorization":"Bearer "+SB_KEY},body:JSON.stringify({photo_url:f.photo_url||"",type:f.type,kind:f.kind,session_type:f.session_type,gender:f.gender,color:f.color,name:f.name,notes:f.notes})});
+     const j = await res.json().catch(()=>({ok:false,reason:"bad_response"}));
+     if(!j.ok){ setAiMsg(j.reason==="no_api_key" ? "AI not configured — set ANTHROPIC_API_KEY in Supabase secrets." : ("Couldn't generate a name: "+(j.message||j.reason||"unknown"))); }
+     else if(j.suggestion&&j.suggestion.name){ set("name",j.suggestion.name); }
+     else setAiMsg("No name returned — try adding a photo.");
+   }catch(e){ setAiMsg(String(e?.message||e)); }
+   finally{ setAiBusy(false); }
  };
  const applyAi=(field)=>{ if(!aiPreview||!aiPreview[field])return; set(field, aiPreview[field]); setAiPreview(p=>({...p,[field]:""})); };
  const applyAllAi=()=>{ if(!aiPreview)return; ["name","color","subcategory","notes"].forEach(k=>{ if(aiPreview[k]) set(k, aiPreview[k]); }); setAiPreview(null); };
@@ -1234,11 +1320,12 @@ function AddInvItem({onClose,onSaved,init={}}){
    if(!valid||busy)return;setBusy(true);setErr("");
    try{
      const code=await nextCode(catForCode,seg);
-     const row={code,item_group:f.grp||(f.sessionRel?"shoot":"supplies"),type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.sessionRel?f.session_type:null,subcategory:f.subcategory||null,gender:(!f.sessionRel||NO_GENDER.includes(f.session_type))?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:isAsset?(f.op_status||"Available"):null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:f.condition,website_display:!!f.website_display,notes:f.notes||null};
+     const row={code,item_group:f.grp||(f.sessionRel?"shoot":"supplies"),type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.sessionRel?f.session_type:null,subcategory:f.subcategory||null,gender:(!f.sessionRel||NO_GENDER.includes(f.session_type))?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:isAsset?(f.op_status||"Available"):null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:f.condition,website_display:(f.placeSections||[]).length>0,notes:f.notes||null};
      const {data,error}=await sb.from("inv_item").insert({...row,times_selected:chosen.reduce((s,b)=>s+(Number(locs[b].times)||0),0)}).select().single();if(error)throw error;
      const locRows=chosen.map(b=>({item_id:data.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:f.condition,size:f.kind==="outfit"?(locs[b].size||null):null,acquired_on:(f.perLocDate?(locs[b].date||f.acquired_on):f.acquired_on)||null}));
      if(locRows.length){const {error:e2}=await sb.from("inv_item_location").insert(locRows);if(e2)throw e2;}
      if(linkIds.length)await sb.from("inv_theme_item").insert(linkIds.map(cid=>f.type==="theme"?({theme_id:data.id,component_item_id:cid}):({theme_id:cid,component_item_id:data.id})));
+     if((f.placeSections||[]).length)await sb.from("showcase_section_item").insert(f.placeSections.map(sid=>({section_id:sid,item_id:data.id})));
      setSaved({...data,_locs:locRows});onSaved&&onSaved(data);
    }catch(e){setErr(e.message||String(e));}
    setBusy(false);
@@ -1252,7 +1339,7 @@ function AddInvItem({onClose,onSaved,init={}}){
  // (Section is hoisted to module scope above AddInvItem — defining it inside would create a new component identity on every keystroke, which made React unmount/remount all children, causing the form to scroll up and inputs to lose focus.)
  const isMobile=typeof window!=="undefined" && window.innerWidth<640;
  // Persistent breadcrumb under the title — replaces the old in-section "Path" box.
- const pathSegs=(()=>{ const segs=[]; segs.push(f.grp==="shoot"?"Session inventory":f.grp==="electronics"?"Equipment":"Consumables"); if(chosen.length) segs.push(chosen.join(", ")); if(f.sessionRel&&f.session_type) segs.push(f.session_type); if(!isAsset){ const t = f.type==="theme" ? (f.session_type==="Gender Reveal"?"Reveal":"Setup") : (f.kind?ucf(f.kind):"Item"); segs.push(t); } if(showGender&&f.gender) segs.push(f.gender); return segs; })();
+ const pathSegs=(()=>{ const segs=[]; segs.push(f.grp==="shoot"?"Session inventory":f.grp==="electronics"?"Equipment":"Others"); if(chosen.length) segs.push(chosen.join(", ")); if(f.sessionRel&&f.session_type) segs.push(f.session_type); if(!isAsset){ const t = f.type==="theme" ? (f.session_type==="Gender Reveal"?"Reveal":"Setup") : (f.kind?ucf(f.kind):"Item"); segs.push(t); } if(showGender&&f.gender) segs.push(f.gender); return segs; })();
  const pathBreadcrumb=<div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",fontSize:11.5}}>{pathSegs.map((s,i)=><React.Fragment key={i}>{i>0&&<span style={{color:"var(--muted)"}}>›</span>}<span style={{fontWeight:600,color:"var(--ink)"}}>{s}</span></React.Fragment>)}{!chosen.length&&<span style={{color:"var(--muted)",fontStyle:"italic"}}>· pick a studio</span>}</div>;
  const grpAccent=f.grp==="shoot"?"#3e7bfa":f.grp==="electronics"?"#7c4dff":"#ff8f5e";
  // What's missing for save — used in the sticky bar
@@ -1282,7 +1369,7 @@ function AddInvItem({onClose,onSaved,init={}}){
          {/* PLACEMENT — mirrors the Catalog drilldown (Group → Studio → Session → Type → Kind → Gender) */}
          <Section title="Placement" hint="where this item lives in the catalogue" accent={grpAccent}>
            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-             <div><span style={lab}>Group</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{pill(f.grp==="shoot",()=>setF(p=>({...p,grp:"shoot",sessionRel:true})),"Session inventory","#3e7bfa")}{pill(f.grp==="electronics",()=>setF(p=>({...p,grp:"electronics",sessionRel:false,type:"item",kind:"other"})),"Equipment","#7c4dff")}{pill(f.grp==="facility",()=>setF(p=>({...p,grp:"facility",sessionRel:false,type:"item",kind:"other"})),"Consumables","#ff8f5e")}</div></div>
+             <div><span style={lab}>Group</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{pill(f.grp==="shoot",()=>setF(p=>({...p,grp:"shoot",sessionRel:true})),"Session inventory","#3e7bfa")}{pill(f.grp==="electronics",()=>setF(p=>({...p,grp:"electronics",sessionRel:false,type:"item",kind:"other"})),"Equipment","#7c4dff")}{pill(f.grp==="facility",()=>setF(p=>({...p,grp:"facility",sessionRel:false,type:"item",kind:"other"})),"Others","#ff8f5e")}</div></div>
              <div><span style={lab}>Location(s)<span style={labHint}>· tap the studios it's in</span></span>
                <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <button type="button" key={b} onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1,times:(p[b]&&p[b].times)||0}}))} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:9,border:`1.5px solid ${on?BR_COLOR[b]:"var(--line2)"}`,background:on?BR_COLOR[b]+"1c":"var(--panel)",color:on?BR_COLOR[b]:"var(--soft)",fontSize:13,fontWeight:on?700:600,minHeight:38,transition:"all .12s"}}><Dot c={BR_COLOR[b]} s={8}/>{b}</button>})}</div>
                {chosen.length>0&&<div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(220px,1fr))",gap:8,marginTop:10}}>{chosen.map(b=><div key={b} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"var(--panel2)",border:`1px solid ${BR_COLOR[b]}44`,borderRadius:8}}>
@@ -1307,6 +1394,19 @@ function AddInvItem({onClose,onSaved,init={}}){
              <button type="button" onClick={()=>set("photo_url","")} title="Remove cover" style={{position:"absolute",top:10,right:10,width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,.95)",border:"1px solid var(--line2)",boxShadow:"0 2px 8px rgba(0,0,0,.18)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon d={I.x} s={17} c="var(--danger)"/></button>
            </div>}
            <div style={{marginBottom:12}}><span style={lab}>{f.photo_url?"Replace cover":"Cover photo"}</span><PhotoField value={f.photo_url||""} onChange={v=>set("photo_url",v)} prefix="inv"/></div>
+           {f.sessionRel&&f.photo_url&&<div style={{marginBottom:12}}>
+             <button type="button" onClick={checkPhoto} disabled={matchBusy} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"7px 13px",borderRadius:8,border:"1px solid var(--line2)",background:"var(--panel)",color:"var(--soft)",fontSize:12,fontWeight:700,cursor:matchBusy?"default":"pointer"}}>{matchBusy?"Comparing photos…":"🔍 Already have this? Check the photo"}</button>
+             {matchMsg&&!photoDupe&&<div style={{marginTop:7,fontSize:12,color:matchMsg.includes("looks new")?"var(--ok)":"var(--muted)"}}>{matchMsg}</div>}
+             {photoDupe&&<div style={{marginTop:9,background:"#fff7ea",border:"1px solid #f0cd8a",borderRadius:9,padding:"10px 12px"}}>
+               <div style={{fontSize:11.5,fontWeight:700,color:"#9a6a12",marginBottom:7}}>📸 Same product found{photoDupe.confidence?` · ${Math.round(photoDupe.confidence*100)}% sure`:""}</div>
+               <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                 <div style={{width:42,height:42,borderRadius:7,overflow:"hidden",flexShrink:0,background:"var(--panel2)",display:"flex",alignItems:"center",justifyContent:"center"}}>{photoDupe.photo_url?<img src={photoDupe.photo_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon d={I.image} s={16} c="#c4c7d2"/>}</div>
+                 <div style={{flex:1,minWidth:90}}><div style={{fontSize:12.5,fontWeight:700}}>{photoDupe.name}</div>{photoDupe.reason&&<div style={{fontSize:11,color:"var(--muted)"}}>{photoDupe.reason}</div>}</div>
+                 <button type="button" onClick={()=>mergeInto(photoDupe)} disabled={busy||!chosen.length} title={chosen.length?"Add the selected studio(s) to this existing item":"Pick the studio(s) above first"} style={{padding:"7px 12px",borderRadius:7,border:"none",background:chosen.length&&!busy?"var(--ink)":"var(--line2)",color:"#fff",fontSize:11.5,fontWeight:700,cursor:chosen.length&&!busy?"pointer":"default",whiteSpace:"nowrap"}}>Same — add {chosen.length?chosen.join(" + "):"studio"} to it</button>
+               </div>
+               <div style={{fontSize:11,color:"var(--muted)",marginTop:7}}>Not the same? <button type="button" onClick={()=>setPhotoDupe(null)} style={{color:"var(--accent)",fontWeight:600,background:"none",border:"none",cursor:"pointer",padding:0}}>Dismiss & keep adding</button></div>
+             </div>}
+           </div>}
            <div><span style={lab}>More photos<span style={labHint}>· extra angles or variants</span></span><Gallery photos={f.extra_photos} onChange={v=>set("extra_photos",v)} prefix="inv"/></div>
            {aiMsg&&<div style={{marginTop:10,fontSize:12,padding:"9px 12px",borderRadius:8,background:"#fbecea",color:"var(--danger)",border:"1px solid #f3b8b3"}}>{aiMsg}</div>}
            {aiPreview&&<div style={{marginTop:12,padding:"12px 14px",borderRadius:10,background:"linear-gradient(135deg,#eaf1ff,#f3edff)",border:"1px solid #c7d6ff"}}>
@@ -1319,12 +1419,23 @@ function AddInvItem({onClose,onSaved,init={}}){
          {/* DETAILS — Name first, then aligned 2-col grid of secondary fields */}
          <Section title="Details" accent="var(--ink)">
            <div style={{display:"flex",flexDirection:"column",gap:14}}>
-             <div><span style={lab}>Name / description <span style={{color:"var(--danger)",textTransform:"none",letterSpacing:0}}>*</span></span><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Brown Corduroy Overalls" style={{...inputStyle,fontSize:15,fontWeight:500,width:"100%",border:`1.5px solid ${f.name.trim()?"var(--line2)":"#e8c4c4"}`,borderRadius:10}}/></div>
+             <div><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}><span style={{...lab,marginBottom:0}}>Name / description <span style={{color:"var(--danger)",textTransform:"none",letterSpacing:0}}>*</span></span><span style={{flex:1}}/><button type="button" onClick={aiName} disabled={aiBusy} title="Generate a name from the photo + category" style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:7,border:"none",background:aiBusy?"var(--panel2)":"linear-gradient(135deg,#3e7bfa,#7c4dff)",color:aiBusy?"var(--muted)":"#fff",fontSize:11,fontWeight:700,cursor:aiBusy?"default":"pointer"}}>{aiBusy?"…":"✨ Name it"}</button></div><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Brown Corduroy Overalls" style={{...inputStyle,fontSize:15,fontWeight:500,width:"100%",border:`1.5px solid ${f.name.trim()?(dupes.length?"#e0a23c":"var(--line2)"):"#e8c4c4"}`,borderRadius:10}}/>
+             {dupes.length>0&&<div style={{marginTop:8,background:"#fff7ea",border:"1px solid #f0cd8a",borderRadius:9,padding:"10px 12px"}}>
+               <div style={{fontSize:11.5,fontWeight:700,color:"#9a6a12",marginBottom:6}}>⚠ Possible duplicate — this may already exist</div>
+               <div style={{display:"flex",flexDirection:"column",gap:6}}>{dupes.map(c=><div key={c.id} style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                 <div style={{width:30,height:30,borderRadius:6,overflow:"hidden",flexShrink:0,background:"var(--panel2)",display:"flex",alignItems:"center",justifyContent:"center"}}>{c.photo_url?<img src={c.photo_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon d={I.image} s={14} c="#c4c7d2"/>}</div>
+                 <span style={{fontSize:12.5,fontWeight:600,flex:1,minWidth:80}}>{c.name}</span>
+                 <button type="button" onClick={()=>mergeInto(c)} disabled={busy||!chosen.length} title={chosen.length?"Add the selected studio(s) to this existing item":"Pick the studio(s) above first"} style={{padding:"6px 11px",borderRadius:7,border:"none",background:chosen.length&&!busy?"var(--ink)":"var(--line2)",color:"#fff",fontSize:11.5,fontWeight:700,cursor:chosen.length&&!busy?"pointer":"default",whiteSpace:"nowrap"}}>Same — add {chosen.length?chosen.join(" + "):"studio"} to it</button>
+               </div>)}</div>
+               <div style={{fontSize:11,color:"var(--muted)",marginTop:6}}>Genuinely different? Just keep filling this in.</div>
+             </div>}</div>
              <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12,alignItems:"start"}}>
-               {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} list="assettypesA" placeholder="e.g. Camera, Lens, Furniture" style={inputStyle}/><datalist id="assettypesA">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
+               {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!ASSET_TYPES.includes(v))addTaxOption("assettype",null,v);}} list="assettypesA" placeholder="e.g. Camera, Lens, Furniture" style={inputStyle}/><datalist id="assettypesA">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
                {isAsset&&<div><span style={lab}>Status</span><select value={f.op_status} onChange={e=>set("op_status",e.target.value)} style={inputStyle}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
                {isAsset&&!NO_SERIAL.has(f.subcategory)&&<div><span style={lab}>Serial no</span><input value={f.serial_no} onChange={e=>set("serial_no",e.target.value)} placeholder="serial / IMEI" style={inputStyle}/></div>}
-               {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"Key holder":"Assigned to / held at"}</span><input value={f.assignee} onChange={e=>set("assignee",e.target.value)} placeholder="person or room" style={inputStyle}/></div>}
+               {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"Key holder":"Assigned to / held at"}</span><input value={f.assignee} onChange={e=>set("assignee",e.target.value)} list="staffnamesA" placeholder="person or room" style={inputStyle}/></div>}
+               {!isAsset&&<div><span style={lab}>Assigned to<span style={labHint}>· optional</span></span><input value={f.assignee} onChange={e=>set("assignee",e.target.value)} list="staffnamesA" placeholder="person responsible" style={inputStyle}/></div>}
+               <datalist id="staffnamesA">{staffNames.map(n=><option key={n} value={n}/>)}</datalist>
                {showStyle&&<div><span style={lab}>Style</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={STYLE_OPTS[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("style",f.session_type,v)} placeholder="New style…" addLabel="+ Add style…"/></div>}
                {showSetupStyle&&<div><span style={lab}>Reveal type</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={SETUP_STYLE[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("setup",f.session_type,v)} placeholder="New reveal type…" addLabel="+ Add reveal type…"/></div>}
                {showSub&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!subList.includes(v))addTaxOption(f.kind==="prop"?"propsub":"subkind",f.kind==="prop"?f.session_type:f.kind,v);}} list="subopts" placeholder={SUBTYPE_PH[f.kind]||""} style={inputStyle}/><datalist id="subopts">{subList.map(s=><option key={s} value={s}/>)}</datalist></div>}
@@ -1337,17 +1448,18 @@ function AddInvItem({onClose,onSaved,init={}}){
            </div>
          </Section>
 
-         {/* LINKS */}
-         {!isAsset&&<Section title={f.type==="theme"?"Items in this setup":"Link to setup(s)"} hint="optional" accent="#9a6fd1">
-           <ItemPicker pool={cand.filter(a=>f.type==="theme"?a.type==="item":a.type==="theme")} selectedIds={linkIds} onToggle={id=>setLinkIds(l=>l.includes(id)?l.filter(x=>x!==id):[...l,id])} emptyHint={f.type==="theme"?"None yet — pick outfits / props / backdrops below.":"None yet — pick the setup(s) this belongs to."}/>
+         {/* LINKS — only a theme attaches items/outfits to itself */}
+         {!isAsset&&f.type==="theme"&&<Section title="Items in this setup" hint="optional · outfits / props / backdrops" accent="#9a6fd1">
+           <ItemPicker pool={cand.filter(a=>a.type==="item"&&a.item_group==="shoot")} selectedIds={linkIds} onToggle={id=>setLinkIds(l=>l.includes(id)?l.filter(x=>x!==id):[...l,id])} emptyHint="None yet — pick outfits / props / backdrops below."/>
          </Section>}
 
          {/* TAGS & VISIBILITY */}
          <Section title="Tags & visibility" accent="#bd9b43">
            <div style={{display:"flex",flexDirection:"column",gap:8}}>
              {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<label style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px",cursor:"pointer"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>· shows under the New filter</span></span></label>}
+             {f.session_type==="Maternity"&&<label style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px",cursor:"pointer"}}><Toggle on={(f.static_tags||[]).includes("Exclusive")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Exclusive"])]:(f.static_tags||[]).filter(x=>x!=="Exclusive"))}/><span style={{fontSize:13,fontWeight:500}}>Exclusive <span style={{color:"var(--muted)",fontWeight:400}}>· exclusive dress / setup (Maternity)</span></span></label>}
              {(f.type==="theme"&&(f.session_type==="Cake Smash"||f.session_type==="Sitter"))&&<label style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px",cursor:"pointer"}}><Toggle on={(f.static_tags||[]).includes("Real balloon")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Real balloon"])]:(f.static_tags||[]).filter(x=>x!=="Real balloon"))}/><span style={{fontSize:13,fontWeight:500}}>Real balloon <span style={{color:"var(--muted)",fontWeight:400}}>· off = plain theme (Cake Smash &amp; Sitter)</span></span></label>}
-             {!isAsset&&<label style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px",cursor:"pointer"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"} <span style={{color:"var(--muted)",fontWeight:400}}>· still needs to be added to a Showcase section to actually appear</span></span></label>}
+             {!isAsset&&<div style={{background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"12px 14px"}}><div style={{fontSize:12.5,fontWeight:700,marginBottom:9}}>Show on website <span style={{color:"var(--muted)",fontWeight:400}}>· choose exactly where it appears</span></div><WebsitePlacement studios={chosen} session={f.session_type} type={f.type} kind={f.kind} gender={f.gender} value={f.placeSections||[]} onChange={v=>set("placeSections",v)}/></div>}
            </div>
          </Section>
 
@@ -1392,6 +1504,8 @@ function InvEdit({item,onClose,onSaved}){
  const [all,setAll]=useState([]);
  const [busy,setBusy]=useState(false),[err,setErr]=useState(""),[del,setDel]=useState(false),[xfer,setXfer]=useState({from:"",to:"",qty:1});
  const [genBusy,setGenBusy]=useState(false),[genMsg,setGenMsg]=useState("");
+ const [staffNames,setStaffNames]=useState([]);
+ useEffect(()=>{loadStaffNames().then(setStaffNames)},[]);
  const generatePhoto=async()=>{
    if(genBusy||!item.id) return;
    const isAsset=item.item_group!=="shoot";
@@ -1410,12 +1524,14 @@ function InvEdit({item,onClose,onSaved}){
  const archive=async()=>{const na=!f.archived;setBusy(true);setErr("");if(sb){const {error}=await sb.from("inv_item").update({archived:na,archived_at:na?new Date().toISOString():null}).eq("id",item.id);if(error){setErr("Couldn't "+(na?"archive":"restore")+": "+error.message);setBusy(false);return;}}onSaved&&onSaved();};
  const doXfer=()=>{const {from,to}=xfer,q=Number(xfer.qty)||0;if(!from||!to||from===to||q<=0)return;setLocs(p=>{const fq=Math.max(0,(Number((p[from]||{}).qty)||0)-q);const nf={...(p[from]||{}),qty:fq,on:fq>0?(p[from]||{}).on:false};const ex=p[to]||{};const nt={on:true,qty:(Number(ex.qty)||0)+q,times:ex.times||0,cond:ex.cond||(p[from]||{}).cond||"Good",date:ex.date||today()};return {...p,[from]:nf,[to]:nt};});setXfer({from:"",to:"",qty:1});};
  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+ const [place,setPlace]=useState([]),[place0,setPlace0]=useState([]);
  useEffect(()=>{(async()=>{if(!sb)return;
+   const {data:pl}=await sb.from("showcase_section_item").select("section_id").eq("item_id",item.id);const pids=[...new Set((pl||[]).map(x=>x.section_id))];setPlace(pids);setPlace0(pids);
    const {data:l}=await sb.from("inv_item_location").select("*").eq("item_id",item.id);
    const m={};(l||[]).forEach(r=>{m[r.location]={on:true,qty:r.quantity,times:r.times_selected||0,cond:r.condition||item.condition||"Good",size:r.size||item.size||"",date:r.acquired_on||(item.created_at?item.created_at.slice(0,10):"")}});setLocs(m);
    if(item.type==="theme"){const {data:tl}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",item.id);setLinks((tl||[]).map(x=>x.component_item_id));}
    else{const {data:tl}=await sb.from("inv_theme_item").select("theme_id").eq("component_item_id",item.id);setLinks((tl||[]).map(x=>x.theme_id));}
-   const {data:av}=await sb.from("inv_item").select("id,code,name,kind,type,photo_url,session_type").neq("id",item.id).order("name");setAll(av||[]);
+   const {data:av}=await sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").neq("id",item.id).order("name");setAll(av||[]);
  })()},[]);
  useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
  const kindsE=KIND_BY_CAT[f.session_type]||ITEM_KINDS;
@@ -1441,7 +1557,10 @@ function InvEdit({item,onClose,onSaved}){
      let code=f.code;if(code&&!code.startsWith(codePrefix(catE,segE)+"-"))code=await nextCode(catE,segE);
      const on=BR.filter(b=>locs[b]&&locs[b].on),off=BR.filter(b=>!(locs[b]&&locs[b].on));
      const itemCond=on.length?(locs[on[0]].cond||f.condition||"Good"):(f.condition||"Good");
-     await sb.from("inv_item").update({code,name:f.name,type:f.type,kind:f.type==="item"?f.kind:null,session_type:f.session_type,subcategory:f.subcategory||null,gender:NO_GENDER.includes(f.session_type)?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:f.op_status||null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:itemCond,notes:f.notes||null,website_display:!!f.website_display,times_selected:totalSel}).eq("id",item.id);
+     await sb.from("inv_item").update({code,name:f.name,type:f.type,kind:f.type==="item"?f.kind:null,session_type:f.session_type,subcategory:f.subcategory||null,gender:NO_GENDER.includes(f.session_type)?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:f.op_status||null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:itemCond,notes:f.notes||null,website_display:place.length>0,times_selected:totalSel}).eq("id",item.id);
+     {const add=place.filter(id=>!place0.includes(id)),rem=place0.filter(id=>!place.includes(id));
+      if(add.length)await sb.from("showcase_section_item").insert(add.map(sid=>({section_id:sid,item_id:item.id})));
+      for(const sid of rem)await sb.from("showcase_section_item").delete().eq("item_id",item.id).eq("section_id",sid);}
      if(on.length)await sb.from("inv_item_location").upsert(on.map(b=>({item_id:item.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:(locs[b].cond||"Good"),size:f.kind==="outfit"?(locs[b].size||null):null,acquired_on:locs[b].date||null})));
      for(const b of off)await sb.from("inv_item_location").delete().eq("item_id",item.id).eq("location",b);
      onSaved&&onSaved();
@@ -1475,10 +1594,12 @@ function InvEdit({item,onClose,onSaved}){
          </div></div>}
          {!isAsset&&<div><span style={lab}>Category</span><TaxSelect value={f.session_type||""} onChange={v=>set("session_type",v)} options={SESSION_CATS} onAdd={v=>addTaxOption("session",null,v)} placeholder="New session type…" addLabel="+ Add session type…"/></div>}
          {!isAsset&&f.type==="item"&&<div><span style={lab}>Kind</span><TaxSelect value={f.kind||""} onChange={v=>set("kind",v)} options={kindsE} onAdd={v=>addTaxOption("kind",f.session_type,v)} placeholder="New kind…" addLabel="+ Add kind…"/></div>}
-         {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)} list="assettypesE" placeholder="e.g. Camera, Lens, Furniture"/><datalist id="assettypesE">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
+         {isAsset&&<div><span style={lab}>Type</span><input value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!ASSET_TYPES.includes(v))addTaxOption("assettype",null,v);}} list="assettypesE" placeholder="e.g. Camera, Lens, Furniture"/><datalist id="assettypesE">{ASSET_TYPES.map(t=><option key={t} value={t}/>)}</datalist></div>}
          {isAsset&&<div><span style={lab}>Status</span><select value={f.op_status||"Available"} onChange={e=>set("op_status",e.target.value)}>{OPSTATUS.map(s=><option key={s}>{s}</option>)}</select></div>}
          {isAsset&&!NO_SERIAL.has(f.subcategory)&&<div><span style={lab}>Serial no</span><input value={f.serial_no||""} onChange={e=>set("serial_no",e.target.value)} placeholder="serial / IMEI"/></div>}
-         {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"KEY HOLDER":"ASSIGNED TO / HELD AT"}</span><input value={f.assignee||""} onChange={e=>set("assignee",e.target.value)} placeholder="person or room"/></div>}
+         {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"KEY HOLDER":"ASSIGNED TO / HELD AT"}</span><input value={f.assignee||""} onChange={e=>set("assignee",e.target.value)} list="staffnamesE" placeholder="person or room"/></div>}
+         {!isAsset&&<div><span style={lab}>Assigned to <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><input value={f.assignee||""} onChange={e=>set("assignee",e.target.value)} list="staffnamesE" placeholder="person responsible"/></div>}
+         <datalist id="staffnamesE">{staffNames.map(n=><option key={n} value={n}/>)}</datalist>
          {isAsset&&f.subcategory!=="Key"&&<div><span style={lab}>Origin <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><input value={f.origin||""} onChange={e=>set("origin",e.target.value)} placeholder="e.g. brand / source"/></div>}
          {showStyle&&<div><span style={lab}>Style</span><TaxSelect value={f.subcategory||""} onChange={v=>set("subcategory",v)} options={STYLE_OPTS[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("style",f.session_type,v)} placeholder="New style…" addLabel="+ Add style…"/></div>}
          {showSetupStyle&&<div><span style={lab}>Reveal type</span><TaxSelect value={f.subcategory||""} onChange={v=>set("subcategory",v)} options={SETUP_STYLE[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("setup",f.session_type,v)} placeholder="New reveal type…" addLabel="+ Add reveal type…"/></div>}
@@ -1515,12 +1636,13 @@ function InvEdit({item,onClose,onSaved}){
            <button type="button" onClick={doXfer} disabled={!xfer.from||!xfer.to} style={{padding:"5px 12px",borderRadius:8,border:"1px solid var(--line2)",background:"var(--panel)",color:"var(--soft)",fontWeight:600,fontSize:11.5,cursor:xfer.from&&xfer.to?"pointer":"default",opacity:xfer.from&&xfer.to?1:.5}}>Move</button>
            <span style={{fontSize:10.5}}>(applied when you Save)</span>
          </div></div>
-       {!isAsset&&<div><span style={lab}>{f.type==="theme"?"ITEMS IN THIS SETUP":"LINKED TO SETUP(S)"} <span style={{color:"var(--muted)",fontWeight:400}}>({f.type==="theme"?"outfit / backdrop / props":"the setup(s) this belongs to"})</span></span>
-         <ItemPicker pool={all.filter(a=>item.type==="theme"?a.type==="item":a.type==="theme")} selectedIds={links} onToggle={id=>toggleLink(id)} emptyHint={item.type==="theme"?"None yet — pick outfits / props / backdrops below.":"None yet — pick the setup(s) this belongs to."}/>
+       {!isAsset&&item.type==="theme"&&<div><span style={lab}>ITEMS IN THIS SETUP <span style={{color:"var(--muted)",fontWeight:400}}>(outfit / backdrop / props)</span></span>
+         <ItemPicker pool={all.filter(a=>a.type==="item"&&a.item_group==="shoot")} selectedIds={links} onToggle={id=>toggleLink(id)} emptyHint="None yet — pick outfits / props / backdrops below."/>
        </div>}
        {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>(shows under the New filter)</span></span></div>}
+       {f.session_type==="Maternity"&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("Exclusive")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Exclusive"])]:(f.static_tags||[]).filter(x=>x!=="Exclusive"))}/><span style={{fontSize:13,fontWeight:500}}>Exclusive <span style={{color:"var(--muted)",fontWeight:400}}>(exclusive dress / setup — Maternity)</span></span></div>}
        {(f.type==="theme"&&(f.session_type==="Cake Smash"||f.session_type==="Sitter"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("Real balloon")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Real balloon"])]:(f.static_tags||[]).filter(x=>x!=="Real balloon"))}/><span style={{fontSize:13,fontWeight:500}}>Real balloon <span style={{color:"var(--muted)",fontWeight:400}}>(off = plain theme — Cake Smash &amp; Sitter)</span></span></div>}
-       {!isAsset&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={f.website_display} onChange={v=>set("website_display",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.website_display?"Shown on website":"Hidden from website"}</span></div>}
+       {!isAsset&&<div style={{background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"12px 14px"}}><div style={{fontSize:12.5,fontWeight:700,marginBottom:9}}>Show on website <span style={{color:"var(--muted)",fontWeight:400}}>· choose exactly where it appears</span></div><WebsitePlacement studios={BR.filter(b=>locs[b]&&locs[b].on)} session={f.session_type} type={f.type} kind={f.kind} gender={f.gender} value={place} onChange={setPlace}/></div>}
        {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8}}>{err}</div>}
        <div style={{display:"flex",gap:10,alignItems:"center"}}>
          {del?<span style={{display:"flex",alignItems:"center",gap:8,marginRight:"auto"}}><span style={{fontSize:12.5,color:"var(--danger)",fontWeight:600}}>Delete this card?</span><button onClick={remove} disabled={busy} style={{padding:"9px 14px",background:"var(--danger)",color:"#fff",borderRadius:8,fontWeight:600,fontSize:12.5}}>Yes, delete</button><button onClick={()=>setDel(false)} style={{fontSize:12.5,color:"var(--soft)",fontWeight:600}}>No</button></span>
@@ -1558,6 +1680,17 @@ const ST_COL=s=>s==="Available"?"#16a34a":s==="In use"?"#2563eb":s==="In repair"
 function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
  const [tab,setTab]=useState("Overview");
  const [comp,setComp]=useState([]);
+ const [staffNames,setStaffNames]=useState([]);
+ const [assignee,setAssignee]=useState(r.assignee||"");
+ const [comments,setComments]=useState([]);
+ const [cbody,setCbody]=useState(""),[cflag,setCflag]=useState("");
+ useEffect(()=>{loadStaffNames().then(setStaffNames)},[]);
+ useEffect(()=>{setAssignee(r.assignee||"");if(sb)sb.from("item_comment").select("*").eq("item_id",r.id).order("created_at",{ascending:false}).then(({data})=>setComments(data||[]));},[r.id]);
+ const saveAssignee=async v=>{setAssignee(v);if(sb)await sb.from("inv_item").update({assignee:v||null}).eq("id",r.id);};
+ const addComment=async()=>{const b=cbody.trim();if(!b)return;const row={item_id:r.id,author:ME||"Staff",body:b,flag:cflag||null};if(sb){const {data}=await sb.from("item_comment").insert(row).select().single();if(data)setComments(c=>[data,...c]);}else{setComments(c=>[{...row,id:Math.random(),created_at:new Date().toISOString()},...c]);}setCbody("");setCflag("");};
+ const delComment=async id=>{setComments(c=>c.filter(x=>x.id!==id));if(sb)await sb.from("item_comment").delete().eq("id",id);};
+ const CFLAGS=[["","Note"],["Issue","Issue"],["Broken","Broken"],["Maintenance","Maintenance"]];
+ const flagColor=fl=>fl==="Broken"?"#ff5a5f":fl==="Issue"?"#f0a23c":fl==="Maintenance"?"#7c4dff":"#8a8f9c";
  useEffect(()=>{(async()=>{if(!sb){setComp([]);return;}let ids=[];
    if(r.type==="theme"){const {data}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",r.id);ids=(data||[]).map(x=>x.component_item_id);}
    else{const {data}=await sb.from("inv_theme_item").select("theme_id").eq("component_item_id",r.id);ids=(data||[]).map(x=>x.theme_id);}
@@ -1578,11 +1711,13 @@ function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
        <div style={{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap"}}><span style={{fontSize:18,fontWeight:700,letterSpacing:"-.01em"}}>{r.name||"—"}</span>{st&&<span style={{fontSize:11.5,fontWeight:600,color:ST_COL(st),display:"inline-flex",alignItems:"center",gap:5}}><Dot c={ST_COL(st)} s={6}/>{st}</span>}</div>
        <div style={{fontSize:12,color:"var(--muted)",marginTop:3}}><span style={{fontFamily:"ui-monospace,monospace"}}>{r.code}</span>{r.brand?" · "+r.brand:""}{sub?" · "+sub:""}</div>
      </div>
-     <div style={{display:"flex",gap:4,padding:"10px 16px 0"}}>{tabs.map(t=><button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:"8px 0",fontSize:12.5,fontWeight:600,color:tab===t?"var(--ink)":"var(--muted)",borderBottom:`2px solid ${tab===t?"var(--ink)":"transparent"}`}}>{t}</button>)}</div>
+     <div style={{display:"flex",gap:4,padding:"10px 16px 0"}}>{tabs.map(t=><button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:"8px 0",fontSize:12.5,fontWeight:600,color:tab===t?"var(--ink)":"var(--muted)",borderBottom:`2px solid ${tab===t?"var(--ink)":"transparent"}`}}>{t==="Activity"&&comments.length?"Activity · "+comments.length:t}</button>)}</div>
      <div style={{padding:"16px 20px 24px"}}>
        {tab==="Overview"&&<div>
          <div style={{width:"100%",aspectRatio:"16/10",borderRadius:8,overflow:"hidden",background:"var(--panel2)",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:14}}>{r.photo_url?<img src={r.photo_url} style={{width:"100%",height:"100%",objectFit:"contain"}}/>:<Icon d={ic.d} s={40} c={ic.c} sw={1.5}/>}</div>
-         {isAsset&&<div style={{background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"12px 14px",marginBottom:12}}><div style={{fontSize:11,fontWeight:700,color:"var(--muted)",marginBottom:6}}>Assigned to / held at</div><div style={{fontSize:13.5,fontWeight:600}}>{r.assignee||"— not assigned —"}</div></div>}
+         <div style={{background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"12px 14px",marginBottom:12}}><div style={{fontSize:11,fontWeight:700,color:"var(--muted)",marginBottom:6}}>{isAsset?"Assigned to / held at":"Assigned to"}</div>
+           <input list="ipstaff" value={assignee} onChange={e=>setAssignee(e.target.value)} onBlur={e=>{if((e.target.value||"")!==(r.assignee||""))saveAssignee(e.target.value);}} placeholder="— not assigned — type a name" style={{width:"100%",fontSize:13.5,fontWeight:600,padding:"7px 10px",borderRadius:7,border:"1px solid var(--line2)",background:"var(--panel)"}}/>
+           <datalist id="ipstaff">{staffNames.map(n=><option key={n} value={n}/>)}</datalist></div>
          <div style={{fontSize:11,fontWeight:700,color:"var(--muted)",margin:"4px 0 6px"}}>Locations</div>
          {locs.length?locs.map(l=><div key={l.location} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid var(--line)"}}><Dot c={BR_COLOR[l.location]||"#bbb"} s={8}/><span style={{fontSize:13,fontWeight:600,flex:1}}>{l.location}</span>{!isAsset&&l.condition&&<span style={{fontSize:11.5,color:COND_COLOR[l.condition],fontWeight:600,marginRight:10}}>{l.condition}</span>}<span style={{fontSize:12.5,color:"var(--soft)"}}>qty {l.quantity}</span></div>):<div style={lab}>No locations.</div>}
          {r.value!=null&&r.value!==""&&<Row k="Value" v={(r.value_currency||"")+" "+r.value}/>}
@@ -1593,7 +1728,7 @@ function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
          </div>
        </div>}
        {tab==="Specifications"&&<div>
-         <Row k="Group" v={r.item_group==="shoot"?"Session inventory":r.item_group==="facility"?"Consumables":"Equipment"}/>
+         <Row k="Group" v={r.item_group==="shoot"?"Session inventory":r.item_group==="facility"?"Others":"Equipment"}/>
          <Row k="Category / type" v={r.subcategory||r.session_type||ucf(r.kind||"")}/>
          <Row k="Status" v={r.op_status}/>
          <Row k="Serial no" v={r.serial_no}/>
@@ -1612,7 +1747,26 @@ function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
          <Row k="First acquired" v={acq?fmtDate(acq):null}/>
          <Row k="In use for" v={acq?ageLabel(acq):null}/>
          {tracksUse(r)&&<Row k="Times selected" v={invSel(r)}/>}
-         <div style={{marginTop:16,padding:"20px",textAlign:"center",color:"var(--muted)",fontSize:12.5,background:"var(--panel2)",borderRadius:8}}>No check-out history yet.<br/>Check-out / return tracking is coming next.</div>
+         <div style={{marginTop:18}}>
+           <div style={{fontSize:11,fontWeight:700,color:"var(--muted)",marginBottom:8}}>Comments &amp; flags</div>
+           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>{CFLAGS.map(([fl,lbl])=>{const on=cflag===fl;const c=flagColor(fl);return <button key={lbl} type="button" onClick={()=>setCflag(fl)} style={{fontSize:11.5,fontWeight:600,padding:"5px 11px",borderRadius:20,border:`1px solid ${on?c:"var(--line2)"}`,background:on?c+"1c":"var(--panel)",color:on?c:"var(--soft)",cursor:"pointer"}}>{lbl}</button>;})}</div>
+           <textarea rows={2} value={cbody} onChange={e=>setCbody(e.target.value)} placeholder="Add a comment — e.g. lens cap missing, needs cleaning…" style={{width:"100%",resize:"vertical",fontSize:12.5,padding:"8px 10px",borderRadius:8,border:"1px solid var(--line2)",background:"var(--panel)"}}/>
+           <div style={{display:"flex",justifyContent:"flex-end",marginTop:6}}><button onClick={addComment} disabled={!cbody.trim()} style={{padding:"8px 16px",borderRadius:8,border:"none",background:cbody.trim()?"var(--ink)":"var(--line2)",color:"#fff",fontWeight:600,fontSize:12.5,cursor:cbody.trim()?"pointer":"default"}}>Post</button></div>
+           <div style={{display:"flex",flexDirection:"column",gap:9,marginTop:10}}>
+             {comments.length===0&&<div style={{fontSize:12,color:"var(--muted)",padding:"4px 0"}}>No comments yet.</div>}
+             {comments.map(c=><div key={c.id} className="trow" style={{border:"1px solid var(--line)",borderRadius:8,padding:"9px 11px"}}>
+               <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:3}}>
+                 {c.flag&&<span style={{fontSize:9.5,fontWeight:700,textTransform:"uppercase",letterSpacing:".03em",color:flagColor(c.flag),background:flagColor(c.flag)+"1c",borderRadius:6,padding:"2px 7px"}}>{c.flag}</span>}
+                 <span style={{fontSize:11.5,fontWeight:600,color:"var(--soft)"}}>{c.author||"Staff"}</span>
+                 <span style={{fontSize:10.5,color:"var(--muted)"}}>{c.created_at?fmtDate(c.created_at):""}</span>
+                 <span style={{flex:1}}/>
+                 <button onClick={()=>delComment(c.id)} title="Delete" style={{padding:2}}><Icon d={I.x} s={13} c="var(--muted)"/></button>
+               </div>
+               <div style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.45,whiteSpace:"pre-wrap"}}>{c.body}</div>
+             </div>)}
+           </div>
+         </div>
+         <div style={{marginTop:16,padding:"14px",textAlign:"center",color:"var(--muted)",fontSize:12,background:"var(--panel2)",borderRadius:8}}>Check-out / return tracking is coming next.</div>
        </div>}
      </div>
      <div style={{position:"sticky",bottom:0,background:"var(--panel)",borderTop:"1px solid var(--line)",padding:"12px 20px",display:"flex",gap:9}}>
@@ -1622,15 +1776,75 @@ function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
    </div>
  </div>;
 }
+// upload a reference photo → AI-rank the closest pieces we have
+function FindByPhoto({rows,onClose,onOpen}){
+ const [refUrl,setRefUrl]=useState(""),[upBusy,setUpBusy]=useState(false),[busy,setBusy]=useState(false),[results,setResults]=useState(null),[msg,setMsg]=useState(""),[sessF,setSessF]=useState("");
+ const inp=useRef();
+ useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
+ const pickFile=async e=>{const file=e.target.files&&e.target.files[0];if(!file||!sb)return;setUpBusy(true);setMsg("");setResults(null);
+   try{const ext=((file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg');
+     const path=`images/ref/${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}.${ext}`;
+     const up=await sb.storage.from('app').upload(path,file,{contentType:file.type||'image/jpeg',upsert:false});
+     if(up.error)throw up.error;setRefUrl(sb.storage.from('app').getPublicUrl(path).data.publicUrl);
+   }catch(ex){setMsg((ex&&ex.message)||"Upload failed");}
+   setUpBusy(false);if(inp.current)inp.current.value="";};
+ const run=async()=>{if(busy||!refUrl)return;
+   let pool=(rows||[]).filter(r=>!r.archived&&r.photo_url&&(r.item_group||"shoot")==="shoot"&&(!sessF||r.session_type===sessF));
+   if(!pool.length){setMsg("No session items with photos to search"+(sessF?" in "+sessF:"")+" yet.");setResults([]);return;}
+   pool=pool.slice(0,36);setBusy(true);setMsg("");setResults(null);
+   try{const chunks=[];for(let i=0;i<pool.length;i+=12)chunks.push(pool.slice(i,i+12));const all=[];
+     for(const ch of chunks){
+       const res=await fetch(SB_URL+"/functions/v1/search-photo",{method:"POST",headers:{"content-type":"application/json","apikey":SB_KEY,"authorization":"Bearer "+SB_KEY},body:JSON.stringify({photo_url:refUrl,candidates:ch.map(r=>({id:r.id,name:r.name,photo_url:r.photo_url}))})});
+       const j=await res.json().catch(()=>({ok:false,reason:"bad_response"}));
+       if(!j.ok){setMsg(j.reason==="no_api_key"?"AI not configured — set ANTHROPIC_API_KEY in Supabase secrets.":("Couldn't search: "+(j.message||j.reason||"unknown")));setBusy(false);return;}
+       (j.matches||[]).forEach(mt=>{const r=ch.find(x=>x.id===mt.id);if(r)all.push({r,score:mt.score,reason:mt.reason});});
+     }
+     all.sort((a,b)=>b.score-a.score);setResults(all.slice(0,8));
+     if(!all.length)setMsg("No close matches — try another reference or category.");
+   }catch(e){setMsg(String(e?.message||e));}
+   setBusy(false);};
+ return <div style={{position:"fixed",inset:0,background:"#1a1a2433",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+   <div className="scroll fade modalcard" style={{width:600,maxWidth:"96vw",maxHeight:"92vh",background:"var(--panel)",borderRadius:12,overflow:"auto"}}>
+     <div style={{position:"sticky",top:0,background:"var(--panel)",padding:"16px 20px",borderBottom:"1px solid var(--line)",zIndex:1,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+       <div><div style={{fontWeight:700,fontSize:16}}>Find by photo</div><div style={{fontSize:11.5,color:"var(--muted)",marginTop:2}}>Upload a reference a client likes — we'll rank your closest pieces.</div></div>
+       <button onClick={onClose} style={{padding:4}}><Icon d={I.x} s={19} c="var(--muted)"/></button>
+     </div>
+     <div style={{padding:"18px 20px",display:"flex",flexDirection:"column",gap:14}}>
+       <div style={{display:"flex",gap:14,flexWrap:"wrap",alignItems:"flex-start"}}>
+         <div style={{width:140,flexShrink:0}}>
+           <div style={{width:140,height:170,borderRadius:10,overflow:"hidden",border:"1px solid var(--line2)",background:"var(--panel2)",display:"flex",alignItems:"center",justifyContent:"center"}}>{refUrl?<img src={refUrl} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon d={I.image} s={30} c="#c4c7d2"/>}</div>
+           <button type="button" onClick={()=>inp.current&&inp.current.click()} disabled={upBusy} style={{marginTop:8,width:"100%",padding:"9px 0",borderRadius:8,border:"1px solid var(--line2)",background:"var(--panel)",color:"var(--ink)",fontWeight:600,fontSize:12.5,cursor:"pointer"}}>{upBusy?"Uploading…":refUrl?"Replace photo":"Upload reference"}</button>
+           <input ref={inp} type="file" accept="image/*" onChange={pickFile} style={{display:"none"}}/>
+         </div>
+         <div style={{flex:1,minWidth:200,display:"flex",flexDirection:"column",gap:10}}>
+           <div><span style={{display:"block",fontSize:10.5,fontWeight:700,color:"var(--muted)",marginBottom:5}}>NARROW BY SESSION <span style={{fontWeight:400}}>(recommended)</span></span>
+             <select value={sessF} onChange={e=>{setSessF(e.target.value);setResults(null);}} style={{width:"100%"}}><option value="">All sessions</option>{SESSION_CATS.map(s=><option key={s}>{s}</option>)}</select></div>
+           <button type="button" onClick={run} disabled={!refUrl||busy} style={{padding:"11px 0",borderRadius:9,border:"none",background:refUrl&&!busy?"var(--ink)":"var(--line2)",color:"#fff",fontWeight:700,fontSize:13.5,cursor:refUrl&&!busy?"pointer":"default"}}>{busy?"Searching your catalog…":"🔎 Find closest matches"}</button>
+           {msg&&<div style={{fontSize:12,color:msg.includes("not configured")?"var(--danger)":"var(--muted)"}}>{msg}</div>}
+         </div>
+       </div>
+       {results&&results.length>0&&<div>
+         <div style={{fontSize:11,fontWeight:700,color:"var(--muted)",marginBottom:8}}>CLOSEST IN YOUR CATALOG</div>
+         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:10}}>
+           {results.map(({r,score,reason})=><button key={r.id} onClick={()=>onOpen&&onOpen(r)} style={{textAlign:"left",border:"1px solid var(--line)",borderRadius:10,overflow:"hidden",background:"var(--panel)",cursor:"pointer"}}>
+             <div style={{position:"relative",width:"100%",aspectRatio:"3/4"}}>{r.photo_url?<img src={r.photo_url} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",background:"var(--panel2)"}}/>}{score>0&&<span style={{position:"absolute",top:6,left:6,fontSize:9.5,fontWeight:800,color:"#fff",background:"rgba(20,20,28,.78)",borderRadius:6,padding:"2px 7px"}}>{Math.round(score*100)}%</span>}</div>
+             <div style={{padding:"7px 9px"}}><div style={{fontSize:12,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</div><div style={{fontSize:10,color:"var(--muted)",marginTop:1}}>{[r.session_type,r.gender].filter(Boolean).join(" · ")}</div>{reason&&<div style={{fontSize:10,color:"var(--soft)",marginTop:3,lineHeight:1.3}}>{reason}</div>}</div>
+           </button>)}
+         </div>
+       </div>}
+     </div>
+   </div>
+ </div>;
+}
 function NewInventory({initCat=""}){
- const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[scan,setScan]=useState(false),[scanErr,setScanErr]=useState(""),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("popular"),[catF,setCatF]=useState(initCat),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState(""),[sizeF,setSizeF]=useState(""),[condF,setCondF]=useState(""),[newF,setNewF]=useState(false),[balloonF,setBalloonF]=useState(""),[unusedF,setUnusedF]=useState(false),[showArch,setShowArch]=useState(false),[labels,setLabels]=useState(false),[ecatF,setEcatF]=useState(""),[etypeF,setEtypeF]=useState(""),[estatF,setEstatF]=useState(""),[bucketF,setBucketF]=useState("");
+ const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[scan,setScan]=useState(false),[scanErr,setScanErr]=useState(""),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("popular"),[catF,setCatF]=useState(initCat),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState(""),[sizeF,setSizeF]=useState(""),[condF,setCondF]=useState(""),[newF,setNewF]=useState(false),[balloonF,setBalloonF]=useState(""),[unusedF,setUnusedF]=useState(false),[showArch,setShowArch]=useState(false),[labels,setLabels]=useState(false),[ecatF,setEcatF]=useState(""),[etypeF,setEtypeF]=useState(""),[estatF,setEstatF]=useState(""),[bucketF,setBucketF]=useState(""),[findOpen,setFindOpen]=useState(false);
  const scrollRef=useRef(null);
  const [vmode,setVmode]=useState("");
  const [detail,setDetail]=useState(null),[labelItem,setLabelItem]=useState(null),[browseAll,setBrowseAll]=useState(false),[picked,setPicked]=useState(()=>new Set());
  const togglePick=id=>setPicked(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
  const isElecView=groupF==="electronics"||groupF==="facility";
  const vm=vmode||(isElecView?"list":"grid");
- const GL={shoot:"Session inventory",electronics:"Equipment",facility:"Consumables"};
+ const GL={shoot:"Session inventory",electronics:"Equipment",facility:"Others"};
  const catSel=isElecView?ecatF:catF;
  const needGenderCat=c=>!!c&&!NO_GENDER.includes(c);
  const BUCKETS=[["theme","Themes & setups",I.layers],["outfit","Outfits",I.shirt],["items","Items",I.box]];
@@ -1701,7 +1915,7 @@ function NewInventory({initCat=""}){
      <div style={{flex:1,minWidth:0}}>
        <div style={{display:"flex",alignItems:"center",gap:7}}>
          <span style={{fontWeight:700,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name||"—"}</span>
-         {(r.static_tags||[]).includes("New")&&<span style={{fontSize:8.5,fontWeight:800,color:"#b07d12",background:"var(--gold-soft)",borderRadius:8,padding:"1px 6px",flexShrink:0}}>NEW</span>}{(r.static_tags||[]).includes("Real balloon")&&<span style={{fontSize:8.5,fontWeight:800,color:"#7a4fb5",background:"#efe6fb",borderRadius:8,padding:"1px 6px",flexShrink:0}}>BALLOON</span>}
+         {(r.static_tags||[]).includes("New")&&<span style={{fontSize:8.5,fontWeight:800,color:"#b07d12",background:"var(--gold-soft)",borderRadius:8,padding:"1px 6px",flexShrink:0}}>NEW</span>}{(r.static_tags||[]).includes("Real balloon")&&<span style={{fontSize:8.5,fontWeight:800,color:"#7a4fb5",background:"#efe6fb",borderRadius:8,padding:"1px 6px",flexShrink:0}}>BALLOON</span>}{(r.static_tags||[]).includes("Exclusive")&&<span style={{fontSize:8.5,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"#1a1a24",borderRadius:8,padding:"1px 7px",flexShrink:0}}>EXCLUSIVE</span>}
          {r.archived&&<span style={{fontSize:8.5,fontWeight:800,color:"#8a6d1e",background:"#f5ecd6",borderRadius:8,padding:"1px 6px",flexShrink:0}}>ARCHIVED</span>}
        </div>
        <div style={{fontSize:12,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:1}}>{meta||r.code}</div>
@@ -1726,6 +1940,7 @@ function NewInventory({initCat=""}){
        {[["list",I.list],["grid",I.grid]].map(([mode,ic])=><button key={mode} onClick={()=>setVmode(mode)} title={mode==="list"?"List view":"Grid view"} style={{display:"flex",alignItems:"center",justifyContent:"center",width:36,height:36,background:vm===mode?"var(--ink)":"var(--panel)",color:vm===mode?"#fff":"var(--muted)"}}><Icon d={ic} s={16} c={vm===mode?"#fff":"var(--muted)"}/></button>)}
      </div>
      {(()=>{const na=rows.filter(r=>r.archived).length;return na>0&&<button onClick={()=>setShowArch(!showArch)} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 13px",borderRadius:8,border:`1px solid ${showArch?"var(--ink)":"var(--line2)"}`,background:showArch?"var(--ink)":"var(--panel)",color:showArch?"#fff":"var(--soft)",fontWeight:600,fontSize:13}}>{showArch?"Hide":"Show"} archived ({na})</button>})()}
+     <button onClick={()=>setFindOpen(true)} title="Upload a reference photo and find your closest pieces" style={{display:"flex",alignItems:"center",gap:6,padding:"9px 13px",border:"1px solid var(--line2)",borderRadius:8,background:"var(--panel)",color:"var(--ink)",fontWeight:600,fontSize:13}}><span style={{fontSize:14}}>🔎</span>Find by photo</button>
      <button onClick={()=>setScan(true)} title="Scan a code or type it" style={{display:"flex",alignItems:"center",gap:6,padding:"9px 13px",border:"1px solid var(--line2)",borderRadius:8,background:"var(--panel)",color:"var(--ink)",fontWeight:600,fontSize:13}}><span style={{fontSize:14}}>📷</span>Scan</button>
      <button onClick={()=>setAdd(true)} style={{display:"flex",alignItems:"center",gap:6,background:"var(--ink)",color:"#fff",padding:"9px 15px",borderRadius:8,fontWeight:600,fontSize:13}}><Icon d={I.plus} s={15} c="#fff"/>{etypeF?("Add "+etypeF):catF?("Add to "+catF):"Add item"}</button></div>
    <p style={{color:"var(--muted)",fontSize:12.5,marginTop:2,marginBottom:14}}>One card per real item · tracked across every studio.</p>
@@ -1761,7 +1976,7 @@ function NewInventory({initCat=""}){
      const tile=(key,onClick,icd,icc,title,subT)=><button key={key} onClick={onClick} className="fade" style={{textAlign:"left",display:"flex",alignItems:"center",gap:13,background:"var(--panel)",border:"1px solid var(--line)",borderRadius:9,padding:16,boxShadow:"var(--shadow)",cursor:"pointer"}}><div style={{width:46,height:46,borderRadius:8,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:icc+"16"}}><Icon d={icd} s={23} c={icc} sw={1.7}/></div><div style={{flex:1,minWidth:0}}><div style={{fontWeight:700,fontSize:14}}>{title}</div><div style={{fontSize:12,color:"var(--muted)",marginTop:2}}>{subT}</div></div><Icon d={I.chev} s={18} c="var(--muted)"/></button>;
      const tgrid=ch=><div className="cardgrid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))",gap:12}}>{ch}</div>;
      // Level 0 — pick a group
-     if(!groupF){const gicon={shoot:I.layers,electronics:I.camera,facility:I.sofa};return tgrid(["shoot","electronics","facility"].map(g=>{const n=rows.filter(r=>!r.archived&&(r.item_group||"shoot")===g).length;return n?tile(g,()=>pickGroup(g),gicon[g],"#7c8291",GL[g],n+" items"):null;}));}
+     if(!groupF){const gicon={shoot:I.layers,electronics:I.camera,facility:I.box};return tgrid(["shoot","electronics","facility"].map(g=>{const n=rows.filter(r=>!r.archived&&(r.item_group||"shoot")===g).length;return tile(g,()=>pickGroup(g),gicon[g],"#7c8291",GL[g],n+(n===1?" item":" items"));}));}
      // Level 1 — pick a studio
      if(drillStudio){const dataLocs=[...new Set(rows.filter(r=>m(r,"loc")).flatMap(locOf).filter(Boolean))];
        const studios=[...BR,...dataLocs.filter(l=>!BR.includes(l)).sort()];
@@ -1791,14 +2006,15 @@ function NewInventory({initCat=""}){
        const allOn=filtered.length>0&&filtered.every(r=>picked.has(r.id));
        const cell={display:"flex",alignItems:"center"};
        const SortH=({label,a,d,w})=>{const on=sort===a||sort===d;return <button onClick={()=>setSort(sort===a?d:a)} style={{display:"flex",alignItems:"center",gap:4,color:on?"var(--ink)":"var(--muted)",fontWeight:on?700:600,fontSize:11,...(w?{width:w}:{flex:1}),cursor:"pointer",textAlign:"left"}}>{label}{on&&<span style={{fontSize:8}}>{sort===a?"▲":"▼"}</span>}</button>;};
-       return <div style={{overflowX:"auto",borderRadius:9,border:"1px solid var(--line)",boxShadow:"var(--shadow)",background:"var(--panel)"}}><div style={{minWidth:isElecView?840:900}}>
-         <div style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px",borderBottom:"1px solid var(--line)"}}><span style={{width:18,...cell}}><input type="checkbox" checked={allOn} onChange={()=>setPicked(allOn?new Set():new Set(filtered.map(r=>r.id)))} style={{width:15,height:15,cursor:"pointer"}}/></span><SortH label="Name" a="az" d="za"/><SortH label="Category" a="catA" d="catZ" w={130}/><SortH label="Status" a="statA" d="statZ" w={110}/><SortH label="Condition" a="cond" d="condbest" w={110}/><span style={{width:140,fontSize:11,fontWeight:600,color:"var(--muted)"}}>{isElecView?"Storage location":"Studios"}</span>{!isElecView&&<span style={{width:50,...cell,justifyContent:"center",fontSize:11,fontWeight:600,color:"var(--muted)"}}>Web</span>}<span style={{width:30}}/></div>
+       return <div style={{overflowX:"auto",borderRadius:9,border:"1px solid var(--line)",boxShadow:"var(--shadow)",background:"var(--panel)"}}><div style={{minWidth:isElecView?980:1040}}>
+         <div style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px",borderBottom:"1px solid var(--line)"}}><span style={{width:18,...cell}}><input type="checkbox" checked={allOn} onChange={()=>setPicked(allOn?new Set():new Set(filtered.map(r=>r.id)))} style={{width:15,height:15,cursor:"pointer"}}/></span><SortH label="Name" a="az" d="za"/><SortH label="Category" a="catA" d="catZ" w={130}/><SortH label="Status" a="statA" d="statZ" w={110}/><SortH label="Condition" a="cond" d="condbest" w={110}/><span style={{width:130,fontSize:11,fontWeight:600,color:"var(--muted)"}}>Assigned to</span><span style={{width:140,fontSize:11,fontWeight:600,color:"var(--muted)"}}>{isElecView?"Storage location":"Studios"}</span>{!isElecView&&<span style={{width:50,...cell,justifyContent:"center",fontSize:11,fontWeight:600,color:"var(--muted)"}}>Web</span>}<span style={{width:30}}/></div>
          {filtered.map(r=>{const ic=itemIcon(r);const st=colStat(r);const isStatus=!!r.op_status;const c=ST_COL(st);const cond=condOf(r);const on=picked.has(r.id);return <div key={r.id} onClick={()=>setDetail(r)} className="trow fade" style={{display:"flex",alignItems:"center",gap:14,padding:"11px 18px",borderTop:"1px solid var(--line)",cursor:"pointer"}}>
            <span style={{width:18,...cell}} onClick={e=>{e.stopPropagation();togglePick(r.id);}}><input type="checkbox" checked={on} readOnly style={{width:15,height:15,cursor:"pointer"}}/></span>
            <div style={{display:"flex",alignItems:"center",gap:12,flex:1,minWidth:0}}><div style={{width:40,height:40,borderRadius:8,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--panel2)"}}>{r.photo_url?<img src={r.photo_url} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon d={ic.d} s={19} c={ic.c} sw={1.7}/>}</div><div style={{minWidth:0}}><div style={{fontWeight:600,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</div><div style={{fontSize:11,color:"var(--muted)",fontFamily:"ui-monospace,SFMono-Regular,monospace"}}>{r.code}</div></div></div>
            <span style={{width:130}}>{colCat(r)?<span style={{display:"inline-block",fontSize:11.5,fontWeight:500,color:"var(--soft)",border:"1px solid var(--line2)",borderRadius:8,padding:"3px 10px",whiteSpace:"nowrap",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis"}}>{colCat(r)}</span>:<span style={{color:"var(--muted)"}}>—</span>}</span>
            <span style={{width:110}}>{isStatus?<span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,fontWeight:600,color:c,background:c+"1c",borderRadius:20,padding:"3px 9px"}}><Dot c={c} s={5}/>{st}</span>:<span style={{fontSize:12.5,color:"var(--muted)"}}>{st||"—"}</span>}</span>
            <span style={{width:110,fontSize:12.5,color:cond?COND_COLOR[cond]:"var(--muted)",fontWeight:cond?500:400,display:"inline-flex",alignItems:"center",gap:6}}>{cond&&<Dot c={COND_COLOR[cond]} s={6}/>}{cond||"—"}</span>
+           <span style={{width:130,fontSize:12.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.assignee?<span style={{display:"inline-flex",alignItems:"center",gap:5,color:"var(--soft)",fontWeight:600}}><Icon d={I.users} s={13} c="var(--muted)" sw={1.7}/>{r.assignee}</span>:<span style={{color:"var(--line2)"}}>—</span>}</span>
            <span style={{width:140,fontSize:12.5,color:"var(--soft)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{(r.inv_item_location||[]).map(l=>l.location).join(", ")||"—"}</span>
            {!isElecView&&<span style={{width:50,...cell,justifyContent:"center"}} title={isPub(r)?"Published — it's in the Website Showcase":"Not on website — add it in Website Showcase to publish"}><Icon d={I.globe} s={16} c={isPub(r)?"#16a34a":"var(--line2)"}/></span>}
            <span style={{width:30,...cell,justifyContent:"flex-end"}}><button className="rowdel" onClick={e=>removeItem(r,e)} title="Remove item" style={{display:"flex",padding:4,color:"var(--danger)"}}><Icon d={I.trash} s={15} c="var(--danger)"/></button></span>
@@ -1811,6 +2027,7 @@ function NewInventory({initCat=""}){
    {scanErr&&<div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",background:"#fde2e0",color:"var(--danger)",border:"1px solid #f3b8b3",borderRadius:8,padding:"10px 16px",fontSize:13,zIndex:400,boxShadow:"var(--shadow)"}}>{scanErr} <button onClick={()=>setScanErr("")} style={{marginLeft:12,padding:0,fontWeight:700}}>×</button></div>}
    {edit&&<InvEdit item={edit} onClose={()=>setEdit(null)} onSaved={()=>{setEdit(null);setDetail(null);load();}}/>}
    {detail&&<ItemPanel item={detail} published={pubSet.has(detail.id)} onClose={()=>setDetail(null)} onEdit={r=>{setDetail(null);setEdit(r);}} onPrint={r=>setLabelItem(r)} onOpen={r=>setDetail(r)}/>}
+   {findOpen&&<FindByPhoto rows={rows} onClose={()=>setFindOpen(false)} onOpen={r=>{setFindOpen(false);setDetail(r);}}/>}
    {labelItem&&<LabelSheet items={[labelItem]} onClose={()=>setLabelItem(null)}/>}
    {labels&&<LabelSheet items={filtered} onClose={()=>setLabels(false)}/>}
  </div>;
@@ -2015,6 +2232,10 @@ function Settings({onSaved,notify,rows=[],email,signOut,onNav}){
     <input value={newSess} onChange={e=>setNewSess(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addSession();}} placeholder="New session type name…" style={{flex:1,padding:"8px 11px",borderRadius:9,border:"1px solid var(--line2)",fontSize:13,background:"var(--panel)",color:"var(--ink)"}}/>
     <button type="button" onClick={addSession} style={{padding:"8px 16px",borderRadius:9,border:"none",background:"var(--ink)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>+ Add session</button>
    </div>
+   <div style={{fontSize:13,fontWeight:700,color:"var(--ink)",margin:"22px 0 12px"}}>Equipment &amp; asset types <span style={{fontWeight:500,color:"var(--muted)"}}>— the Type list for Equipment / Others items</span></div>
+   <div style={card}>
+    <ListEditor items={t.assetTypes||ASSET_TYPES} onChange={a=>setT(p=>({...p,assetTypes:a}))} ph="add a type… e.g. Tripod"/>
+   </div>
    <div style={{fontSize:13,fontWeight:700,color:"var(--ink)",margin:"22px 0 12px"}}>Sub-types by kind <span style={{fontWeight:500,color:"var(--muted)"}}>— shared across all sessions</span></div>
    <div style={card}>
     {subKinds.map(k=><Field key={k} label={k}><ListEditor items={(t.subtypeOpts||{})[k]||[]} onChange={a=>setKindSub(k,a)} ph={"add "+k+" type…"}/></Field>)}
@@ -2032,6 +2253,11 @@ function StatCard({label,value,sub,color}){
  </div>;
 }
 function InvDashboard({rows,onOpen,go}){
+ const [adv,setAdv]=useState(null),[advBusy,setAdvBusy]=useState(false);
+ useEffect(()=>{if(sb)sb.from("daily_advisory").select("*").order("created_at",{ascending:false}).limit(1).maybeSingle().then(({data})=>setAdv(data||null));},[]);
+ const runAdv=async()=>{if(advBusy)return;setAdvBusy(true);try{const res=await fetch(SB_URL+"/functions/v1/daily-advisory",{method:"POST",headers:{"content-type":"application/json","apikey":SB_KEY,"authorization":"Bearer "+SB_KEY},body:"{}"});const j=await res.json().catch(()=>null);if(j&&j.advisory)setAdv(j.advisory);}catch(e){}setAdvBusy(false);};
+ const boldify=s=>s.split(/(\*\*[^*]+\*\*)/g).map((p,i)=>p.startsWith("**")&&p.endsWith("**")?<b key={i}>{p.slice(2,-2)}</b>:<span key={i}>{p}</span>);
+ const renderAdv=text=>(text||"").split("\n").map((ln,i)=>{const t=ln.trim();if(!t)return <div key={i} style={{height:5}}/>;if(/^[-•*]\s+/.test(t))return <div key={i} style={{display:"flex",gap:7,fontSize:12.5,lineHeight:1.5,margin:"2px 0"}}><span style={{color:"var(--muted)"}}>•</span><span>{boldify(t.replace(/^[-•*]\s+/,""))}</span></div>;return <div key={i} style={{fontSize:12.5,lineHeight:1.5,margin:"3px 0",fontWeight:t.startsWith("**")?700:400}}>{boldify(t)}</div>;});
  const active=rows.filter(r=>!r.archived);
  const setups=active.filter(r=>r.type==="theme").length, items=active.length-setups;
  const archived=rows.length-active.length;
@@ -2060,6 +2286,11 @@ function InvDashboard({rows,onOpen,go}){
    <StatCard label="Total value" value={valStr} sub="declared, per currency"/>
    <StatCard label="Needs attention" value={attention.length} sub="damaged or in repair" color={attention.length?"#ff5a5f":"var(--ink)"}/>
    <StatCard label="Dead stock" value={unused.length} sub="setups/outfits never used" color={unused.length?"#6b7280":"var(--ink)"}/>
+  </div>
+  <div style={{...panel,flex:"1 1 100%",marginBottom:14,borderLeft:"3px solid var(--accent)"}}>
+   <div style={h}><span style={{fontSize:15}}>🩺</span>Daily briefing<span style={{flex:1}}/>{adv&&adv.created_at&&<span style={{fontSize:11,color:"var(--muted)",fontWeight:400}}>{fmtDate(adv.created_at)}</span>}<button onClick={runAdv} disabled={advBusy} style={{padding:"6px 12px",borderRadius:8,border:"1px solid var(--line2)",background:"var(--panel)",color:"var(--soft)",fontWeight:600,fontSize:12,cursor:advBusy?"default":"pointer"}}>{advBusy?"Checking…":"Run now"}</button></div>
+   {adv&&adv.counts&&<div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>{[["In repair",adv.counts.in_repair,"#f0a23c"],["Poor / damaged",adv.counts.poor_or_damaged,"#ff5a5f"],["Flagged",adv.counts.flagged_comments,"#7c4dff"],["Missing photo",adv.counts.missing_photo,"#6b7280"]].map(([l,n,c])=><span key={l} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11.5,fontWeight:600,color:n?c:"var(--muted)",background:(n?c:"#9aa0b0")+"16",borderRadius:20,padding:"3px 11px"}}><Dot c={n?c:"#c4c7d2"} s={6}/>{l}: {n}</span>)}</div>}
+   {adv?<div style={{color:"var(--ink)"}}>{renderAdv(adv.summary)}</div>:<div style={{fontSize:12.5,color:"var(--muted)"}}>No briefing yet — it runs automatically each morning, or press <b>Run now</b>.</div>}
   </div>
   {popByBranch.length>0&&<div style={{...panel,flex:"1 1 100%",marginBottom:14}}><div style={h}><Icon d={I.cursor} s={15} c="var(--muted)" sw={1.7}/>Popular setups by studio</div>
    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:16}}>{popByBranch.map(({b,list})=><div key={b}><div style={{display:"flex",alignItems:"center",gap:7,marginBottom:7,fontSize:12,fontWeight:700,color:BR_COLOR[b]}}><Dot c={BR_COLOR[b]} s={8}/>{b}</div><div style={{display:"flex",flexDirection:"column",gap:3}}>{list.map(r=>row(r,branchSel(r,b)+"×","var(--ink)"))}</div></div>)}</div></div>}
@@ -2090,7 +2321,7 @@ function App(){
  const [toast,setToast]=useState("");
  const notify=m=>{setToast(m);setTimeout(()=>setToast(""),4500);};
  const [session,setSession]=useState(sb?undefined:null);
- useEffect(()=>{if(!sb)return;sb.auth.getSession().then(({data})=>setSession(data.session));const {data:sub}=sb.auth.onAuthStateChange((_e,s)=>setSession(s));return ()=>sub.subscription.unsubscribe()},[]);
+ useEffect(()=>{if(!sb)return;sb.auth.getSession().then(({data})=>{setSession(data.session);ME=(data.session&&data.session.user&&data.session.user.email)||"";});const {data:sub}=sb.auth.onAuthStateChange((_e,s)=>{setSession(s);ME=(s&&s.user&&s.user.email)||"";});return ()=>sub.subscription.unsubscribe()},[]);
  const [view,setView]=useState(()=>/^#show=/.test(window.location.hash||"")?"showcase":"dashboard");
  const [catInit,setCatInit]=useState("");
  const [sel,setSel]=useState(null); const [form,setForm]=useState(null); // form = {} for new, theme for edit
