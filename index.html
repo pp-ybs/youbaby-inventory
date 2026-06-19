@@ -1256,7 +1256,7 @@ function AddInvItem({onClose,onSaved,init={}}){
      const have=new Set((exist||[]).map(x=>x.location));const addB=chosen.filter(b=>!have.has(b));
      if(addB.length)await sb.from("inv_item_location").insert(addB.map(b=>({item_id:c.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:f.condition,acquired_on:(f.perLocDate?(locs[b].date||f.acquired_on):f.acquired_on)||null})));
      if((f.placeSections||[]).length)await sb.from("showcase_section_item").insert(f.placeSections.map(sid=>({section_id:sid,item_id:c.id})));
-     if((f.placeSections||[]).length)await sb.from("inv_item").update({website_display:true}).eq("id",c.id);
+     if((f.placeSections||[]).length||f.website_display)await sb.from("inv_item").update({website_display:true}).eq("id",c.id);
      onSaved&&onSaved({id:c.id,name:c.name});onClose&&onClose();
    }catch(e){setErr(e.message||String(e));setBusy(false);}
  };
@@ -1320,7 +1320,7 @@ function AddInvItem({onClose,onSaved,init={}}){
    if(!valid||busy)return;setBusy(true);setErr("");
    try{
      const code=await nextCode(catForCode,seg);
-     const row={code,item_group:f.grp||(f.sessionRel?"shoot":"supplies"),type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.sessionRel?f.session_type:null,subcategory:f.subcategory||null,gender:(!f.sessionRel||NO_GENDER.includes(f.session_type))?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:isAsset?(f.op_status||"Available"):null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:f.condition,website_display:(f.placeSections||[]).length>0,notes:f.notes||null};
+     const row={code,item_group:f.grp||(f.sessionRel?"shoot":"supplies"),type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.sessionRel?f.session_type:null,subcategory:f.subcategory||null,gender:(!f.sessionRel||NO_GENDER.includes(f.session_type))?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:isAsset?(f.op_status||"Available"):null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:f.condition,website_display:!!f.website_display||(f.placeSections||[]).length>0,notes:f.notes||null};
      const {data,error}=await sb.from("inv_item").insert({...row,times_selected:chosen.reduce((s,b)=>s+(Number(locs[b].times)||0),0)}).select().single();if(error)throw error;
      const locRows=chosen.map(b=>({item_id:data.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:f.condition,size:f.kind==="outfit"?(locs[b].size||null):null,acquired_on:(f.perLocDate?(locs[b].date||f.acquired_on):f.acquired_on)||null}));
      if(locRows.length){const {error:e2}=await sb.from("inv_item_location").insert(locRows);if(e2)throw e2;}
