@@ -708,17 +708,14 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const moveToBoard=async(s,board)=>{if(!board||board===s.board)return;const mx=Math.max(0,...boardSecs(board).map(x=>x.sort||0));await sb.from("showcase_section").update({board,sort:mx+1}).eq("id",s.id);load();};
  const delSection=async(s)=>{if(!window.confirm("Delete section “"+s.title+"”?"))return;await sb.from("showcase_section").delete().eq("id",s.id);load();};
  const addItem=async(sid,it)=>{
-   // Showcase is per-studio: a Dubai-only product in the Abu Dhabi showcase is
-   // a dead end (customer sees it, can't actually use it in AD). Ask first, and
-   // if confirmed, also stock it in scLoc so it's a real, bookable unit there.
-   if(scLoc&&!(it.branches||[]).includes(scLoc)){
-     const here=(it.branches||[]).join(", ")||"no studio yet";
-     if(!window.confirm(`“${it.name}” is currently in ${here} — not in ${scLoc}.\n\nAdd it as a ${scLoc} unit too, so it's actually available for ${scLoc} customers?`))return;
-     await sb.from("inv_item_location").insert({item_id:it.id,location:scLoc,quantity:1});
-     await sb.from("inv_item").update({website_display:true}).eq("id",it.id);
-     onItemsChanged&&onItemsChanged();
-   }
-   await sb.from("showcase_section_item").insert({section_id:sid,item_id:it.id});load();
+   // Adding to a studio's showcase implicitly stocks the item there — the
+   // showcase IS the public catalogue for that studio, so a missing inv_item_location
+   // row would mean a customer sees a theme they can't actually book.
+   // (The DB trigger sync_inv_website_display_aiud does the same on its own;
+   // we do it client-side too so the UI updates immediately without a round-trip.)
+   await sb.from("showcase_section_item").insert({section_id:sid,item_id:it.id});
+   if(scLoc&&!(it.branches||[]).includes(scLoc)){onItemsChanged&&onItemsChanged();}
+   load();
  };
  const rmItem=async(linkId)=>{await sb.from("showcase_section_item").delete().eq("id",linkId);load();};
  const pickItems=themes.filter(t=>{const q=pq.trim().toLowerCase();const kindOk=!scKind||(scKind==="Outfits"?(t._row&&t._row.kind==="outfit"):(t._row&&t._row.type==="theme"));return kindOk&&(!q||((t.name||"")+" "+(t._row&&t._row.code||"")).toLowerCase().includes(q));});
