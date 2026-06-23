@@ -80,6 +80,11 @@ const BR=['Dubai','Abu Dhabi','Doha','Al Quoz'];
 const BR_COLOR={'Dubai':'#8a8f9c','Abu Dhabi':'#8a8f9c','Doha':'#8a8f9c','Al Quoz':'#8a8f9c'};
 const CONDS=['Excellent','Good','Fair','Poor','Damaged'];
 const COND_COLOR={Excellent:'#22b573',Good:'#5bbf6a',Fair:'#f0a23c',Poor:'#ff8f3c',Damaged:'#ff5a5f'};
+// Order the meter draws left → right: worst on the left, best on the right.
+// The DB still stores the original CONDS labels so existing rows stay valid;
+// the meter just gives a friendlier label per tier (Replace / Worn / Fair / Good / Like new).
+const COND_SCALE=['Damaged','Poor','Fair','Good','Excellent'];
+const COND_LABEL={Damaged:'Replace',Poor:'Worn',Fair:'Fair',Good:'Good',Excellent:'Like new'};
 const GENDERS=['Boy','Girl','Neutral'];
 const sc = t => (t.selection_count!=null?t.selection_count:(t.popularity||0));
 const monthsSince = d => { if(!d) return 0; const ms=Date.now()-new Date(d).getTime(); return Math.max(0,ms/(1000*60*60*24*30.44)); };
@@ -499,7 +504,7 @@ function ThemeForm({init,onSave,onClose}){
        <div><label>Gender</label><select value={f.gender} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS.map(g=><option key={g}>{g}</option>)}</select></div>
        <div style={{gridColumn:"1/-1"}}><label>AVAILABLE AT</label><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{BR.map(b=>{const on=f.branches.includes(b);return <button key={b} onClick={()=>tb(b)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:8,border:`1px solid ${on?BR_COLOR[b]:"var(--line2)"}`,background:on?BR_COLOR[b]+"16":"var(--panel)",color:on?BR_COLOR[b]:"var(--soft)",fontWeight:600,fontSize:13}}><Dot c={BR_COLOR[b]} s={8}/>{b}</button>})}</div></div>
        <div><label>TIMES SELECTED</label><input type="number" min="0" value={f.selection_count} onChange={e=>set("selection_count",e.target.value)}/></div>
-       <div><label>Condition</label><select value={f.condition} onChange={e=>set("condition",e.target.value)}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>
+       <div><label>Condition</label><CondMeter value={f.condition} onChange={v=>set("condition",v)}/></div>
        <div style={{gridColumn:"1/-1"}}><label>PHOTO <span style={{color:"var(--muted)",fontWeight:400}}>(upload from your device, or paste a link / file name)</span></label><PhotoField value={f.image} onChange={v=>set("image",v)} prefix="themes"/></div>
        {imgUrl(f)&&<div style={{gridColumn:"1/-1"}}><img src={imgUrl(f)} style={{width:"100%",maxHeight:200,objectFit:"cover",borderRadius:8,border:"1px solid var(--line)"}}/></div>}
        <div style={{gridColumn:"1/-1"}}><label>WHAT'S INSIDE <span style={{color:"var(--muted)",fontWeight:400}}>(props / outfits / baskets used)</span></label><textarea rows={3} value={f.notes} onChange={e=>set("notes",e.target.value)} placeholder="e.g. Bear bonnet, cloud props, wooden bed, blue wrap…" style={{resize:"vertical"}}/></div>
@@ -899,7 +904,7 @@ function DohaEdit({item,onSave,onClose,allItems=[],links=[],onLink,onUnlink}){
        <div><label>Gender</label><select value={f.gender||""} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS.map(g=><option key={g}>{g}</option>)}</select></div>
        <div><label>SIZE / MEASUREMENT</label><input value={f.measurement||""} onChange={e=>set("measurement",e.target.value)} placeholder="e.g. M-L / 4 Meters"/></div>
        <div><label>QUANTITY</label><input value={f.quantity||""} onChange={e=>set("quantity",e.target.value)} placeholder="1"/></div>
-       <div><label>Condition</label><select value={f.condition||"Good"} onChange={e=>set("condition",e.target.value)}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>
+       <div><label>Condition</label><CondMeter value={f.condition||"Good"} onChange={v=>set("condition",v)}/></div>
        <div><label>TIMES USED</label><input type="number" min="0" value={f.times_used||0} onChange={e=>set("times_used",e.target.value)}/></div>
        <div style={{gridColumn:"1/-1"}}><label>OUTFIT <span style={{color:"var(--muted)",fontWeight:400}}>(note for now; we'll link the actual outfit item later)</span></label><input value={f.outfit_note||""} onChange={e=>set("outfit_note",e.target.value)} placeholder="e.g. Available / On spot / white & brown only"/></div>
        <div style={{gridColumn:"1/-1"}}><label>PHOTO <span style={{color:"var(--muted)",fontWeight:400}}>(upload from your device, or paste a link)</span></label><PhotoField value={f.photo||""} onChange={v=>set("photo",v)} prefix="qatar"/></div>
@@ -1203,6 +1208,32 @@ function Section({title,hint,accent,right,children}){
    <div style={{padding:"12px 16px 16px 18px"}}>{children}</div>
  </div>;
 }
+// CondMeter — gradient slider (red → green) replacing the 5-option <select>.
+// Native range input layered transparent on top so drag/tap works on touch and
+// keyboard arrows step through tiers. The bubble shows the friendly tier label.
+function CondMeter({value, onChange, compact}){
+ const v = value || 'Good';
+ const idx = Math.max(0, COND_SCALE.indexOf(v));
+ const pct = (idx / (COND_SCALE.length - 1)) * 100;
+ const color = COND_COLOR[v] || '#888';
+ const h = compact ? 10 : 13;
+ const thumb = compact ? 16 : 20;
+ return <div style={{width:"100%"}}>
+   <div style={{position:"relative",height:h,marginTop:compact?22:26,marginBottom:6}}>
+     <div style={{position:"absolute",inset:0,borderRadius:h/2,background:"linear-gradient(90deg,#ff5a5f 0%,#ff8f3c 25%,#f0a23c 50%,#5bbf6a 75%,#22b573 100%)",boxShadow:"inset 0 1px 2px rgba(0,0,0,.15)"}}/>
+     {COND_SCALE.map((_,i)=>(<span key={i} style={{position:"absolute",top:"50%",left:`${(i/(COND_SCALE.length-1))*100}%`,transform:"translate(-50%,-50%)",width:3,height:3,borderRadius:"50%",background:"rgba(255,255,255,.7)",pointerEvents:"none"}}/>))}
+     <div style={{position:"absolute",left:`${pct}%`,transform:"translate(-50%,-128%)",background:"#1a1a1a",color:"#fff",padding:"3px 8px",borderRadius:6,fontSize:10.5,fontWeight:700,whiteSpace:"nowrap",pointerEvents:"none",letterSpacing:".02em"}}>
+       {COND_LABEL[v]||v}
+       <div style={{position:"absolute",bottom:-3,left:"50%",transform:"translateX(-50%)",width:0,height:0,borderLeft:"3px solid transparent",borderRight:"3px solid transparent",borderTop:"3px solid #1a1a1a"}}/>
+     </div>
+     <div style={{position:"absolute",left:`${pct}%`,top:"50%",transform:"translate(-50%,-50%)",width:thumb,height:thumb,borderRadius:"50%",background:"#fff",border:"2.5px solid "+color,boxShadow:"0 1px 4px rgba(0,0,0,.25)",pointerEvents:"none"}}/>
+     <input type="range" min={0} max={COND_SCALE.length-1} step={1} value={idx} onChange={e=>onChange(COND_SCALE[Number(e.target.value)])} aria-label="Condition" style={{position:"absolute",inset:`-8px 0`,width:"100%",height:`calc(100% + 16px)`,opacity:0,cursor:"pointer",margin:0}}/>
+   </div>
+   <div style={{display:"flex",justifyContent:"space-between",fontSize:9.5,color:"var(--muted)",fontWeight:600,letterSpacing:".03em",textTransform:"uppercase",marginTop:2,pointerEvents:"none"}}>
+     {COND_SCALE.map((c,i)=><span key={c} style={{flex:"0 0 auto",textAlign:i===0?"left":(i===COND_SCALE.length-1?"right":"center"),color:idx===i?color:undefined,fontWeight:idx===i?700:600}}>{COND_LABEL[c]||c}</span>)}
+   </div>
+ </div>;
+}
 
 // pick the exact showcase board + section an item should publish into
 function WebsitePlacement({studios=[],session,type,kind,gender,value=[],onChange}){
@@ -1449,7 +1480,7 @@ function AddInvItem({onClose,onSaved,init={}}){
                {showSetupStyle&&<div><span style={lab}>Reveal type</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={SETUP_STYLE[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("setup",f.session_type,v)} placeholder="New reveal type…" addLabel="+ Add reveal type…"/></div>}
                {showSub&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!subList.includes(v))addTaxOption(f.kind==="prop"?"propsub":"subkind",f.kind==="prop"?f.session_type:f.kind,v);}} list="subopts" placeholder={SUBTYPE_PH[f.kind]||""} style={inputStyle}/><datalist id="subopts">{subList.map(s=><option key={s} value={s}/>)}</datalist></div>}
                {showDim&&<div><span style={lab}>Dimensions</span><input value={f.dimensions||""} onChange={e=>set("dimensions",e.target.value)} placeholder="e.g. 40 × 30 cm" style={inputStyle}/></div>}
-               {!noCond&&<div><span style={lab}>Condition</span><select value={f.condition} onChange={e=>set("condition",e.target.value)} style={inputStyle}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></div>}
+               {!noCond&&<div><span style={lab}>Condition <span style={{color:"var(--muted)",fontWeight:400}}>(starting state for all units — refine per unit later in Edit)</span></span><CondMeter value={f.condition} onChange={v=>set("condition",v)}/></div>}
              </div>
              {showSize&&<div><span style={lab}>Size</span><SizePicker value={f.size} onChange={v=>set("size",v)} opts={sizeOpts} onAdd={v=>addTaxOption("size",f.session_type,v)}/></div>}
              {showColor&&<div><span style={lab}>{f.type==="theme"?"Colour / palette":"Color"}</span><ColorPicker value={f.color} onChange={v=>set("color",v)}/></div>}
@@ -1537,7 +1568,16 @@ function InvEdit({item,onClose,onSaved}){
  useEffect(()=>{(async()=>{if(!sb)return;
    const {data:pl}=await sb.from("showcase_section_item").select("section_id").eq("item_id",item.id);const pids=[...new Set((pl||[]).map(x=>x.section_id))];setPlace(pids);setPlace0(pids);
    const {data:l}=await sb.from("inv_item_location").select("*").eq("item_id",item.id);
-   const m={};(l||[]).forEach(r=>{m[r.location]={on:true,qty:r.quantity,times:r.times_selected||0,cond:r.condition||item.condition||"Good",size:r.size||item.size||"",date:r.acquired_on||(item.created_at?item.created_at.slice(0,10):"")}});setLocs(m);
+   const m={};(l||[]).forEach(r=>{
+     const baseCond=r.condition||item.condition||"Good";
+     const qty=Math.max(1, Number(r.quantity)||1);
+     // Per-unit ratings: stored as unit_conditions on the row. If missing
+     // (old data), seed every unit with the existing row-level condition.
+     const units=(Array.isArray(r.unit_conditions)&&r.unit_conditions.length)
+       ? r.unit_conditions.slice(0,qty).concat(Array(Math.max(0,qty-r.unit_conditions.length)).fill(baseCond))
+       : Array(qty).fill(baseCond);
+     m[r.location]={on:true,qty:r.quantity,times:r.times_selected||0,cond:baseCond,units,size:r.size||item.size||"",date:r.acquired_on||(item.created_at?item.created_at.slice(0,10):"")};
+   });setLocs(m);
    if(item.type==="theme"){const {data:tl}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",item.id);setLinks((tl||[]).map(x=>x.component_item_id));}
    else{const {data:tl}=await sb.from("inv_theme_item").select("theme_id").eq("component_item_id",item.id);setLinks((tl||[]).map(x=>x.theme_id));}
    const {data:av}=await sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").neq("id",item.id).order("name");setAll(av||[]);
@@ -1570,7 +1610,18 @@ function InvEdit({item,onClose,onSaved}){
      {const add=place.filter(id=>!place0.includes(id)),rem=place0.filter(id=>!place.includes(id));
       if(add.length)await sb.from("showcase_section_item").insert(add.map(sid=>({section_id:sid,item_id:item.id})));
       for(const sid of rem)await sb.from("showcase_section_item").delete().eq("item_id",item.id).eq("section_id",sid);}
-     if(on.length)await sb.from("inv_item_location").upsert(on.map(b=>({item_id:item.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:(locs[b].cond||"Good"),size:f.kind==="outfit"?(locs[b].size||null):null,acquired_on:locs[b].date||null})));
+     if(on.length)await sb.from("inv_item_location").upsert(on.map(b=>{
+       const q=Math.max(1,Number(locs[b].qty)||1);
+       const units=(Array.isArray(locs[b].units)?locs[b].units:[]).slice(0,q);
+       while(units.length<q) units.push(locs[b].cond||"Good");
+       // Headline condition = worst across the units (least Excellent).
+       const worst=units.slice().sort((a,b)=>COND_RANK[a]-COND_RANK[b])[0]||"Good";
+       return {item_id:item.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,
+         condition:noCond?null:worst,
+         unit_conditions:noCond?null:units,
+         size:f.kind==="outfit"?(locs[b].size||null):null,
+         acquired_on:locs[b].date||null};
+     }));
      for(const b of off)await sb.from("inv_item_location").delete().eq("item_id",item.id).eq("location",b);
      onSaved&&onSaved();
    }catch(e){setErr(e.message||String(e));}setBusy(false);};
@@ -1627,14 +1678,32 @@ function InvEdit({item,onClose,onSaved}){
        </div>
        <div><span style={lab}>Locations <span style={{color:"var(--muted)",fontWeight:400}}>(total qty {BR.reduce((s,b)=>s+(locs[b]&&locs[b].on?(Number(locs[b].qty)||0):0),0)} · {totalSel} selected)</span></span>
          <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <button type="button" key={b} onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1,times:(p[b]&&p[b].times)||0,cond:(p[b]&&p[b].cond)||"Good"}}))} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 13px",borderRadius:8,border:`1px solid ${on?BR_COLOR[b]:"var(--line2)"}`,background:on?BR_COLOR[b]+"1c":"var(--panel)",color:on?BR_COLOR[b]:"var(--soft)",fontSize:12.5,fontWeight:on?700:600}}><Dot c={BR_COLOR[b]} s={7}/>{b}</button>})}</div>
-         {BR.some(b=>locs[b]&&locs[b].on)&&<div style={{display:"flex",flexDirection:"column",gap:9,marginTop:11,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"11px 13px"}}>{BR.filter(b=>locs[b]&&locs[b].on).map(b=><div key={b} style={{display:"flex",alignItems:"center",gap:11,flexWrap:"wrap"}}>
-           <span style={{display:"inline-flex",alignItems:"center",gap:6,width:74,fontSize:12.5,fontWeight:700,color:"var(--ink)"}}><Dot c={BR_COLOR[b]} s={8}/>{b}</span>
-           <span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Qty <input type="number" min="0" value={locs[b].qty} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],qty:e.target.value}}))} style={{width:52}}/></span>
-           {!noCond&&<span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11.5,color:"var(--soft)"}}><Dot c={COND_COLOR[locs[b].cond||"Good"]} s={8}/><select value={locs[b].cond||"Good"} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],cond:e.target.value}}))} style={{padding:"4px 6px",fontSize:11.5,width:"auto"}}>{CONDS.map(c=><option key={c}>{c}</option>)}</select></span>}
-           {(f.type==="theme"||f.kind==="outfit")&&<span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Selected <input type="number" min="0" value={locs[b].times} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],times:e.target.value}}))} style={{width:58}}/></span>}
-           {f.kind==="outfit"&&<span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Size <select value={locs[b].size||""} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],size:e.target.value}}))} style={{padding:"4px 6px",fontSize:11.5,width:"auto"}}><option value="">—</option>{sizeOptsE.map(s=><option key={s} value={s}>{s}</option>)}</select></span>}
-           <span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Added <input type="date" max={today()} value={locs[b].date||""} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],date:e.target.value}}))} style={{width:136}}/></span>
-         </div>)}</div>}
+         {BR.some(b=>locs[b]&&locs[b].on)&&<div style={{display:"flex",flexDirection:"column",gap:14,marginTop:11,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"11px 13px"}}>{BR.filter(b=>locs[b]&&locs[b].on).map(b=>{
+           const q=Math.max(1, Number(locs[b].qty)||1);
+           const units=Array.isArray(locs[b].units)&&locs[b].units.length?locs[b].units.slice(0,q):Array(q).fill(locs[b].cond||"Good");
+           while(units.length<q) units.push(locs[b].cond||"Good");
+           const setQty=e=>{const nq=Math.max(0, Number(e.target.value)||0);const nu=units.slice(0,nq);while(nu.length<nq) nu.push(units[nu.length-1]||locs[b].cond||"Good");setLocs(p=>({...p,[b]:{...p[b],qty:e.target.value,units:nu}}));};
+           const setUnit=(i,v)=>{const nu=units.slice();nu[i]=v;setLocs(p=>({...p,[b]:{...p[b],units:nu,cond:nu.slice().sort((a,c)=>COND_RANK[a]-COND_RANK[c])[0]||"Good"}}));};
+           return <div key={b}>
+           <div style={{display:"flex",alignItems:"center",gap:11,flexWrap:"wrap"}}>
+             <span style={{display:"inline-flex",alignItems:"center",gap:6,width:74,fontSize:12.5,fontWeight:700,color:"var(--ink)"}}><Dot c={BR_COLOR[b]} s={8}/>{b}</span>
+             <span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Qty <input type="number" min="0" value={locs[b].qty} onChange={setQty} style={{width:52}}/></span>
+             {(f.type==="theme"||f.kind==="outfit")&&<span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Selected <input type="number" min="0" value={locs[b].times} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],times:e.target.value}}))} style={{width:58}}/></span>}
+             {f.kind==="outfit"&&<span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Size <select value={locs[b].size||""} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],size:e.target.value}}))} style={{padding:"4px 6px",fontSize:11.5,width:"auto"}}><option value="">—</option>{sizeOptsE.map(s=><option key={s} value={s}>{s}</option>)}</select></span>}
+             <span style={{fontSize:11.5,color:"var(--soft)",display:"inline-flex",alignItems:"center",gap:5}}>Added <input type="date" max={today()} value={locs[b].date||""} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],date:e.target.value}}))} style={{width:136}}/></span>
+           </div>
+           {!noCond&&q>0&&<div style={{marginTop:10,paddingTop:9,borderTop:"1px dashed var(--line)"}}>
+             <div style={{fontSize:10.5,fontWeight:700,color:"var(--muted)",letterSpacing:".05em",textTransform:"uppercase",marginBottom:q>1?8:4}}>Condition {q>1?`per unit (${q})`:""}</div>
+             {q===1
+               ? <CondMeter compact value={units[0]||"Good"} onChange={v=>setUnit(0,v)}/>
+               : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))",gap:14}}>
+                   {units.map((u,i)=><div key={i}>
+                     <div style={{fontSize:10.5,color:"var(--soft)",fontWeight:700,marginBottom:2}}>Unit #{i+1}</div>
+                     <CondMeter compact value={u||"Good"} onChange={v=>setUnit(i,v)}/>
+                   </div>)}
+                 </div>}
+           </div>}
+         </div>;})}</div>}
          {(()=>{const onLocs=Object.values(locs).filter(x=>x&&x.on);const acqE=onLocs.map(x=>x.date).filter(Boolean).sort()[0]||(item.created_at?item.created_at.slice(0,10):"");const rate=onLocs.reduce((s,x)=>s+(Number(x.times)||0)/Math.max(1,monthsSince(x.date||item.created_at)),0);return acqE&&<div style={{fontSize:11,color:"var(--muted)",marginTop:8}}>First added {fmtDate(acqE)} · in use {ageLabel(acqE)}{(f.type==="theme"||f.kind==="outfit")?` · ${totalSel} selected`:""}</div>;})()}
          <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",marginTop:9,fontSize:11.5,color:"var(--muted)"}}>
            <span style={{fontWeight:600}}>Transfer</span>
