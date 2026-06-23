@@ -624,11 +624,20 @@ function PubTile({it,onClick}){
 }
 function PublicShowcase({scope}){
  const [data,setData]=useState(null),[box,setBox]=useState(null);
- useEffect(()=>{(async()=>{
+ const load=React.useCallback(async()=>{
    if(!sb){setData({secs:[],links:[],items:[]});return;}
    try{const [s,l,it]=await Promise.all([sb.from("v_show_sections").select("*").order("sort"),sb.from("v_show_links").select("*").order("sort"),sb.from("v_show_items").select("*")]);
      setData({secs:s.data||[],links:l.data||[],items:it.data||[]});}catch(e){setData({secs:[],links:[],items:[]});}
- })()},[]);
+ },[]);
+ useEffect(()=>{load();
+   // Refetch when the customer comes back to this tab (they were sent a link,
+   // looked, came back to it later). Without this they'd see the snapshot taken
+   // when they first opened the tab, missing any items the team added since.
+   const onShow=()=>{ if(document.visibilityState==="visible") load(); };
+   document.addEventListener("visibilitychange",onShow);
+   window.addEventListener("focus",onShow);
+   return ()=>{ document.removeEventListener("visibilitychange",onShow); window.removeEventListener("focus",onShow); };
+ },[load]);
  const font="-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter',system-ui,sans-serif";
  if(!data) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:font,color:"#999",background:"#fafafa"}}>Loading…</div>;
  const {secs,links,items}=data;
