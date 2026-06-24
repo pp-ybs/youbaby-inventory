@@ -733,38 +733,43 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const moveToBoard=async(s,board)=>{if(!board||board===s.board)return;const mx=Math.max(0,...boardSecs(board).map(x=>x.sort||0));await sb.from("showcase_section").update({board,sort:mx+1}).eq("id",s.id);load();};
  const delSection=async(s)=>{if(!window.confirm("Delete section “"+s.title+"”?"))return;await sb.from("showcase_section").delete().eq("id",s.id);load();};
  const addItem=async(sid,it)=>{
-   // Hard guard: same item, same section, multiple rapid clicks all coalesce
-   // into one in-flight request — the ref blocks before React has a chance to
-   // paint disabled=true on the button.
+   // Single-flight per (section, item) so a double-click can't fire two inserts.
    const key=sid+"|"+it.id;
    if(pendingAddRef.current.has(key)) return;
    pendingAddRef.current.add(key);
+   // Optimistic temp — instant ✓ Added in the picker and a thumbnail in the
+   // section behind the modal. We REPLACE the temp's id with the real one
+   // returned by the insert (or queried back on duplicate-key), so the row in
+   // local state always matches a real DB id — rmItem's X button keeps working
+   // and a later load() merging on id is idempotent. No more disappearing items.
    const tempId="tmp_"+Math.random().toString(36).slice(2);
    const optimistic={id:tempId,section_id:sid,item_id:it.id,sort:9999,inv_item:{id:it.id,name:it.name,code:(it._row&&it._row.code)||null,photo_url:it.image||(it._row&&it._row.photo_url)||null,session_type:it.category,subcategory:(it._row&&it._row.subcategory)||null,size:(it._row&&it._row.size)||null,gender:it.gender,static_tags:(it._row&&it._row.static_tags)||[]}};
    setLinks(prev=>[...prev,optimistic]);
-   // upsert with ignoreDuplicates so the showcase_section_item unique
-   // constraint becomes a silent no-op at the DB level (ON CONFLICT DO NOTHING)
-   // instead of a duplicate-key error. NOTHING in this flow can produce that
-   // alert again, ever — whether the row was new or already existed, the user
-   // sees the same successful "✓ Added" outcome.
-   let dbErr=null;
-   try {
-     const {error}=await sb.from("showcase_section_item")
-       .upsert({section_id:sid,item_id:it.id},{onConflict:"section_id,item_id",ignoreDuplicates:true});
-     dbErr=error||null;
-   } catch(e){ dbErr=e; }
+   let realId=null,dbErr=null;
+   try{
+     const r=await sb.from("showcase_section_item").insert({section_id:sid,item_id:it.id}).select("id").single();
+     if(r.error) dbErr=r.error; else if(r.data) realId=r.data.id;
+   }catch(e){ dbErr=e; }
+   // Duplicate-key (23505) is the harmless "already there" case — just look up
+   // the existing row's id and use it. NOTHING about this surfaces an alert.
+   if(dbErr && (dbErr.code==="23505" || /duplicate|unique constraint|conflict/i.test(String(dbErr.message||"")))){
+     try{
+       const {data:ex}=await sb.from("showcase_section_item").select("id").eq("section_id",sid).eq("item_id",it.id).maybeSingle();
+       if(ex&&ex.id) realId=ex.id;
+     }catch(_){}
+     dbErr=null;
+   }
    pendingAddRef.current.delete(key);
-   // Treat any duplicate-key variant (constraint, conflict, code 23505) as success.
-   const msg=String((dbErr&&(dbErr.message||dbErr.toString()))||"");
-   const isDup=dbErr && (dbErr.code==="23505" || /duplicate key|unique constraint|already exists|conflict/i.test(msg));
-   if(dbErr && !isDup){
+   if(dbErr){
+     // Real error (RLS / FK / network) — pull the temp out and log, no popup.
      setLinks(prev=>prev.filter(l=>l.id!==tempId));
      console.error("showcase add failed",dbErr);
-     // Silent — surface only via console; no popups in front of the team.
      return;
    }
-   if(scLoc&&!(it.branches||[]).includes(scLoc)){onItemsChanged&&onItemsChanged();}
-   load();
+   // Promote the optimistic to its real id so it's never wiped by a subsequent
+   // load() (and rmItem's delete-by-id works against the real row).
+   setLinks(prev=>prev.map(l=>l.id===tempId?{...l,id:realId||l.id}:l));
+   if(scLoc&&!(it.branches||[]).includes(scLoc)) onItemsChanged&&onItemsChanged();
  };
  const rmItem=async(linkId)=>{await sb.from("showcase_section_item").delete().eq("id",linkId);load();};
  const pickItems=themes.filter(t=>{const q=pq.trim().toLowerCase();const kindOk=!scKind||(scKind==="Outfits"?(t._row&&t._row.kind==="outfit"):(t._row&&t._row.type==="theme"));return kindOk&&(!q||((t.name||"")+" "+(t._row&&t._row.code||"")).toLowerCase().includes(q));});
