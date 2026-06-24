@@ -722,12 +722,19 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const moveToBoard=async(s,board)=>{if(!board||board===s.board)return;const mx=Math.max(0,...boardSecs(board).map(x=>x.sort||0));await sb.from("showcase_section").update({board,sort:mx+1}).eq("id",s.id);load();};
  const delSection=async(s)=>{if(!window.confirm("Delete section “"+s.title+"”?"))return;await sb.from("showcase_section").delete().eq("id",s.id);load();};
  const addItem=async(sid,it)=>{
-   // Adding to a studio's showcase implicitly stocks the item there — the
-   // showcase IS the public catalogue for that studio, so a missing inv_item_location
-   // row would mean a customer sees a theme they can't actually book.
-   // (The DB trigger sync_inv_website_display_aiud does the same on its own;
-   // we do it client-side too so the UI updates immediately without a round-trip.)
-   await sb.from("showcase_section_item").insert({section_id:sid,item_id:it.id});
+   // Optimistic add — paint the picker / section as "Added" immediately so the
+   // team sees the click landed, instead of waiting on the DB round-trip and
+   // assuming "nothing happens". The DB trigger sync_inv_website_display_aiud
+   // also stocks the section's studio (Dubai item into AD showcase → AD unit).
+   const tempId="tmp_"+Math.random().toString(36).slice(2);
+   const optimistic={id:tempId,section_id:sid,item_id:it.id,sort:9999,inv_item:{id:it.id,name:it.name,code:(it._row&&it._row.code)||null,photo_url:it.image||(it._row&&it._row.photo_url)||null,session_type:it.category,subcategory:(it._row&&it._row.subcategory)||null,size:(it._row&&it._row.size)||null,gender:it.gender,static_tags:(it._row&&it._row.static_tags)||[]}};
+   setLinks(prev=>[...prev,optimistic]);
+   const {error}=await sb.from("showcase_section_item").insert({section_id:sid,item_id:it.id});
+   if(error){
+     setLinks(prev=>prev.filter(l=>l.id!==tempId));
+     alert("Couldn't add to the showcase: "+(error.message||"unknown error"));
+     return;
+   }
    if(scLoc&&!(it.branches||[]).includes(scLoc)){onItemsChanged&&onItemsChanged();}
    load();
  };
