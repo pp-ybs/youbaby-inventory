@@ -1481,7 +1481,7 @@ function AddInvItem({onClose,onSaved,init={}}){
 
      {saved?<div style={{padding:24,display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
        <div style={{fontSize:15,fontWeight:700,color:"var(--ok)"}}>✓ Added · {saved.code}</div>
-       <div style={{background:"#fff",padding:"10px 14px",borderRadius:8,border:"1px solid var(--line)"}}><Barcode value={saved.code}/></div>
+       <div style={{background:"#fff",padding:"10px 14px",borderRadius:8,border:"1px solid var(--line)",display:"flex",alignItems:"center",gap:12}}><QR value={labelUrlFor(saved.code)} size={92}/><div style={{fontFamily:"ui-monospace,SFMono-Regular,Menlo,monospace",fontSize:13,fontWeight:700,color:"#111",letterSpacing:".06em"}}>{saved.code}</div></div>
        <div style={{fontSize:12.5,color:"var(--muted)",textAlign:"center"}}>{saved.name} · {saved.session_type}{saved.kind?" · "+saved.kind:" · theme"} · {(saved._locs||[]).map(l=>l.location).join(", ")}</div>
        <div style={{display:"flex",gap:10}}><button onClick={reset} style={{padding:"12px 22px",background:"var(--ink)",color:"#fff",borderRadius:8,fontWeight:600,minHeight:46}}>Add another</button><button onClick={onClose} style={{padding:"12px 20px",border:"1px solid var(--line2)",borderRadius:8,fontWeight:600,minHeight:46}}>Done</button></div>
      </div>:<>
@@ -1827,19 +1827,18 @@ function LabelSheet({items=[],onClose}){
    }`}</style>
    <div className="noprint" style={{display:"flex",alignItems:"center",gap:12,padding:"14px 22px",background:"var(--panel)",borderBottom:"1px solid var(--line)"}}>
      <span style={{fontWeight:700,fontSize:15}}>Labels · {items.length} item{items.length!==1?"s":""}</span>
-     <span style={{fontSize:12,color:"var(--muted)"}}>Use your browser print dialog · A4, margins “Default”. Each label has a QR (phone scan) and a barcode (gun scan).</span>
+     <span style={{fontSize:12,color:"var(--muted)"}}>Use your browser print dialog · A4, margins “Default”. Scan the QR with any phone camera to open the item.</span>
      <span style={{marginLeft:"auto"}}/>
      <button onClick={()=>window.print()} style={{display:"flex",alignItems:"center",gap:6,background:"var(--ink)",color:"#fff",padding:"9px 16px",borderRadius:8,fontWeight:600,fontSize:13}}>Print</button>
      <button onClick={onClose} style={{padding:"9px 16px",border:"1px solid var(--line2)",borderRadius:8,fontWeight:600,fontSize:13}}>Close</button>
    </div>
    <div className="scroll" style={{flex:1,overflow:"auto",background:"#fff"}}>
      <div id="print-area" className="ybs-labels-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8,padding:16}}>
-       {items.map(r=><div key={r.id} className="label ybs-label" style={{border:"1px solid #ccc",borderRadius:6,padding:"8px 9px",display:"flex",flexDirection:"column",alignItems:"center",gap:4,breakInside:"avoid",background:"#fff",pageBreakInside:"avoid"}}>
-         <div style={{fontSize:11,fontWeight:700,color:"#111",textAlign:"center",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}}>{r.name||"—"}</div>
-         <QR value={labelUrlFor(r.code)} size={108}/>
-         <div style={{fontFamily:"ui-monospace,SFMono-Regular,Menlo,monospace",fontSize:11,fontWeight:700,color:"#111",letterSpacing:".05em"}}>{r.code}</div>
-         <Barcode value={r.code} height={28}/>
-         <div style={{fontSize:8.5,color:"#555",textAlign:"center",lineHeight:1.2}}>{r.session_type}{r.kind?" · "+r.kind:""}{r.size?" · "+r.size:""}</div>
+       {items.map(r=><div key={r.id} className="label ybs-label" style={{border:"1px solid #ccc",borderRadius:6,padding:"11px 10px 10px",display:"flex",flexDirection:"column",alignItems:"center",gap:7,breakInside:"avoid",background:"#fff",pageBreakInside:"avoid"}}>
+         <div style={{fontSize:12,fontWeight:700,color:"#111",textAlign:"center",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}}>{r.name||"—"}</div>
+         <QR value={labelUrlFor(r.code)} size={134}/>
+         <div style={{fontFamily:"ui-monospace,SFMono-Regular,Menlo,monospace",fontSize:12,fontWeight:700,color:"#111",letterSpacing:".06em"}}>{r.code}</div>
+         <div style={{fontSize:9,color:"#555",textAlign:"center",lineHeight:1.2}}>{r.session_type}{r.kind?" · "+r.kind:""}{r.size?" · "+r.size:""}</div>
        </div>)}
      </div>
    </div>
