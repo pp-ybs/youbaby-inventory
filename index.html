@@ -626,7 +626,9 @@ function PublicShowcase({scope}){
  const [data,setData]=useState(null),[box,setBox]=useState(null);
  const load=React.useCallback(async()=>{
    if(!sb){setData({secs:[],links:[],items:[]});return;}
-   try{const [s,l,it]=await Promise.all([sb.from("v_show_sections").select("*").order("sort"),sb.from("v_show_links").select("*").order("sort"),sb.from("v_show_items").select("*")]);
+   // Lift the default 1000-row cap — once total links / items pass 1000, the
+   // tail is silently truncated and items appear "missing" to the customer.
+   try{const [s,l,it]=await Promise.all([sb.from("v_show_sections").select("*").order("sort").limit(10000),sb.from("v_show_links").select("*").order("sort").limit(50000),sb.from("v_show_items").select("*").limit(20000)]);
      setData({secs:s.data||[],links:l.data||[],items:it.data||[]});}catch(e){setData({secs:[],links:[],items:[]});}
  },[]);
  useEffect(()=>{load();
@@ -698,7 +700,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const [secs,setSecs]=useState([]),[links,setLinks]=useState([]),[picker,setPicker]=useState(null),[pq,setPq]=useState(""),[loaded,setLoaded]=useState(false);
  const [scLoc,setScLoc]=useState(""),[scSession,setScSession]=useState(""),[scGender,setScGender]=useState(""),[scKind,setScKind]=useState("");
  const [addNew,setAddNew]=useState(null),[coverV,setCoverV]=useState(0),[copied,setCopied]=useState(false),[editItem,setEditItem]=useState(null);
- const load=async()=>{if(!sb){setLoaded(true);return;}await loadCovers();const {data:s}=await sb.from("showcase_section").select("*").order("sort");const {data:l}=await sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender,static_tags)").order("sort");setSecs(s||[]);setLinks(l||[]);setLoaded(true);};
+ const load=async()=>{if(!sb){setLoaded(true);return;}await loadCovers();const {data:s}=await sb.from("showcase_section").select("*").order("sort").limit(10000);const {data:l}=await sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender,static_tags)").order("sort").limit(50000);setSecs(s||[]);setLinks(l||[]);setLoaded(true);};
  useEffect(()=>{load()},[]);
  // jump to a board from a #show= deep link (internal)
  useEffect(()=>{const m=/^#show=(.*)$/.exec(window.location.hash||"");if(!m)return;const parts=decodeURIComponent(m[1]).split(" · ");if(!parts[0])return;setScLoc(parts[0]);setScSession(parts[1]||"");const k=parts.find(x=>["Themes & setups","Outfits"].includes(x));if(k)setScKind(k);const g=parts.find(x=>["Girls","Boys","Twins"].includes(x));if(g)setScGender(g);},[]);
@@ -1955,7 +1957,7 @@ function NewInventory({initCat=""}){
  const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sb.from("inv_item").select("*,inv_item_location(location,quantity,status,times_selected,condition,acquired_on)").order("created_at",{ascending:false});if(error)setErr(error.message);setRows(data||[]);};
  const [pubF,setPubF]=useState("");
  const [pubSet,setPubSet]=useState(()=>new Set());
- const loadPub=async()=>{if(!sb)return;const {data}=await sb.from("showcase_section_item").select("item_id");setPubSet(new Set((data||[]).map(x=>x.item_id)));};
+ const loadPub=async()=>{if(!sb)return;const {data}=await sb.from("showcase_section_item").select("item_id").limit(50000);setPubSet(new Set((data||[]).map(x=>x.item_id)));};
  useEffect(()=>{loadPub()},[]);
  const isPub=r=>pubSet.has(r.id);
  const removeItem=async(r,e)=>{if(e)e.stopPropagation();if(!window.confirm("Remove “"+(r.name||r.code)+"”? This can't be undone."))return;if(sb){await sb.from("inv_item_location").delete().eq("item_id",r.id);await sb.from("inv_theme_item").delete().eq("theme_id",r.id);await sb.from("inv_theme_item").delete().eq("component_item_id",r.id);await sb.from("inv_item").delete().eq("id",r.id);}load();};
