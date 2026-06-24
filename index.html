@@ -701,6 +701,12 @@ function PublicShowcase({scope}){
 }
 function Showcase({themes,onOpen,onItemsChanged}){
  const [secs,setSecs]=useState([]),[links,setLinks]=useState([]),[picker,setPicker]=useState(null),[pq,setPq]=useState(""),[loaded,setLoaded]=useState(false);
+ // Synchronous in-flight guard — React state updates aren't visible to the DOM
+ // until the next paint, so a double-click slips between the optimistic setLinks
+ // and disabled=true on the button, firing two INSERTs (the second hits the
+ // showcase_section_item unique constraint and surfaces as a duplicate-key alert).
+ // The ref blocks the second click on the same tick.
+ const pendingAddRef=useRef(new Set());
  const [scLoc,setScLoc]=useState(""),[scSession,setScSession]=useState(""),[scGender,setScGender]=useState(""),[scKind,setScKind]=useState("");
  const [addNew,setAddNew]=useState(null),[coverV,setCoverV]=useState(0),[copied,setCopied]=useState(false),[editItem,setEditItem]=useState(null);
  const load=async()=>{if(!sb){setLoaded(true);return;}await loadCovers();const {data:s}=await sb.from("showcase_section").select("*").order("sort").limit(10000);const {data:l}=await sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender,static_tags)").order("sort").limit(50000);setSecs(s||[]);setLinks(l||[]);setLoaded(true);};
@@ -727,6 +733,11 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const moveToBoard=async(s,board)=>{if(!board||board===s.board)return;const mx=Math.max(0,...boardSecs(board).map(x=>x.sort||0));await sb.from("showcase_section").update({board,sort:mx+1}).eq("id",s.id);load();};
  const delSection=async(s)=>{if(!window.confirm("Delete section “"+s.title+"”?"))return;await sb.from("showcase_section").delete().eq("id",s.id);load();};
  const addItem=async(sid,it)=>{
+   // Synchronous guard against double-fire from a rapid second click before
+   // React has had a chance to paint disabled=true on the button.
+   const key=sid+"|"+it.id;
+   if(pendingAddRef.current.has(key)) return;
+   pendingAddRef.current.add(key);
    // Optimistic add — paint the picker / section as "Added" immediately so the
    // team sees the click landed, instead of waiting on the DB round-trip and
    // assuming "nothing happens". The DB trigger sync_inv_website_display_aiud
@@ -735,9 +746,18 @@ function Showcase({themes,onOpen,onItemsChanged}){
    const optimistic={id:tempId,section_id:sid,item_id:it.id,sort:9999,inv_item:{id:it.id,name:it.name,code:(it._row&&it._row.code)||null,photo_url:it.image||(it._row&&it._row.photo_url)||null,session_type:it.category,subcategory:(it._row&&it._row.subcategory)||null,size:(it._row&&it._row.size)||null,gender:it.gender,static_tags:(it._row&&it._row.static_tags)||[]}};
    setLinks(prev=>[...prev,optimistic]);
    const {error}=await sb.from("showcase_section_item").insert({section_id:sid,item_id:it.id});
+   pendingAddRef.current.delete(key);
    if(error){
      setLinks(prev=>prev.filter(l=>l.id!==tempId));
-     alert("Couldn't add to the showcase: "+(error.message||"unknown error"));
+     // Already-linked is the harmless case — the optimistic add already shows it
+     // as ✓ Added; no need to alert. Anything else is a real error worth surfacing.
+     if(!/duplicate key|already exists|unique constraint/i.test(error.message||"")){
+       alert("Couldn't add to the showcase: "+(error.message||"unknown error"));
+     } else {
+       // Re-fetch so the local state reflects the row that's actually in DB
+       // (instead of the rolled-back optimistic), and the picker shows ✓ Added.
+       load();
+     }
      return;
    }
    if(scLoc&&!(it.branches||[]).includes(scLoc)){onItemsChanged&&onItemsChanged();}
