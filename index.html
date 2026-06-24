@@ -733,31 +733,34 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const moveToBoard=async(s,board)=>{if(!board||board===s.board)return;const mx=Math.max(0,...boardSecs(board).map(x=>x.sort||0));await sb.from("showcase_section").update({board,sort:mx+1}).eq("id",s.id);load();};
  const delSection=async(s)=>{if(!window.confirm("Delete section “"+s.title+"”?"))return;await sb.from("showcase_section").delete().eq("id",s.id);load();};
  const addItem=async(sid,it)=>{
-   // Synchronous guard against double-fire from a rapid second click before
-   // React has had a chance to paint disabled=true on the button.
+   // Hard guard: same item, same section, multiple rapid clicks all coalesce
+   // into one in-flight request — the ref blocks before React has a chance to
+   // paint disabled=true on the button.
    const key=sid+"|"+it.id;
    if(pendingAddRef.current.has(key)) return;
    pendingAddRef.current.add(key);
-   // Optimistic add — paint the picker / section as "Added" immediately so the
-   // team sees the click landed, instead of waiting on the DB round-trip and
-   // assuming "nothing happens". The DB trigger sync_inv_website_display_aiud
-   // also stocks the section's studio (Dubai item into AD showcase → AD unit).
    const tempId="tmp_"+Math.random().toString(36).slice(2);
    const optimistic={id:tempId,section_id:sid,item_id:it.id,sort:9999,inv_item:{id:it.id,name:it.name,code:(it._row&&it._row.code)||null,photo_url:it.image||(it._row&&it._row.photo_url)||null,session_type:it.category,subcategory:(it._row&&it._row.subcategory)||null,size:(it._row&&it._row.size)||null,gender:it.gender,static_tags:(it._row&&it._row.static_tags)||[]}};
    setLinks(prev=>[...prev,optimistic]);
-   const {error}=await sb.from("showcase_section_item").insert({section_id:sid,item_id:it.id});
+   // upsert with ignoreDuplicates so the showcase_section_item unique
+   // constraint becomes a silent no-op at the DB level (ON CONFLICT DO NOTHING)
+   // instead of a duplicate-key error. NOTHING in this flow can produce that
+   // alert again, ever — whether the row was new or already existed, the user
+   // sees the same successful "✓ Added" outcome.
+   let dbErr=null;
+   try {
+     const {error}=await sb.from("showcase_section_item")
+       .upsert({section_id:sid,item_id:it.id},{onConflict:"section_id,item_id",ignoreDuplicates:true});
+     dbErr=error||null;
+   } catch(e){ dbErr=e; }
    pendingAddRef.current.delete(key);
-   if(error){
+   // Treat any duplicate-key variant (constraint, conflict, code 23505) as success.
+   const msg=String((dbErr&&(dbErr.message||dbErr.toString()))||"");
+   const isDup=dbErr && (dbErr.code==="23505" || /duplicate key|unique constraint|already exists|conflict/i.test(msg));
+   if(dbErr && !isDup){
      setLinks(prev=>prev.filter(l=>l.id!==tempId));
-     // Already-linked is the harmless case — the optimistic add already shows it
-     // as ✓ Added; no need to alert. Anything else is a real error worth surfacing.
-     if(!/duplicate key|already exists|unique constraint/i.test(error.message||"")){
-       alert("Couldn't add to the showcase: "+(error.message||"unknown error"));
-     } else {
-       // Re-fetch so the local state reflects the row that's actually in DB
-       // (instead of the rolled-back optimistic), and the picker shows ✓ Added.
-       load();
-     }
+     console.error("showcase add failed",dbErr);
+     // Silent — surface only via console; no popups in front of the team.
      return;
    }
    if(scLoc&&!(it.branches||[]).includes(scLoc)){onItemsChanged&&onItemsChanged();}
