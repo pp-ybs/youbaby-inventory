@@ -701,7 +701,7 @@ function PublicShowcase({scope}){
  </div>;
 }
 function Showcase({themes,onOpen,onItemsChanged}){
- const [secs,setSecs]=useState([]),[links,setLinks]=useState([]),[picker,setPicker]=useState(null),[pq,setPq]=useState(""),[loaded,setLoaded]=useState(false);
+ const [secs,setSecs]=useState([]),[links,setLinks]=useState([]),[picker,setPicker]=useState(null),[pq,setPq]=useState(""),[loaded,setLoaded]=useState(false),[addErr,setAddErr]=useState("");
  // Synchronous in-flight guard — React state updates aren't visible to the DOM
  // until the next paint, so a double-click slips between the optimistic setLinks
  // and disabled=true on the button, firing two INSERTs (the second hits the
@@ -710,7 +710,16 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const pendingAddRef=useRef(new Set());
  const [scLoc,setScLoc]=useState(""),[scSession,setScSession]=useState(""),[scGender,setScGender]=useState(""),[scKind,setScKind]=useState("");
  const [addNew,setAddNew]=useState(null),[coverV,setCoverV]=useState(0),[copied,setCopied]=useState(false),[editItem,setEditItem]=useState(null);
- const load=async()=>{if(!sb){setLoaded(true);return;}await loadCovers();const {data:s}=await sb.from("showcase_section").select("*").order("sort").limit(10000);const {data:l}=await sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender,static_tags)").order("sort").limit(50000);setSecs(s||[]);setLinks(l||[]);setLoaded(true);};
+ const load=async()=>{if(!sb){setLoaded(true);return;}await loadCovers();
+   const {data:s,error:se}=await sb.from("showcase_section").select("*").order("sort").limit(10000);
+   const {data:l,error:le}=await sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender,static_tags)").order("sort").limit(50000);
+   // Only overwrite local state when the read actually succeeded. A transient
+   // error (token refresh race, network blip) used to setSecs([]) → the whole
+   // showcase flashed empty and an item just added "disappeared". Now we keep
+   // what we have on error instead of wiping to blank.
+   if(!se&&s) setSecs(s);
+   if(!le&&l) setLinks(l);
+   setLoaded(true);};
  useEffect(()=>{load()},[]);
  // jump to a board from a #show= deep link (internal)
  useEffect(()=>{const m=/^#show=(.*)$/.exec(window.location.hash||"");if(!m)return;const parts=decodeURIComponent(m[1]).split(" · ");if(!parts[0])return;setScLoc(parts[0]);setScSession(parts[1]||"");const k=parts.find(x=>["Themes & setups","Outfits"].includes(x));if(k)setScKind(k);const g=parts.find(x=>["Girls","Boys","Twins"].includes(x));if(g)setScGender(g);},[]);
@@ -734,32 +743,40 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const moveToBoard=async(s,board)=>{if(!board||board===s.board)return;const mx=Math.max(0,...boardSecs(board).map(x=>x.sort||0));await sb.from("showcase_section").update({board,sort:mx+1}).eq("id",s.id);load();};
  const delSection=async(s)=>{if(!window.confirm("Delete section “"+s.title+"”?"))return;await sb.from("showcase_section").delete().eq("id",s.id);load();};
  const addItem=async(sid,it)=>{
-   // Single-flight per (section, item) so a rapid double-click can't fire two
-   // INSERTs before React paints disabled=true on the button.
+   // Single-flight guard against a double-click firing two INSERTs.
    const key=sid+"|"+it.id;
    if(pendingAddRef.current.has(key)) return;
    pendingAddRef.current.add(key);
+   setAddErr("");
+   // Optimistic paint so the click is instantly visible.
    const tempId="tmp_"+Math.random().toString(36).slice(2);
    setLinks(prev=>[...prev,{id:tempId,section_id:sid,item_id:it.id,sort:9999,inv_item:{id:it.id,name:it.name,code:(it._row&&it._row.code)||null,photo_url:it.image||(it._row&&it._row.photo_url)||null,session_type:it.category,subcategory:(it._row&&it._row.subcategory)||null,size:(it._row&&it._row.size)||null,gender:it.gender,static_tags:(it._row&&it._row.static_tags)||[]}}]);
-   // Plain INSERT. No .select().single() — that combo has bitten us in the past
-   // (PostgREST + RLS + return=representation can return empty arrays which
-   // .single() converts into an error). Just check {error}.
+   // ROOT CAUSE of "worked before, now doesn't": showcase_section_item only
+   // allows INSERT for the `authenticated` role. When the login session's access
+   // token silently expires, supabase-js sends the request as an expired/absent
+   // token, RLS rejects it, and the row never persists — while reads keep working
+   // so the team can't tell. Force a session check/refresh BEFORE the insert; if
+   // there's genuinely no session, tell the user to log in again instead of
+   // failing silently.
    let err=null;
-   try{ const r=await sb.from("showcase_section_item").insert({section_id:sid,item_id:it.id}); err=r.error||null; }
-   catch(e){ err=e; }
+   try{
+     const {data:sess}=await sb.auth.getSession();   // auto-refreshes a stale token
+     if(!sess||!sess.session){ err={message:"Your login session expired. Please refresh the page / log in again, then add it."}; }
+     else { const r=await sb.from("showcase_section_item").insert({section_id:sid,item_id:it.id}); err=r.error||null; }
+   }catch(e){ err=e; }
    pendingAddRef.current.delete(key);
    const msg=String((err&&(err.message||err.toString()))||"");
    const isDup=err && (err.code==="23505" || /duplicate|unique constraint|conflict/i.test(msg));
    if(err && !isDup){
-     // Real error (RLS / FK / network) — roll back the optimistic and log.
+     // Surface the REAL reason inline (not a blocking popup) so failures are
+     // never invisible again. Roll the optimistic add back so state matches DB.
      setLinks(prev=>prev.filter(l=>l.id!==tempId));
+     setAddErr(/jwt|token|auth|session|permission|policy|row-level|401|403/i.test(msg)
+       ? "Couldn't save — your login session expired. Refresh the page and log in again."
+       : ("Couldn't add: "+(msg||"unknown error")+" — try again."));
      console.error("showcase add failed",err);
      return;
    }
-   // Success (or already-there). Refresh from DB — with the .limit(50000) cap
-   // lifted, the new row is always in the returned set, so the optimistic temp
-   // is harmlessly replaced by the real row (same item_id, so the picker still
-   // shows ✓ Added and the section shows the thumbnail).
    if(scLoc&&!(it.branches||[]).includes(scLoc)) onItemsChanged&&onItemsChanged();
    load();
  };
@@ -825,7 +842,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
    </div>}
    {picker!==null&&<div style={{position:"fixed",inset:0,background:"#1a1a2433",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&setPicker(null)}>
      <div className="scroll fade modalcard" style={{width:560,maxWidth:"96vw",maxHeight:"86vh",background:"var(--panel)",borderRadius:12,overflow:"auto"}}>
-       <div style={{position:"sticky",top:0,background:"var(--panel)",padding:"16px 20px",borderBottom:"1px solid var(--line)",zIndex:1}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><span style={{fontWeight:700,fontSize:15}}>Add to “{(secs.find(x=>x.id===picker)||{}).title}”</span><button onClick={()=>setPicker(null)}><Icon d={I.x} s={18} c="var(--muted)"/></button></div><div style={{display:"flex",gap:8}}><input value={pq} onChange={e=>setPq(e.target.value)} placeholder="Search by name or code…" autoFocus style={{flex:1}}/><button onClick={()=>{setAddNew(picker);setPicker(null);}} style={{whiteSpace:"nowrap",padding:"9px 14px",borderRadius:8,border:"none",background:"var(--ink)",color:"#fff",fontWeight:600,fontSize:13,display:"inline-flex",alignItems:"center",gap:6}}><Icon d={I.plus} s={15} c="#fff"/>New product</button></div></div>
+       <div style={{position:"sticky",top:0,background:"var(--panel)",padding:"16px 20px",borderBottom:"1px solid var(--line)",zIndex:1}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><span style={{fontWeight:700,fontSize:15}}>Add to “{(secs.find(x=>x.id===picker)||{}).title}”</span><button onClick={()=>setPicker(null)}><Icon d={I.x} s={18} c="var(--muted)"/></button></div><div style={{display:"flex",gap:8}}><input value={pq} onChange={e=>setPq(e.target.value)} placeholder="Search by name or code…" autoFocus style={{flex:1}}/><button onClick={()=>{setAddNew(picker);setPicker(null);}} style={{whiteSpace:"nowrap",padding:"9px 14px",borderRadius:8,border:"none",background:"var(--ink)",color:"#fff",fontWeight:600,fontSize:13,display:"inline-flex",alignItems:"center",gap:6}}><Icon d={I.plus} s={15} c="#fff"/>New product</button></div>{addErr&&<div style={{marginTop:10,padding:"9px 12px",borderRadius:8,background:"#fdecec",border:"1px solid #f5c2c2",color:"#b42318",fontSize:12.5,fontWeight:600,lineHeight:1.4}}>{addErr}</div>}</div>
        <div style={{padding:16,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
          {pickItems.slice(0,120).map(t=>{const added=itemsOf(picker).some(l=>l.item_id===t.id);return <button key={t.id} onClick={()=>!added&&addItem(picker,t)} disabled={added} style={{textAlign:"left",border:`1px solid ${added?"var(--ok)":"var(--line)"}`,borderRadius:9,overflow:"hidden",background:"var(--panel)",opacity:added?.6:1,cursor:added?"default":"pointer"}}><div style={{width:"100%",aspectRatio:"1/1"}}>{thumb(t.image||(t._row&&t._row.photo_url))}</div><div style={{padding:"6px 8px"}}><div style={{fontSize:11.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.name}</div><div style={{fontSize:9.5,color:added?"var(--ok)":"var(--muted)"}}>{added?"✓ Added":(t.category||"")}</div></div></button>})}
        </div>
