@@ -734,43 +734,34 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const moveToBoard=async(s,board)=>{if(!board||board===s.board)return;const mx=Math.max(0,...boardSecs(board).map(x=>x.sort||0));await sb.from("showcase_section").update({board,sort:mx+1}).eq("id",s.id);load();};
  const delSection=async(s)=>{if(!window.confirm("Delete section “"+s.title+"”?"))return;await sb.from("showcase_section").delete().eq("id",s.id);load();};
  const addItem=async(sid,it)=>{
-   // Single-flight per (section, item) so a double-click can't fire two inserts.
+   // Single-flight per (section, item) so a rapid double-click can't fire two
+   // INSERTs before React paints disabled=true on the button.
    const key=sid+"|"+it.id;
    if(pendingAddRef.current.has(key)) return;
    pendingAddRef.current.add(key);
-   // Optimistic temp — instant ✓ Added in the picker and a thumbnail in the
-   // section behind the modal. We REPLACE the temp's id with the real one
-   // returned by the insert (or queried back on duplicate-key), so the row in
-   // local state always matches a real DB id — rmItem's X button keeps working
-   // and a later load() merging on id is idempotent. No more disappearing items.
    const tempId="tmp_"+Math.random().toString(36).slice(2);
-   const optimistic={id:tempId,section_id:sid,item_id:it.id,sort:9999,inv_item:{id:it.id,name:it.name,code:(it._row&&it._row.code)||null,photo_url:it.image||(it._row&&it._row.photo_url)||null,session_type:it.category,subcategory:(it._row&&it._row.subcategory)||null,size:(it._row&&it._row.size)||null,gender:it.gender,static_tags:(it._row&&it._row.static_tags)||[]}};
-   setLinks(prev=>[...prev,optimistic]);
-   let realId=null,dbErr=null;
-   try{
-     const r=await sb.from("showcase_section_item").insert({section_id:sid,item_id:it.id}).select("id").single();
-     if(r.error) dbErr=r.error; else if(r.data) realId=r.data.id;
-   }catch(e){ dbErr=e; }
-   // Duplicate-key (23505) is the harmless "already there" case — just look up
-   // the existing row's id and use it. NOTHING about this surfaces an alert.
-   if(dbErr && (dbErr.code==="23505" || /duplicate|unique constraint|conflict/i.test(String(dbErr.message||"")))){
-     try{
-       const {data:ex}=await sb.from("showcase_section_item").select("id").eq("section_id",sid).eq("item_id",it.id).maybeSingle();
-       if(ex&&ex.id) realId=ex.id;
-     }catch(_){}
-     dbErr=null;
-   }
+   setLinks(prev=>[...prev,{id:tempId,section_id:sid,item_id:it.id,sort:9999,inv_item:{id:it.id,name:it.name,code:(it._row&&it._row.code)||null,photo_url:it.image||(it._row&&it._row.photo_url)||null,session_type:it.category,subcategory:(it._row&&it._row.subcategory)||null,size:(it._row&&it._row.size)||null,gender:it.gender,static_tags:(it._row&&it._row.static_tags)||[]}}]);
+   // Plain INSERT. No .select().single() — that combo has bitten us in the past
+   // (PostgREST + RLS + return=representation can return empty arrays which
+   // .single() converts into an error). Just check {error}.
+   let err=null;
+   try{ const r=await sb.from("showcase_section_item").insert({section_id:sid,item_id:it.id}); err=r.error||null; }
+   catch(e){ err=e; }
    pendingAddRef.current.delete(key);
-   if(dbErr){
-     // Real error (RLS / FK / network) — pull the temp out and log, no popup.
+   const msg=String((err&&(err.message||err.toString()))||"");
+   const isDup=err && (err.code==="23505" || /duplicate|unique constraint|conflict/i.test(msg));
+   if(err && !isDup){
+     // Real error (RLS / FK / network) — roll back the optimistic and log.
      setLinks(prev=>prev.filter(l=>l.id!==tempId));
-     console.error("showcase add failed",dbErr);
+     console.error("showcase add failed",err);
      return;
    }
-   // Promote the optimistic to its real id so it's never wiped by a subsequent
-   // load() (and rmItem's delete-by-id works against the real row).
-   setLinks(prev=>prev.map(l=>l.id===tempId?{...l,id:realId||l.id}:l));
+   // Success (or already-there). Refresh from DB — with the .limit(50000) cap
+   // lifted, the new row is always in the returned set, so the optimistic temp
+   // is harmlessly replaced by the real row (same item_id, so the picker still
+   // shows ✓ Added and the section shows the thumbnail).
    if(scLoc&&!(it.branches||[]).includes(scLoc)) onItemsChanged&&onItemsChanged();
+   load();
  };
  const rmItem=async(linkId)=>{await sb.from("showcase_section_item").delete().eq("id",linkId);load();};
  const pickItems=themes.filter(t=>{const q=pq.trim().toLowerCase();const kindOk=!scKind||(scKind==="Outfits"?(t._row&&t._row.kind==="outfit"):(t._row&&t._row.type==="theme"));return kindOk&&(!q||((t.name||"")+" "+(t._row&&t._row.code||"")).toLowerCase().includes(q));});
