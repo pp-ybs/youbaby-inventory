@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260626-rls-surface";
+  var BUILD="20260626-dup-promote";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -823,9 +823,35 @@ function Showcase({themes,onOpen,onItemsChanged}){
      console.error("showcase add failed",err);
      return;
    }
+   // Duplicate-key path: the (section, item) link already exists in DB. realRow
+   // wasn't set by .insert() because the row wasn't actually inserted. Look up
+   // the existing row's id so we can promote the optimistic temp to it — if we
+   // don't, load() reconcile will see tmp_xxx isn't in the server snapshot and
+   // wrongly flag it as "missing", showing both the orphan optimistic AND the
+   // real row + a false-positive banner. (This is the EXACT bug the team just
+   // hit on Peter Rabbit in Sitter/Girls.)
+   if(isDup && !realRow){
+     try{
+       const {data:ex}=await sb.from("showcase_section_item")
+         .select("id,sort")
+         .eq("section_id",sid).eq("item_id",it.id)
+         .maybeSingle();
+       if(ex&&ex.id) realRow=ex;
+     }catch(_){}
+   }
    // Promote the optimistic temp to the real DB row id so it can't be raced off
    // screen by a subsequent load() — and so rmItem's delete-by-id works.
-   if(realRow&&realRow.id) setLinks(prev=>prev.map(l=>l.id===tempId?{...l,id:realRow.id,sort:realRow.sort,_addedAt:Date.now()}:l));
+   if(realRow&&realRow.id){
+     setLinks(prev=>{
+       // If a row with realRow.id is already in state (load already raced in,
+       // or this is a re-add of the same row), drop the temp entirely so we
+       // don't render TWO copies. Otherwise rewrite the temp's id to the real one.
+       const hasReal=prev.some(l=>l.id===realRow.id);
+       return hasReal
+         ? prev.filter(l=>l.id!==tempId)
+         : prev.map(l=>l.id===tempId?{...l,id:realRow.id,sort:realRow.sort,_addedAt:Date.now()}:l);
+     });
+   }
    if(scLoc&&!(it.branches||[]).includes(scLoc)) onItemsChanged&&onItemsChanged();
    load();
  };
@@ -940,9 +966,31 @@ function Showcase({themes,onOpen,onItemsChanged}){
              ? "Product created, but it couldn't be added to the showcase section — your login session expired. Refresh the page, log in again, then open the section to add it."
              : ("Product created, but linking to the section failed: "+(msg||"unknown error")+". Open the section and add it via the picker."));
            console.error("showcase link after New product failed",err);
+         } else {
+           // Already linked — promote the optimistic temp to the existing real id
+           // so load() doesn't falsely flag it as missing-from-server.
+           try{
+             const {data:ex}=await sb.from("showcase_section_item")
+               .select("id,sort")
+               .eq("section_id",addNew).eq("item_id",row.id)
+               .maybeSingle();
+             if(ex&&ex.id){
+               setLinks(prev=>{
+                 const hasReal=prev.some(l=>l.id===ex.id);
+                 return hasReal
+                   ? prev.filter(l=>l.id!==tempId2)
+                   : prev.map(l=>l.id===tempId2?{...l,id:ex.id,sort:ex.sort,_addedAt:Date.now()}:l);
+               });
+             }
+           }catch(_){}
          }
        } else if(realRow&&realRow.id){
-         setLinks(prev=>prev.map(l=>l.id===tempId2?{...l,id:realRow.id,sort:realRow.sort,_addedAt:Date.now()}:l));
+         setLinks(prev=>{
+           const hasReal=prev.some(l=>l.id===realRow.id);
+           return hasReal
+             ? prev.filter(l=>l.id!==tempId2)
+             : prev.map(l=>l.id===tempId2?{...l,id:realRow.id,sort:realRow.sort,_addedAt:Date.now()}:l);
+         });
        }
      }
      onItemsChanged&&onItemsChanged();load();
