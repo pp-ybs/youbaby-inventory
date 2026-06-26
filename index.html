@@ -804,6 +804,10 @@ function Showcase({themes,onOpen,onItemsChanged}){
      {scLoc&&<button onClick={openExternal} title="Opens the public customer page in a new tab — no login needed" style={{display:"flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:8,border:"none",background:"var(--ink)",color:"#fff",fontWeight:600,fontSize:13}}><Icon d={I.eye} s={15} c="#fff"/>Preview ↗</button>}
    </div>
    <p style={{color:"var(--muted)",fontSize:12.5,marginBottom:16}}>Pick a studio → session → Themes or Outfits → girl/boy/twins, then build that page. <b>Preview ↗</b> opens the public, mobile-friendly customer page (no login) — copy that link to send it.</p>
+   {addErr&&<div style={{marginBottom:14,padding:"11px 14px",borderRadius:8,background:"#fdecec",border:"1px solid #f5c2c2",color:"#b42318",fontSize:13,fontWeight:600,lineHeight:1.45,display:"flex",alignItems:"flex-start",gap:10}}>
+     <span style={{flex:1}}>{addErr}</span>
+     <button onClick={()=>setAddErr("")} style={{padding:"2px 9px",fontSize:11.5,fontWeight:700,border:"1px solid #f5c2c2",borderRadius:5,background:"#fff",color:"#b42318",cursor:"pointer"}}>Dismiss</button>
+   </div>}
    {(scLoc||scSession)&&<div style={{display:"flex",alignItems:"center",gap:7,marginBottom:16,fontSize:13.5,flexWrap:"wrap"}}>
      <button onClick={()=>{setScLoc("");setScSession("");setScGender("");setScKind("");}} style={{color:"var(--muted)",fontWeight:600}}>Showcase</button>
      <Icon d={I.chev} s={14} c="var(--muted)"/><button onClick={()=>{setScSession("");setScGender("");setScKind("");}} style={{color:scSession?"var(--accent)":"var(--ink)",fontWeight:700}}>{scLoc}</button>
@@ -848,7 +852,34 @@ function Showcase({themes,onOpen,onItemsChanged}){
        </div>
      </div>
    </div>}
-   {addNew!==null&&<AddInvItem init={{grp:"shoot",session_type:scSession||"Newborn",type:scKind==="Outfits"?"item":"theme",kind:"outfit",gender:needGender?(GENDER_VAL[scGender]||""):"",locs:scLoc?[scLoc]:[],website_display:true}} onClose={()=>setAddNew(null)} onSaved={async(row)=>{if(row&&row.id&&typeof addNew==="string"){await sb.from("showcase_section_item").insert({section_id:addNew,item_id:row.id});}onItemsChanged&&onItemsChanged();load();}}/>}
+   {addNew!==null&&<AddInvItem init={{grp:"shoot",session_type:scSession||"Newborn",type:scKind==="Outfits"?"item":"theme",kind:"outfit",gender:needGender?(GENDER_VAL[scGender]||""):"",locs:scLoc?[scLoc]:[],website_display:true}} onClose={()=>setAddNew(null)} onSaved={async(row)=>{
+     // The inv_item was just created by AddInvItem. Now link it to the section
+     // the team opened the picker from. This was previously silently swallowed:
+     // when the session token had expired, the inv_item insert still worked
+     // (different RLS path) but the showcase_section_item insert was rejected,
+     // and the product appeared in the catalogue but not in the showcase. Now
+     // we refresh the session first and surface any failure inline (so the team
+     // can see why and re-link the item via the picker after re-logging in).
+     if(row&&row.id&&typeof addNew==="string"){
+       let err=null;
+       try{
+         const {data:sess}=await sb.auth.getSession();
+         if(!sess||!sess.session){ err={message:"Your login session expired. Refresh the page / log in again, then open the section and add the product via the picker."}; }
+         else { const r=await sb.from("showcase_section_item").insert({section_id:addNew,item_id:row.id}); err=r.error||null; }
+       }catch(e){ err=e; }
+       if(err){
+         const msg=String((err&&(err.message||err.toString()))||"");
+         const isDup=err.code==="23505"||/duplicate|unique constraint|conflict/i.test(msg);
+         if(!isDup){
+           setAddErr(/jwt|token|auth|session|permission|policy|row-level|401|403/i.test(msg)
+             ? "Product created, but it couldn't be added to the showcase section — your login session expired. Refresh the page, log in again, then open the section to add it."
+             : ("Product created, but linking to the section failed: "+(msg||"unknown error")+". Open the section and add it via the picker."));
+           console.error("showcase link after New product failed",err);
+         }
+       }
+     }
+     onItemsChanged&&onItemsChanged();load();
+   }}/>}
    {editItem&&<InvEdit item={editItem} onClose={()=>setEditItem(null)} onSaved={()=>{setEditItem(null);load();onItemsChanged&&onItemsChanged();}}/>}
  </div>;
 }
