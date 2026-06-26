@@ -7,6 +7,29 @@
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
 <title>You Baby Studio · Inventory</title>
+<script>
+// Build-id cache bust. Meta cache-control is ignored for the HTML document
+// itself by every browser disk cache; if a coordinator visits the page once,
+// their browser may serve a months-old index.html until they hard-refresh.
+// We bump YB_BUILD on every deploy; if the localStorage marker doesn't match,
+// we force a single hard reload with a cache-busting query string so the next
+// load goes to the network. Back/forward navigation (bfcache) also triggers
+// a reload so a deploy made while a tab was backgrounded never lingers.
+(function(){
+  var BUILD="20260626-rls-surface";
+  try{
+    var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
+    if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
+    if(localStorage.getItem("yb_build")!==BUILD){
+      localStorage.setItem("yb_build",BUILD);
+      if(!/[?&]v=/.test(location.search)){
+        location.replace(location.pathname+"?v="+BUILD+location.hash);
+        return;
+      }
+    }
+  }catch(e){}
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -713,12 +736,26 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const load=async()=>{if(!sb){setLoaded(true);return;}await loadCovers();
    const {data:s,error:se}=await sb.from("showcase_section").select("*").order("sort").limit(10000);
    const {data:l,error:le}=await sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender,static_tags)").order("sort").limit(50000);
-   // Only overwrite local state when the read actually succeeded. A transient
-   // error (token refresh race, network blip) used to setSecs([]) → the whole
-   // showcase flashed empty and an item just added "disappeared". Now we keep
-   // what we have on error instead of wiping to blank.
+   // Don't overwrite local state when the read errored (a token blip used to
+   // setSecs([]) → showcase flashed blank).
    if(!se&&s) setSecs(s);
-   if(!le&&l) setLinks(l);
+   if(!le&&l){
+     // CRITICAL: do not let a stale read silently erase rows the user just added.
+     // If something we tagged with _addedAt is not in the server snapshot yet
+     // (RLS dropped the embedded inv_item join → PostgREST sometimes omits the
+     // parent row, or read replica lag), keep the local copy ON SCREEN for 15s
+     // and surface the truth in the addErr banner so the team isn't fooled into
+     // thinking the add silently disappeared.
+     setLinks(prev=>{
+       const serverIds=new Set(l.map(x=>x.id));
+       const recentlyAdded=prev.filter(x=>x&&x._addedAt&&(Date.now()-x._addedAt)<15000&&!serverIds.has(x.id));
+       if(recentlyAdded.length){
+         console.warn("load() server snapshot missing recently-added rows",recentlyAdded.map(x=>({id:x.id,item_id:x.item_id})));
+         setAddErr("Saved on screen but not visible in the server snapshot — usually a row-level security rule on inv_item. Refresh in a few seconds; if it still vanishes, ping the admin.");
+       }
+       return [...l,...recentlyAdded];
+     });
+   }
    setLoaded(true);};
  useEffect(()=>{load()},[]);
  // jump to a board from a #show= deep link (internal)
@@ -748,28 +785,37 @@ function Showcase({themes,onOpen,onItemsChanged}){
    if(pendingAddRef.current.has(key)) return;
    pendingAddRef.current.add(key);
    setAddErr("");
-   // Optimistic paint so the click is instantly visible.
+   // Optimistic paint so the click is instantly visible. _addedAt tags the row
+   // so a subsequent load() that returns a snapshot WITHOUT this row (replica
+   // lag, RLS rejection that left no DB row) keeps the optimistic on screen
+   // and surfaces an error instead of silently wiping it.
    const tempId="tmp_"+Math.random().toString(36).slice(2);
-   setLinks(prev=>[...prev,{id:tempId,section_id:sid,item_id:it.id,sort:9999,inv_item:{id:it.id,name:it.name,code:(it._row&&it._row.code)||null,photo_url:it.image||(it._row&&it._row.photo_url)||null,session_type:it.category,subcategory:(it._row&&it._row.subcategory)||null,size:(it._row&&it._row.size)||null,gender:it.gender,static_tags:(it._row&&it._row.static_tags)||[]}}]);
-   // ROOT CAUSE of "worked before, now doesn't": showcase_section_item only
-   // allows INSERT for the `authenticated` role. When the login session's access
-   // token silently expires, supabase-js sends the request as an expired/absent
-   // token, RLS rejects it, and the row never persists — while reads keep working
-   // so the team can't tell. Force a session check/refresh BEFORE the insert; if
-   // there's genuinely no session, tell the user to log in again instead of
-   // failing silently.
-   let err=null;
+   setLinks(prev=>[...prev,{id:tempId,section_id:sid,item_id:it.id,sort:9999,_addedAt:Date.now(),inv_item:{id:it.id,name:it.name,code:(it._row&&it._row.code)||null,photo_url:it.image||(it._row&&it._row.photo_url)||null,session_type:it.category,subcategory:(it._row&&it._row.subcategory)||null,size:(it._row&&it._row.size)||null,gender:it.gender,static_tags:(it._row&&it._row.static_tags)||[]}}]);
+   // Two layers of failure prevention:
+   // 1) getSession() refreshes a stale token so RLS doesn't reject a fresh login.
+   // 2) .select("id,sort").single() forces PostgREST to return the inserted row.
+   //    A bare .insert() returns {data:null, error:null} even when RLS silently
+   //    blocks the write — that was the root cause of "appears then disappears":
+   //    the insert reported success, load() refetched, and the row wasn't there.
+   //    With .select() we see data:[] / 401 / 403 / row-level error explicitly.
+   let err=null,realRow=null;
    try{
-     const {data:sess}=await sb.auth.getSession();   // auto-refreshes a stale token
+     const {data:sess}=await sb.auth.getSession();
      if(!sess||!sess.session){ err={message:"Your login session expired. Please refresh the page / log in again, then add it."}; }
-     else { const r=await sb.from("showcase_section_item").insert({section_id:sid,item_id:it.id}); err=r.error||null; }
+     else {
+       const r=await sb.from("showcase_section_item")
+         .insert({section_id:sid,item_id:it.id})
+         .select("id,section_id,item_id,sort")
+         .single();
+       if(r.error) err=r.error;
+       else if(!r.data||!r.data.id) err={message:"Insert returned no row — your account doesn't have permission to add to the showcase. Refresh and log in again, or ask an admin to check showcase_section_item RLS."};
+       else realRow=r.data;
+     }
    }catch(e){ err=e; }
    pendingAddRef.current.delete(key);
    const msg=String((err&&(err.message||err.toString()))||"");
    const isDup=err && (err.code==="23505" || /duplicate|unique constraint|conflict/i.test(msg));
    if(err && !isDup){
-     // Surface the REAL reason inline (not a blocking popup) so failures are
-     // never invisible again. Roll the optimistic add back so state matches DB.
      setLinks(prev=>prev.filter(l=>l.id!==tempId));
      setAddErr(/jwt|token|auth|session|permission|policy|row-level|401|403/i.test(msg)
        ? "Couldn't save — your login session expired. Refresh the page and log in again."
@@ -777,6 +823,9 @@ function Showcase({themes,onOpen,onItemsChanged}){
      console.error("showcase add failed",err);
      return;
    }
+   // Promote the optimistic temp to the real DB row id so it can't be raced off
+   // screen by a subsequent load() — and so rmItem's delete-by-id works.
+   if(realRow&&realRow.id) setLinks(prev=>prev.map(l=>l.id===tempId?{...l,id:realRow.id,sort:realRow.sort,_addedAt:Date.now()}:l));
    if(scLoc&&!(it.branches||[]).includes(scLoc)) onItemsChanged&&onItemsChanged();
    load();
  };
@@ -861,21 +910,39 @@ function Showcase({themes,onOpen,onItemsChanged}){
      // we refresh the session first and surface any failure inline (so the team
      // can see why and re-link the item via the picker after re-logging in).
      if(row&&row.id&&typeof addNew==="string"){
-       let err=null;
+       // Optimistic temp so the just-created product is visible in the section
+       // immediately. Tagged with _addedAt so load()'s reconcile keeps it on
+       // screen if the server snapshot doesn't include it yet (RLS / replica lag).
+       const tempId2="tmp_"+Math.random().toString(36).slice(2);
+       setLinks(prev=>[...prev,{id:tempId2,section_id:addNew,item_id:row.id,sort:9999,_addedAt:Date.now(),inv_item:{id:row.id,name:row.name||"",photo_url:row.photo_url||null}}]);
+       let err=null,realRow=null;
        try{
          const {data:sess}=await sb.auth.getSession();
          if(!sess||!sess.session){ err={message:"Your login session expired. Refresh the page / log in again, then open the section and add the product via the picker."}; }
-         else { const r=await sb.from("showcase_section_item").insert({section_id:addNew,item_id:row.id}); err=r.error||null; }
+         else {
+           // .select().single() surfaces RLS rejection — a bare .insert() returns
+           // {data:null, error:null} when row-level security silently denies the write.
+           const r=await sb.from("showcase_section_item")
+             .insert({section_id:addNew,item_id:row.id})
+             .select("id,section_id,item_id,sort")
+             .single();
+           if(r.error) err=r.error;
+           else if(!r.data||!r.data.id) err={message:"Insert returned no row — your account doesn't have permission to add to the showcase. Refresh and log in again."};
+           else realRow=r.data;
+         }
        }catch(e){ err=e; }
        if(err){
          const msg=String((err&&(err.message||err.toString()))||"");
          const isDup=err.code==="23505"||/duplicate|unique constraint|conflict/i.test(msg);
          if(!isDup){
+           setLinks(prev=>prev.filter(l=>l.id!==tempId2));
            setAddErr(/jwt|token|auth|session|permission|policy|row-level|401|403/i.test(msg)
              ? "Product created, but it couldn't be added to the showcase section — your login session expired. Refresh the page, log in again, then open the section to add it."
              : ("Product created, but linking to the section failed: "+(msg||"unknown error")+". Open the section and add it via the picker."));
            console.error("showcase link after New product failed",err);
          }
+       } else if(realRow&&realRow.id){
+         setLinks(prev=>prev.map(l=>l.id===tempId2?{...l,id:realRow.id,sort:realRow.sort,_addedAt:Date.now()}:l));
        }
      }
      onItemsChanged&&onItemsChanged();load();
