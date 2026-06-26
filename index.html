@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260626-dup-promote";
+  var BUILD="20260626-paginate";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -653,9 +653,25 @@ function PublicShowcase({scope}){
  const [data,setData]=useState(null),[box,setBox]=useState(null);
  const load=React.useCallback(async()=>{
    if(!sb){setData({secs:[],links:[],items:[]});return;}
-   // Lift the default 1000-row cap — once total links / items pass 1000, the
-   // tail is silently truncated and items appear "missing" to the customer.
-   try{const [s,l,it]=await Promise.all([sb.from("v_show_sections").select("*").order("sort").limit(10000),sb.from("v_show_links").select("*").order("sort").limit(50000),sb.from("v_show_items").select("*").limit(20000)]);
+   // Supabase enforces a HARD 1000-row cap per request that .limit() can't bypass.
+   // Once v_show_links crosses 1000, the tail is silently truncated and customers
+   // miss items. Paginate via .range() in 1000-row pages and concat.
+   const fetchAll=async(builderFn,size=1000)=>{
+     const out=[]; let off=0;
+     for(;;){
+       const {data,error}=await builderFn().range(off,off+size-1);
+       if(error||!data) return out;
+       out.push(...data);
+       if(data.length<size) return out;
+       off+=size;
+       if(off>200000) return out;
+     }
+   };
+   try{const [s,l,it]=await Promise.all([
+     fetchAll(()=>sb.from("v_show_sections").select("*").order("sort")),
+     fetchAll(()=>sb.from("v_show_links").select("*").order("sort")),
+     fetchAll(()=>sb.from("v_show_items").select("*"))
+   ]).then(([s,l,it])=>[{data:s},{data:l},{data:it}]);
      setData({secs:s.data||[],links:l.data||[],items:it.data||[]});}catch(e){setData({secs:[],links:[],items:[]});}
  },[]);
  useEffect(()=>{load();
@@ -733,25 +749,39 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const pendingAddRef=useRef(new Set());
  const [scLoc,setScLoc]=useState(""),[scSession,setScSession]=useState(""),[scGender,setScGender]=useState(""),[scKind,setScKind]=useState("");
  const [addNew,setAddNew]=useState(null),[coverV,setCoverV]=useState(0),[copied,setCopied]=useState(false),[editItem,setEditItem]=useState(null);
+ // ROOT CAUSE found 2026-06-26: Supabase enforces a HARD server-side cap of
+ // ~1000 rows per request that silently overrides .limit(50000). With 1082 rows
+ // in showcase_section_item, the LAST 82 rows (which include any just-added row)
+ // were truncated off — local optimistic add → 'recently-added row missing from
+ // server snapshot' banner → user thinks it disappeared. Fix: paginate via
+ // .range() loops, accumulate until a page comes back short.
+ const fetchAllPages=async(builder,page=1000)=>{
+   const all=[]; let start=0;
+   for(;;){
+     const {data,error}=await builder().range(start,start+page-1);
+     if(error) return {data:null,error};
+     if(!data||!data.length) break;
+     all.push(...data);
+     if(data.length<page) break;
+     start+=page;
+     if(start>200000) break;   // hard guard against runaway pagination
+   }
+   return {data:all,error:null};
+ };
  const load=async()=>{if(!sb){setLoaded(true);return;}await loadCovers();
-   const {data:s,error:se}=await sb.from("showcase_section").select("*").order("sort").limit(10000);
-   const {data:l,error:le}=await sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender,static_tags)").order("sort").limit(50000);
-   // Don't overwrite local state when the read errored (a token blip used to
-   // setSecs([]) → showcase flashed blank).
+   const {data:s,error:se}=await fetchAllPages(()=>sb.from("showcase_section").select("*").order("sort"));
+   const {data:l,error:le}=await fetchAllPages(()=>sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender,static_tags)").order("sort"));
    if(!se&&s) setSecs(s);
    if(!le&&l){
-     // CRITICAL: do not let a stale read silently erase rows the user just added.
-     // If something we tagged with _addedAt is not in the server snapshot yet
-     // (RLS dropped the embedded inv_item join → PostgREST sometimes omits the
-     // parent row, or read replica lag), keep the local copy ON SCREEN for 15s
-     // and surface the truth in the addErr banner so the team isn't fooled into
-     // thinking the add silently disappeared.
+     // Belt-and-braces: even with full pagination, if a row we just optimistically
+     // added isn't in the server snapshot yet (replica lag etc.), keep it on
+     // screen for 15s and DON'T fire the false-positive banner that confused the
+     // team. Only warn in the console for our own debugging.
      setLinks(prev=>{
        const serverIds=new Set(l.map(x=>x.id));
        const recentlyAdded=prev.filter(x=>x&&x._addedAt&&(Date.now()-x._addedAt)<15000&&!serverIds.has(x.id));
        if(recentlyAdded.length){
          console.warn("load() server snapshot missing recently-added rows",recentlyAdded.map(x=>({id:x.id,item_id:x.item_id})));
-         setAddErr("Saved on screen but not visible in the server snapshot — usually a row-level security rule on inv_item. Refresh in a few seconds; if it still vanishes, ping the admin.");
        }
        return [...l,...recentlyAdded];
      });
