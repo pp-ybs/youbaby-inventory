@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260626-paginate";
+  var BUILD="20260629-condaudit";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -1841,7 +1841,10 @@ function InvEdit({item,onClose,onSaved}){
      const units=(Array.isArray(r.unit_conditions)&&r.unit_conditions.length)
        ? r.unit_conditions.slice(0,qty).concat(Array(Math.max(0,qty-r.unit_conditions.length)).fill(baseCond))
        : Array(qty).fill(baseCond);
-     m[r.location]={on:true,qty:r.quantity,times:r.times_selected||0,cond:baseCond,units,size:r.size||item.size||"",date:r.acquired_on||(item.created_at?item.created_at.slice(0,10):"")};
+     // condLoaded / unitsLoaded = snapshot at open, so save() can detect a REAL
+     // condition change and only then stamp condition_logged_at/by (otherwise
+     // 'last logged' degrades into 'last saved' for every qty/size edit).
+     m[r.location]={on:true,qty:r.quantity,times:r.times_selected||0,cond:baseCond,units,size:r.size||item.size||"",date:r.acquired_on||(item.created_at?item.created_at.slice(0,10):""),condLoaded:baseCond,unitsLoaded:units.slice(),logged_at:r.condition_logged_at||null,logged_by:r.condition_logged_by||null};
    });setLocs(m);
    if(item.type==="theme"){const {data:tl}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",item.id);setLinks((tl||[]).map(x=>x.component_item_id));}
    else{const {data:tl}=await sb.from("inv_theme_item").select("theme_id").eq("component_item_id",item.id);setLinks((tl||[]).map(x=>x.theme_id));}
@@ -1870,24 +1873,44 @@ function InvEdit({item,onClose,onSaved}){
      const segE=f.type==="theme"?"SET":(KIND_CODE[f.kind]||"IT");const catE=f.session_type||"GEN";
      let code=f.code;if(code&&!code.startsWith(codePrefix(catE,segE)+"-"))code=await nextCode(catE,segE);
      const on=BR.filter(b=>locs[b]&&locs[b].on),off=BR.filter(b=>!(locs[b]&&locs[b].on));
-     const itemCond=on.length?(locs[on[0]].cond||f.condition||"Good"):(f.condition||"Good");
+     const _worstOf=arr=>arr.slice().sort((a,b)=>(COND_RANK[a]||3)-(COND_RANK[b]||3))[0]||"Good";
+     // Per-location worst + whether the condition actually CHANGED since open.
+     const _locCond={}, _changed={}, _nowIso=new Date().toISOString();
+     on.forEach(b=>{
+       const q=Math.max(1,Number(locs[b].qty)||1);
+       const u=(Array.isArray(locs[b].units)?locs[b].units:[]).slice(0,q);
+       while(u.length<q) u.push(locs[b].cond||"Good");
+       const w=_worstOf(u);
+       _locCond[b]={units:u, worst:w};
+       _changed[b]=!noCond && (w!==(locs[b].condLoaded||locs[b].cond) || JSON.stringify(u)!==JSON.stringify(locs[b].unitsLoaded||[]));
+     });
+     // Item headline = worst across ALL stocked locations (unified rule, matches rate_inv_condition RPC).
+     const itemCond=noCond?null:(on.length?_worstOf(on.map(b=>_locCond[b].worst)):(f.condition||"Good"));
      await sb.from("inv_item").update({code,name:f.name,type:f.type,kind:f.type==="item"?f.kind:null,session_type:f.session_type,subcategory:f.subcategory||null,gender:NO_GENDER.includes(f.session_type)?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:f.op_status||null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:itemCond,notes:f.notes||null,website_display:place.length>0,times_selected:totalSel}).eq("id",item.id);
      {const add=place.filter(id=>!place0.includes(id)),rem=place0.filter(id=>!place.includes(id));
       if(add.length)await sb.from("showcase_section_item").insert(add.map(sid=>({section_id:sid,item_id:item.id})));
       for(const sid of rem)await sb.from("showcase_section_item").delete().eq("item_id",item.id).eq("section_id",sid);}
      if(on.length)await sb.from("inv_item_location").upsert(on.map(b=>{
-       const q=Math.max(1,Number(locs[b].qty)||1);
-       const units=(Array.isArray(locs[b].units)?locs[b].units:[]).slice(0,q);
-       while(units.length<q) units.push(locs[b].cond||"Good");
-       // Headline condition = worst across the units (least Excellent).
-       const worst=units.slice().sort((a,b)=>COND_RANK[a]-COND_RANK[b])[0]||"Good";
+       const lc=_locCond[b];
+       // Stamp who/when ONLY when the condition really changed; otherwise carry the old stamp.
+       const stampAt=noCond?null:(_changed[b]?_nowIso:(locs[b].logged_at||null));
+       const stampBy=noCond?null:(_changed[b]?(ME||"Staff"):(locs[b].logged_by||null));
        return {item_id:item.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,
-         condition:noCond?null:worst,
-         unit_conditions:noCond?null:units,
+         condition:noCond?null:lc.worst,
+         unit_conditions:noCond?null:lc.units,
+         condition_logged_at:stampAt,
+         condition_logged_by:stampBy,
          size:f.kind==="outfit"?(locs[b].size||null):null,
          acquired_on:locs[b].date||null};
      }));
      for(const b of off)await sb.from("inv_item_location").delete().eq("item_id",item.id).eq("location",b);
+     // Append-only audit trail for the locations whose condition changed (best-effort).
+     try{
+       const logRows=on.filter(b=>_changed[b]).map(b=>({item_id:item.id,location:b,unit_index:null,
+         condition:_locCond[b].worst,prev_condition:locs[b].condLoaded||null,unit_conditions:_locCond[b].units,
+         rated_by:(ME||"Staff"),source:"inv_edit",booking_id:null,note:null}));
+       if(logRows.length)await sb.from("inv_condition_log").insert(logRows);
+     }catch(_e){ console.warn("condition log insert failed",_e); }
      onSaved&&onSaved();
    }catch(e){setErr(e.message||String(e));}setBusy(false);};
  const toggleLink=async(cid)=>{const row=item.type==="theme"?{theme_id:item.id,component_item_id:cid}:{theme_id:cid,component_item_id:item.id};if(links.includes(cid)){setLinks(l=>l.filter(x=>x!==cid));await sb.from("inv_theme_item").delete().eq("theme_id",row.theme_id).eq("component_item_id",row.component_item_id);}else{setLinks(l=>[...l,cid]);await sb.from("inv_theme_item").insert(row);}};
