@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260713-lookbook";
+  var BUILD="20260713-adultcat";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -126,7 +126,7 @@ let STAFF_CACHE=null;
 async function loadStaffNames(){if(STAFF_CACHE)return STAFF_CACHE;if(!sb){STAFF_CACHE=[];return STAFF_CACHE;}try{const {data}=await sb.from("staff").select("name").order("name");STAFF_CACHE=[...new Set((data||[]).map(s=>s.name).filter(Boolean))];}catch(e){STAFF_CACHE=[];}return STAFF_CACHE;}
 
 const CATS=['Cake Smash','Sitter','Maternity','Infant','Newborn'];
-let CAT_COLOR={'Cake Smash':'#8a8f9c','Sitter':'#8a8f9c','Maternity':'#8a8f9c','Infant':'#8a8f9c','Newborn':'#8a8f9c','Children':'#8a8f9c','Gender Reveal':'#8a8f9c'};
+let CAT_COLOR={'Cake Smash':'#8a8f9c','Sitter':'#8a8f9c','Maternity':'#8a8f9c','Infant':'#8a8f9c','Newborn':'#8a8f9c','Children':'#8a8f9c','Gender Reveal':'#8a8f9c','Adult Photography':'#8a8f9c'};
 const BR=['Dubai','Abu Dhabi','Doha','Al Quoz'];
 const BR_COLOR={'Dubai':'#8a8f9c','Abu Dhabi':'#8a8f9c','Doha':'#8a8f9c','Al Quoz':'#8a8f9c'};
 const CONDS=['Excellent','Good','Fair','Poor','Damaged'];
@@ -249,7 +249,7 @@ const I={
 const SESSION_ICON={
  "Newborn":I.baby,"Infant":I.toddler,"Sitter":I.toddler,
  "Cake Smash":I.cake,"Maternity":I.belly,"Children":I.child,"Gender Reveal":I.balloon,
- "Christmas":I.tree,
+ "Christmas":I.tree,"Adult Photography":I.camera,
 };
 // Map item kind → registry icon (used inside drilldown buckets and item placeholders).
 const KIND_ICON={
@@ -1556,19 +1556,19 @@ function ItemsProps(){
 }
 
 // ---- New unified inventory (inv_item): Add wizard + browse ----
-let CAT_CODE={"Cake Smash":"CS",Newborn:"NB",Infant:"IN",Maternity:"MA",Sitter:"SI",Children:"CH","Gender Reveal":"GR",Christmas:"XM"};
+let CAT_CODE={"Cake Smash":"CS",Newborn:"NB",Infant:"IN",Maternity:"MA",Sitter:"SI",Children:"CH","Gender Reveal":"GR",Christmas:"XM","Adult Photography":"AP"};
 const KIND_CODE={outfit:"OF",fabric:"FB",prop:"PR",backdrop:"BD",wrap:"WR",basket:"BS",accessory:"AC",other:"IT",setup:"SET"};
 const ITEM_KINDS=["outfit","fabric","prop","backdrop","wrap","basket","accessory","other"];
-let SESSION_CATS=["Newborn","Infant","Sitter","Cake Smash","Children","Maternity","Gender Reveal","Christmas"];
+let SESSION_CATS=["Newborn","Infant","Sitter","Cake Smash","Children","Maternity","Gender Reveal","Christmas","Adult Photography"];
 const GENDERS_T=["Girl","Boy","Twins","Unisex"];
 // a unisex / general item shows up under every gender (Boy, Girl AND Twins)
 const UNISEX_G=g=>!g||g==="Unisex"||g==="Neutral"||g==="Unisex / Neutral";
 const genHit=(g,tile)=>g===tile||UNISEX_G(g);
 // per-category Style (subcategory) options + which categories skip gender
 let STYLE_OPTS={Maternity:["Classic Black","Classic White","Fabrics","Elegant","Exclusive Setups","Private Collection","Outdoor"]};
-let NO_GENDER=["Maternity","Gender Reveal"];
+let NO_GENDER=["Maternity","Gender Reveal","Adult Photography"];
 // which item kinds are offered per session type
-let KIND_BY_CAT={Maternity:["outfit","backdrop","accessory"],"Cake Smash":["outfit","prop","backdrop","accessory"],Newborn:["outfit","wrap","basket","prop","backdrop","accessory"],Infant:["outfit","basket","prop","backdrop","accessory"],Sitter:["outfit","prop","backdrop","accessory"],Children:["outfit","prop","backdrop","accessory"],"Gender Reveal":["prop"],Christmas:["outfit","prop","backdrop","accessory","wrap"]};
+let KIND_BY_CAT={Maternity:["outfit","backdrop","accessory"],"Cake Smash":["outfit","prop","backdrop","accessory"],Newborn:["outfit","wrap","basket","prop","backdrop","accessory"],Infant:["outfit","basket","prop","backdrop","accessory"],Sitter:["outfit","prop","backdrop","accessory"],Children:["outfit","prop","backdrop","accessory"],"Gender Reveal":["prop"],Christmas:["outfit","prop","backdrop","accessory","wrap"],"Adult Photography":["outfit","prop","backdrop","accessory"]};
 const GENERAL_KINDS=["prop","accessory","backdrop","other"];
 const SIZE_OPTS=["S","M","L","XL","XXL","One size"];
 // size options per session type (baby sessions use age, maternity uses dress sizes)
