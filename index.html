@@ -876,7 +876,11 @@ function Showcase({themes,onOpen,onItemsChanged}){
    if(from<0||to<0) return;
    const next=arr.slice(); const [m]=next.splice(from,1); next.splice(to,0,m);
    setSecs(ss=>ss.map(x=>{const i=next.findIndex(n=>n.id===x.id); return i>=0?{...x,sort:i+1}:x;}));
-   try{ for(let i=0;i<next.length;i++) await sb.from("showcase_section").update({sort:i+1}).eq("id",next[i].id); }catch(e){ console.warn("section reorder save failed",e); }
+   // supabase-js returns {error}, it doesn't throw — check per row, and reconcile
+   // from DB on any failure so the UI never lies about the saved order.
+   let secErr=null;
+   for(let i=0;i<next.length;i++){ const {error}=await sb.from("showcase_section").update({sort:i+1}).eq("id",next[i].id); if(error){secErr=error;break;} }
+   if(secErr){ console.warn("section reorder save failed",secErr); setAddErr("Couldn't save the section order — "+(secErr.message||"error")+". Reloaded the saved order."); load(); }
  };
  // Persist a new item order inside one manual section after a drag-drop.
  // Note: display still ranks by this studio's demand first — the dragged order
@@ -884,12 +888,22 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const dropItem=async(sid,targetLinkId)=>{
    const d=dragItem.current; dragItem.current=null;
    if(!d||d.sid!==sid||d.linkId===targetLinkId) return;
-   const mine=links.filter(l=>l.section_id===sid);
+   // Work in DISPLAY order (demand-sorted) — the order the user actually dragged
+   // in. Using raw stored order made the gesture move tiles the wrong way
+   // whenever demand ranking differed from curated order.
+   const loc=(activeBoard||"").split(" · ")[0];
+   const mine=links.filter(l=>l.section_id===sid).slice().sort((a,b)=>selAtM(b.item_id,loc)-selAtM(a.item_id,loc));
    const from=mine.findIndex(l=>l.id===d.linkId), to=mine.findIndex(l=>l.id===targetLinkId);
    if(from<0||to<0) return;
    const next=mine.slice(); const [m]=next.splice(from,1); next.splice(to,0,m);
    setLinks(prev=>{const others=prev.filter(l=>l.section_id!==sid); return [...others,...next.map((l,i)=>({...l,sort:i+1}))];});
-   try{ for(let i=0;i<next.length;i++) await sb.from("showcase_section_item").update({sort:i+1}).eq("id",next[i].id); }catch(e){ console.warn("item reorder save failed",e); }
+   let itemErr=null;
+   for(let i=0;i<next.length;i++){
+     if(String(next[i].id).startsWith("tmp_")) continue;   // optimistic row not yet in DB — its sort saves on reload
+     const {error}=await sb.from("showcase_section_item").update({sort:i+1}).eq("id",next[i].id);
+     if(error){itemErr=error;break;}
+   }
+   if(itemErr){ console.warn("item reorder save failed",itemErr); setAddErr("Couldn't save the item order — "+(itemErr.message||"error")+". Reloaded the saved order."); load(); }
  };
  const upd=async(id,patch)=>{setSecs(ss=>ss.map(s=>s.id===id?{...s,...patch}:s));if(sb)await sb.from("showcase_section").update(patch).eq("id",id);};
  const move=async(s,dir)=>{const arr=boardSecs(s.board);const i=arr.findIndex(x=>x.id===s.id);const j=i+dir;if(j<0||j>=arr.length)return;const a=arr[i],b=arr[j];await sb.from("showcase_section").update({sort:b.sort}).eq("id",a.id);await sb.from("showcase_section").update({sort:a.sort}).eq("id",b.id);load();};
@@ -1031,7 +1045,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
    :<div style={{display:"flex",flexDirection:"column",gap:14}}>
      {boardSecs(activeBoard).map((s,i,arr)=>{const its=secItems(s);return <div key={s.id} onDragOver={e=>{if(dragSec.current&&dragSec.current!==s.id){e.preventDefault();if(dragOverSec!==s.id)setDragOverSec(s.id);}}} onDragLeave={()=>{if(dragOverSec===s.id)setDragOverSec(null);}} onDrop={e=>{e.preventDefault();dropSec(s.id);}} style={{background:"var(--panel)",border:dragOverSec===s.id?"1.5px dashed var(--accent)":"1px solid var(--line)",borderRadius:10,padding:"14px 16px",boxShadow:"var(--shadow)"}}>
        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
-         <span draggable onDragStart={e=>{dragSec.current=s.id;e.dataTransfer.effectAllowed="move";}} onDragEnd={()=>{dragSec.current=null;setDragOverSec(null);}} title="Drag to reorder sections" style={{cursor:"grab",color:"var(--muted)",fontSize:15,padding:"0 2px",userSelect:"none",lineHeight:1}}>⠿</span>
+         <span draggable onDragStart={e=>{dragSec.current=s.id;try{e.dataTransfer.setData("text/plain",String(s.id));}catch(_){}e.dataTransfer.effectAllowed="move";}} onDragEnd={()=>{dragSec.current=null;setDragOverSec(null);}} title="Drag to reorder sections" style={{cursor:"grab",color:"var(--muted)",fontSize:15,padding:"0 2px",userSelect:"none",lineHeight:1}}>⠿</span>
          <input value={s.title} onChange={e=>upd(s.id,{title:e.target.value})} style={{fontSize:15,fontWeight:700,border:"none",borderBottom:"1px dashed var(--line2)",background:"transparent",flex:1,minWidth:120,padding:"2px 0"}}/>
          <button onClick={()=>{const goingDyn=!s.dyn;const msg=goingDyn
              ?("Switch “"+(s.title||"this section")+"” to AUTO?\n\nIt will fill itself by a rule (Most demanded / New arrivals). Your hand-picked items are kept but hidden until you switch back.")
@@ -1047,7 +1061,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
          <div><div style={{fontSize:11.5,color:"var(--muted)",marginBottom:8}}>Auto-filled · top 15 {s.rule==="popular"?"most-selected (by real booking picks)":"newest arrivals (tagged “New” first)"} for this page. Updates itself.</div>
            <div style={{display:"flex",gap:9,flexWrap:"wrap"}}>{its.length?its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>🔥 {it.sel}</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>):<span style={{fontSize:12,color:"var(--muted)"}}>No matching items yet.</span>}</div></div>
          :<div style={{display:"flex",gap:9,flexWrap:"wrap",alignItems:"center"}}>
-         {its.map(it=><div key={it.key} draggable onDragStart={e=>{dragItem.current={sid:s.id,linkId:it.linkId};e.dataTransfer.effectAllowed="move";}} onDragEnd={()=>{dragItem.current=null;}} onDragOver={e=>{const d=dragItem.current;if(d&&d.sid===s.id&&d.linkId!==it.linkId)e.preventDefault();}} onDrop={e=>{e.preventDefault();dropItem(s.id,it.linkId);}} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust · drag to reorder (most-booked still rank first)" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"grab"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}<button onClick={e=>{e.stopPropagation();rmItem(it.linkId);}} title="Remove from this section" style={{position:"absolute",top:3,right:3,width:22,height:22,borderRadius:"50%",background:"rgba(0,0,0,.65)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.x} s={11} c="#fff"/></button>{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>🔥 {it.sel}</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>)}
+         {its.map(it=><div key={it.key} draggable onDragStart={e=>{dragItem.current={sid:s.id,linkId:it.linkId};try{e.dataTransfer.setData("text/plain",String(it.linkId));}catch(_){}e.dataTransfer.effectAllowed="move";}} onDragEnd={()=>{dragItem.current=null;}} onDragOver={e=>{const d=dragItem.current;if(d&&d.sid===s.id&&d.linkId!==it.linkId)e.preventDefault();}} onDrop={e=>{e.preventDefault();dropItem(s.id,it.linkId);}} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust · drag to reorder (most-booked still rank first)" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"grab"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}<button onClick={e=>{e.stopPropagation();rmItem(it.linkId);}} title="Remove from this section" style={{position:"absolute",top:3,right:3,width:22,height:22,borderRadius:"50%",background:"rgba(0,0,0,.65)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.x} s={11} c="#fff"/></button>{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>🔥 {it.sel}</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>)}
          <button onClick={()=>{setPq("");setPicker(s.id);}} style={{width:100,height:130,borderRadius:8,border:"1.5px dashed var(--line2)",color:"var(--soft)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,fontSize:11,fontWeight:600}}><Icon d={I.plus} s={18} c="var(--soft)"/>Add</button>
        </div>}
      </div>;})}
