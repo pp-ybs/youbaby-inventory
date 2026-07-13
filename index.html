@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260630-locdemand";
+  var BUILD="20260713-dragbadges";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -667,7 +667,11 @@ function PubTile({it,onClick}){
      </div>
      :<div onClick={()=>onClick&&onClick()} style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#c4c4c4",fontSize:12,cursor:"pointer"}}>No image</div>}
      {it.size&&<span style={{position:"absolute",top:7,right:7,fontSize:9.5,fontWeight:700,background:"rgba(0,0,0,.55)",color:"#fff",borderRadius:6,padding:"2px 7px",pointerEvents:"none"}}>{it.size}</span>}
-     {it.excl&&<span style={{position:"absolute",top:7,left:7,fontSize:8.5,fontWeight:800,letterSpacing:".06em",color:"#caa24a",background:"rgba(20,20,28,.82)",borderRadius:6,padding:"3px 7px",pointerEvents:"none"}}>EXCLUSIVE</span>}
+     {it.badge&&<span style={{position:"absolute",top:7,left:7,display:"inline-flex",alignItems:"center",gap:3,fontSize:10,fontWeight:800,letterSpacing:".02em",borderRadius:20,padding:"3px 9px",pointerEvents:"none",boxShadow:"0 1px 4px rgba(0,0,0,.18)",
+       ...(it.badge==="top"?{background:"rgba(255,255,255,.96)",color:"#b4356b"}
+         :it.badge==="excl"?{background:"rgba(20,20,28,.86)",color:"#e8c568"}
+         :{background:"rgba(255,255,255,.96)",color:"#2563c9"})}}>
+       {it.badge==="top"?"❤️ Most loved":it.badge==="excl"?"★ Exclusive":"✨ New"}</span>}
      {n>1&&<>
        {idx>0&&<button onClick={e=>step(e,-1)} aria-label="Previous photo" style={{position:"absolute",left:6,top:"50%",transform:"translateY(-50%)",width:32,height:32,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.92)",color:"#1a1a1a",fontSize:18,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 5px rgba(0,0,0,.25)"}}>‹</button>}
        {idx<n-1&&<button onClick={e=>step(e,1)} aria-label="Next photo" style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",width:32,height:32,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.92)",color:"#1a1a1a",fontSize:18,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 5px rgba(0,0,0,.25)"}}>›</button>}
@@ -721,6 +725,15 @@ function PublicShowcase({scope}){
  // AND manual — orders its items by the board's own studio demand, so the same item
  // can rank #1 in Dubai and #9 in Doha.
  const selAt=(x,loc)=>Number((x&&x.loc_selected&&x.loc_selected[loc])||0);
+ // item id → created_at (v_show_links has no date; look it up from v_show_items)
+ const createdOf={}; items.forEach(i=>{createdOf[i.id]=i.created_at;});
+ const FRESH_MS=45*24*3600*1000;
+ const isFresh=(tags,created)=>{if(Array.isArray(tags)&&tags.includes("New"))return true;const t=created?new Date(created).getTime():NaN;return isFinite(t)&&(Date.now()-t)<FRESH_MS;};
+ // ONE tasteful badge per card, priority: ❤️ Most loved (the section's single top
+ // seller at this studio, only when it has real demand) → ★ Exclusive → ✨ New.
+ // Inside a "New arrivals" section the ✨ badge is suppressed (everything is new
+ // there — it would be noise).
+ const assignBadges=(arr,rule)=>{arr.forEach((x,i)=>{x.badge=(i===0&&x.sel>=3&&rule!=="new")?"top":(x.excl?"excl":((x.isn&&rule!=="new")?"new":null));});return arr;};
  // Dynamic sections cap at the TOP 15 and are genuinely ordered:
  // "Most demanded" = this studio's selection count desc (newest breaks ties);
  // "New arrivals"  = created date desc, with items hand-tagged "New" boosted first.
@@ -730,13 +743,13 @@ function PublicShowcase({scope}){
    const dOf=i=>String(i.created_at||"");
    if(s.rule==="popular")pool=[...pool].sort((a,b)=>(selAt(b,p.loc)-selAt(a,p.loc))||dOf(b).localeCompare(dOf(a)));
    else pool=[...pool].sort((a,b)=>((isNew(b)?1:0)-(isNew(a)?1:0))||dOf(b).localeCompare(dOf(a)));
-   return pool.slice(0,15).map(i=>({img:i.photo_url,extras:Array.isArray(i.extra_photos)?i.extra_photos:[],name:i.name,size:i.size,excl:Array.isArray(i.static_tags)&&i.static_tags.includes("Exclusive")}));};
+   return assignBadges(pool.slice(0,15).map(i=>({img:i.photo_url,extras:Array.isArray(i.extra_photos)?i.extra_photos:[],name:i.name,size:i.size,sel:selAt(i,p.loc),isn:isFresh(i.static_tags,i.created_at),excl:Array.isArray(i.static_tags)&&i.static_tags.includes("Exclusive")})),s.rule||"new");};
  const secItems=s=>{
    if(s.dyn) return dyn(s,s.board);
    const loc=parse(s.board).loc;
-   return links.filter(l=>l.section_id===s.id)
+   return assignBadges(links.filter(l=>l.section_id===s.id)
      .slice().sort((a,b)=>selAt(b,loc)-selAt(a,loc))   // stable: ties keep curated order
-     .map(l=>({img:l.photo_url,extras:Array.isArray(l.extra_photos)?l.extra_photos:[],name:l.name,size:l.size,excl:Array.isArray(l.static_tags)&&l.static_tags.includes("Exclusive")}));
+     .map(l=>({img:l.photo_url,extras:Array.isArray(l.extra_photos)?l.extra_photos:[],name:l.name,size:l.size,sel:selAt(l,loc),isn:isFresh(l.static_tags,createdOf[l.item_id]),excl:Array.isArray(l.static_tags)&&l.static_tags.includes("Exclusive")})),null);
  };
  const titleOf=b=>{const p=parse(b);return [p.session,p.gender].filter(Boolean).join(" · ")||p.loc||"Our work";};
  // Resolve the studio/branch this preview link is for (taken from the top-level scope OR the only board's loc).
@@ -793,6 +806,10 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const pendingAddRef=useRef(new Set());
  const [scLoc,setScLoc]=useState(""),[scSession,setScSession]=useState(""),[scGender,setScGender]=useState(""),[scKind,setScKind]=useState("");
  const [addNew,setAddNew]=useState(null),[coverV,setCoverV]=useState(0),[copied,setCopied]=useState(false),[editItem,setEditItem]=useState(null);
+ // Drag-to-reorder state: which section / which item-link is being dragged.
+ const [addChoice,setAddChoice]=useState(false);
+ const dragSec=useRef(null), dragItem=useRef(null);
+ const [dragOverSec,setDragOverSec]=useState(null);
  // ROOT CAUSE found 2026-06-26: Supabase enforces a HARD server-side cap of
  // ~1000 rows per request that silently overrides .limit(50000). With 1082 rows
  // in showcase_section_item, the LAST 82 rows (which include any just-added row)
@@ -847,7 +864,33 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const itemsOf=sid=>links.filter(l=>l.section_id===sid);
  const pic=pred=>{const t=themes.find(x=>x.image&&pred(x));return t?t.image:null;};
  const boardsUnder=prefix=>[...new Set(secs.filter(s=>prefix?(s.board===prefix||s.board.startsWith(prefix+" · ")):true).map(s=>s.board))].sort();
- const addSection=async()=>{const arr=boardSecs(activeBoard);const mx=Math.max(0,...arr.map(s=>s.sort||0));await sb.from("showcase_section").insert({board:activeBoard,title:"New section",sort:mx+1,dyn:false});load();};
+ // Section TYPE is chosen at creation (hand-picked vs auto) — flipping later
+ // goes through an explicit confirm, not a one-click toggle.
+ const addSection=async(dyn)=>{const arr=boardSecs(activeBoard);const mx=Math.max(0,...arr.map(s=>s.sort||0));await sb.from("showcase_section").insert({board:activeBoard,title:dyn?"Most demanded":"New section",sort:mx+1,dyn:!!dyn,rule:dyn?"popular":null});setAddChoice(false);load();};
+ // Persist a new section order for the active board after a drag-drop.
+ const dropSec=async(targetId)=>{
+   const src=dragSec.current; dragSec.current=null; setDragOverSec(null);
+   if(!src||src===targetId) return;
+   const arr=boardSecs(activeBoard);
+   const from=arr.findIndex(x=>x.id===src), to=arr.findIndex(x=>x.id===targetId);
+   if(from<0||to<0) return;
+   const next=arr.slice(); const [m]=next.splice(from,1); next.splice(to,0,m);
+   setSecs(ss=>ss.map(x=>{const i=next.findIndex(n=>n.id===x.id); return i>=0?{...x,sort:i+1}:x;}));
+   try{ for(let i=0;i<next.length;i++) await sb.from("showcase_section").update({sort:i+1}).eq("id",next[i].id); }catch(e){ console.warn("section reorder save failed",e); }
+ };
+ // Persist a new item order inside one manual section after a drag-drop.
+ // Note: display still ranks by this studio's demand first — the dragged order
+ // is the tiebreak between equally-demanded items (most items, since most are 0).
+ const dropItem=async(sid,targetLinkId)=>{
+   const d=dragItem.current; dragItem.current=null;
+   if(!d||d.sid!==sid||d.linkId===targetLinkId) return;
+   const mine=links.filter(l=>l.section_id===sid);
+   const from=mine.findIndex(l=>l.id===d.linkId), to=mine.findIndex(l=>l.id===targetLinkId);
+   if(from<0||to<0) return;
+   const next=mine.slice(); const [m]=next.splice(from,1); next.splice(to,0,m);
+   setLinks(prev=>{const others=prev.filter(l=>l.section_id!==sid); return [...others,...next.map((l,i)=>({...l,sort:i+1}))];});
+   try{ for(let i=0;i<next.length;i++) await sb.from("showcase_section_item").update({sort:i+1}).eq("id",next[i].id); }catch(e){ console.warn("item reorder save failed",e); }
+ };
  const upd=async(id,patch)=>{setSecs(ss=>ss.map(s=>s.id===id?{...s,...patch}:s));if(sb)await sb.from("showcase_section").update(patch).eq("id",id);};
  const move=async(s,dir)=>{const arr=boardSecs(s.board);const i=arr.findIndex(x=>x.id===s.id);const j=i+dir;if(j<0||j>=arr.length)return;const a=arr[i],b=arr[j];await sb.from("showcase_section").update({sort:b.sort}).eq("id",a.id);await sb.from("showcase_section").update({sort:a.sort}).eq("id",b.id);load();};
  const delSection=async(s)=>{if(!window.confirm("Delete section “"+s.title+"”?"))return;await sb.from("showcase_section").delete().eq("id",s.id);load();};
@@ -986,10 +1029,14 @@ function Showcase({themes,onOpen,onItemsChanged}){
        {scLoc&&scSession&&scKind&&needGender&&!scGender&&[["Girls","Girl"],["Boys","Boy"],["Twins","Twins"]].map(([g,gv])=><CoverTile key={g} label={g} sub={boardSecs([scLoc,scSession,scKind,g].join(" · ")).length+" sections"} coverKey={[scLoc,scSession,scKind,g].join(" · ")} fallback={pic(t=>t.category===scSession&&genHit(t.gender,gv)&&(scKind==="Outfits"?(t._row&&t._row.kind==="outfit"):(t._row&&t._row.type==="theme"))&&(t.branches||[]).includes(scLoc))} onClick={()=>setScGender(g)} onChanged={()=>setCoverV(v=>v+1)}/>)}
      </div>
    :<div style={{display:"flex",flexDirection:"column",gap:14}}>
-     {boardSecs(activeBoard).map((s,i,arr)=>{const its=secItems(s);return <div key={s.id} style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:10,padding:"14px 16px",boxShadow:"var(--shadow)"}}>
+     {boardSecs(activeBoard).map((s,i,arr)=>{const its=secItems(s);return <div key={s.id} onDragOver={e=>{if(dragSec.current&&dragSec.current!==s.id){e.preventDefault();if(dragOverSec!==s.id)setDragOverSec(s.id);}}} onDragLeave={()=>{if(dragOverSec===s.id)setDragOverSec(null);}} onDrop={e=>{e.preventDefault();dropSec(s.id);}} style={{background:"var(--panel)",border:dragOverSec===s.id?"1.5px dashed var(--accent)":"1px solid var(--line)",borderRadius:10,padding:"14px 16px",boxShadow:"var(--shadow)"}}>
        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+         <span draggable onDragStart={e=>{dragSec.current=s.id;e.dataTransfer.effectAllowed="move";}} onDragEnd={()=>{dragSec.current=null;setDragOverSec(null);}} title="Drag to reorder sections" style={{cursor:"grab",color:"var(--muted)",fontSize:15,padding:"0 2px",userSelect:"none",lineHeight:1}}>⠿</span>
          <input value={s.title} onChange={e=>upd(s.id,{title:e.target.value})} style={{fontSize:15,fontWeight:700,border:"none",borderBottom:"1px dashed var(--line2)",background:"transparent",flex:1,minWidth:120,padding:"2px 0"}}/>
-         <button onClick={()=>upd(s.id,{dyn:!s.dyn,rule:s.dyn?null:(s.rule||"new")})} title={s.dyn?"Auto-filled from the catalog by a rule":"Hand-picked items"} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:10.5,fontWeight:700,letterSpacing:".02em",textTransform:"uppercase",color:s.dyn?"var(--accent)":"var(--soft)",background:s.dyn?"var(--accent)18":"var(--panel2)",border:`1px solid ${s.dyn?"var(--accent)":"var(--line2)"}`,borderRadius:7,padding:"4px 9px",cursor:"pointer"}}><Dot c={s.dyn?"var(--accent)":"#9aa0b0"} s={6}/>{s.dyn?"Dynamic":"Manual"}</button>
+         <button onClick={()=>{const goingDyn=!s.dyn;const msg=goingDyn
+             ?("Switch “"+(s.title||"this section")+"” to AUTO?\n\nIt will fill itself by a rule (Most demanded / New arrivals). Your hand-picked items are kept but hidden until you switch back.")
+             :("Switch “"+(s.title||"this section")+"” back to HAND-PICKED?\n\nIt will stop auto-filling and show your curated list again.");
+           if(window.confirm(msg))upd(s.id,{dyn:goingDyn,rule:goingDyn?(s.rule||"popular"):null});}} title={s.dyn?"Auto-filled from the catalog by a rule (click to change — asks first)":"Hand-picked items (click to change — asks first)"} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:10.5,fontWeight:700,letterSpacing:".02em",textTransform:"uppercase",color:s.dyn?"var(--accent)":"var(--soft)",background:s.dyn?"var(--accent)18":"var(--panel2)",border:`1px solid ${s.dyn?"var(--accent)":"var(--line2)"}`,borderRadius:7,padding:"4px 9px",cursor:"pointer"}}><Dot c={s.dyn?"var(--accent)":"#9aa0b0"} s={6}/>{s.dyn?"Auto":"Hand-picked"}</button>
          {s.dyn&&<select value={s.rule||"new"} onChange={e=>upd(s.id,{rule:e.target.value})} style={{width:"auto",padding:"4px 8px",fontSize:11.5}}><option value="new">New arrivals</option><option value="popular">Most demanded</option></select>}
          <button onClick={()=>move(s,-1)} disabled={i===0} title="Move up" style={{padding:5,opacity:i===0?.3:1}}><Icon d={I.up} s={16} c="var(--muted)"/></button>
          <button onClick={()=>move(s,1)} disabled={i===arr.length-1} title="Move down" style={{padding:5,opacity:i===arr.length-1?.3:1}}><Icon d="M12 5v14 M5 12l7 7 7-7" s={16} c="var(--muted)"/></button>
@@ -1000,11 +1047,23 @@ function Showcase({themes,onOpen,onItemsChanged}){
          <div><div style={{fontSize:11.5,color:"var(--muted)",marginBottom:8}}>Auto-filled · top 15 {s.rule==="popular"?"most-selected (by real booking picks)":"newest arrivals (tagged “New” first)"} for this page. Updates itself.</div>
            <div style={{display:"flex",gap:9,flexWrap:"wrap"}}>{its.length?its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>🔥 {it.sel}</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>):<span style={{fontSize:12,color:"var(--muted)"}}>No matching items yet.</span>}</div></div>
          :<div style={{display:"flex",gap:9,flexWrap:"wrap",alignItems:"center"}}>
-         {its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}<button onClick={e=>{e.stopPropagation();rmItem(it.linkId);}} title="Remove from this section" style={{position:"absolute",top:3,right:3,width:22,height:22,borderRadius:"50%",background:"rgba(0,0,0,.65)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.x} s={11} c="#fff"/></button>{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>🔥 {it.sel}</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>)}
+         {its.map(it=><div key={it.key} draggable onDragStart={e=>{dragItem.current={sid:s.id,linkId:it.linkId};e.dataTransfer.effectAllowed="move";}} onDragEnd={()=>{dragItem.current=null;}} onDragOver={e=>{const d=dragItem.current;if(d&&d.sid===s.id&&d.linkId!==it.linkId)e.preventDefault();}} onDrop={e=>{e.preventDefault();dropItem(s.id,it.linkId);}} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust · drag to reorder (most-booked still rank first)" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"grab"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}<button onClick={e=>{e.stopPropagation();rmItem(it.linkId);}} title="Remove from this section" style={{position:"absolute",top:3,right:3,width:22,height:22,borderRadius:"50%",background:"rgba(0,0,0,.65)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.x} s={11} c="#fff"/></button>{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>🔥 {it.sel}</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>)}
          <button onClick={()=>{setPq("");setPicker(s.id);}} style={{width:100,height:130,borderRadius:8,border:"1.5px dashed var(--line2)",color:"var(--soft)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,fontSize:11,fontWeight:600}}><Icon d={I.plus} s={18} c="var(--soft)"/>Add</button>
        </div>}
      </div>;})}
-     <button onClick={addSection} style={{padding:"13px",borderRadius:10,border:"1.5px dashed var(--line2)",color:"var(--soft)",fontWeight:600,fontSize:13.5}}>+ Add section</button>
+     {!addChoice
+       ?<button onClick={()=>setAddChoice(true)} style={{padding:"13px",borderRadius:10,border:"1.5px dashed var(--line2)",color:"var(--soft)",fontWeight:600,fontSize:13.5}}>+ Add section</button>
+       :<div style={{display:"flex",gap:10,alignItems:"stretch",flexWrap:"wrap"}}>
+         <button onClick={()=>addSection(false)} style={{flex:1,minWidth:220,padding:"14px",borderRadius:10,border:"1.5px solid var(--line2)",background:"var(--panel)",textAlign:"left"}}>
+           <div style={{fontWeight:700,fontSize:13.5}}>🖐 Hand-picked section</div>
+           <div style={{fontSize:11.5,color:"var(--muted)",marginTop:3}}>You choose the products. Best for curated pages (Wraps, Baskets…).</div>
+         </button>
+         <button onClick={()=>addSection(true)} style={{flex:1,minWidth:220,padding:"14px",borderRadius:10,border:"1.5px solid var(--accent)",background:"var(--accent)0d",textAlign:"left"}}>
+           <div style={{fontWeight:700,fontSize:13.5,color:"var(--accent)"}}>⚡ Auto section</div>
+           <div style={{fontSize:11.5,color:"var(--muted)",marginTop:3}}>Fills itself — top 15 Most demanded or New arrivals for this studio. Updates alone.</div>
+         </button>
+         <button onClick={()=>setAddChoice(false)} title="Cancel" style={{padding:"0 14px",borderRadius:10,border:"1px solid var(--line2)",color:"var(--muted)",fontWeight:700}}>✕</button>
+       </div>}
    </div>}
    {picker!==null&&<div style={{position:"fixed",inset:0,background:"#1a1a2433",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&setPicker(null)}>
      <div className="scroll fade modalcard" style={{width:560,maxWidth:"96vw",maxHeight:"86vh",background:"var(--panel)",borderRadius:12,overflow:"auto"}}>
