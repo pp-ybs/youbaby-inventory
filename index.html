@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260713-adultcat";
+  var BUILD="20260713-imgopt";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -264,6 +264,40 @@ const Icon=({d,s=18,c="currentColor",sw=2,fill="none",style})=>
    {d.split(" M").map((p,i)=><path key={i} d={(i?"M":"")+p}/>)}</svg>;
 
 const Dot=({c,s=7})=><span style={{width:s,height:s,borderRadius:"50%",background:c,display:"inline-block",flexShrink:0}}/>;
+
+// ── Photo upload gate + optimizer ─────────────────────────────────────────────
+// Every product/cover photo goes through this before hitting storage:
+//  · REJECT files over IMG_MAX_MB (protects storage + upload time)
+//  · REJECT photos under IMG_MIN_LONG px on the longest side (they'd look
+//    blurry when a customer zooms in the lightbox)
+//  · DOWNSCALE anything larger to IMG_TARGET_LONG px and re-encode as WebP —
+//    ~5-10× lighter than camera JPG/PNG so the customer showcase loads fast,
+//    while 2000px is plenty sharp for full-screen zoom on a phone or laptop.
+// EXIF rotation is honoured (createImageBitmap from-image, with an <img>
+// fallback for older browsers).
+const IMG_MAX_MB=15, IMG_MIN_LONG=1000, IMG_TARGET_LONG=2000, IMG_QUALITY=0.82;
+async function optimizeImageFile(file,opts){
+ opts=opts||{};
+ if(!/^image\//i.test(file.type||"")) throw new Error("That file isn't an image.");
+ if(file.size>IMG_MAX_MB*1048576) throw new Error("File is "+(file.size/1048576).toFixed(1)+" MB — maximum "+IMG_MAX_MB+" MB. Export a smaller version and retry.");
+ let bmp=null;
+ try{ bmp=await createImageBitmap(file,{imageOrientation:"from-image"}); }
+ catch(e){
+   bmp=await new Promise((res,rej)=>{const u=URL.createObjectURL(file);const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error("Couldn't read the image — the file may be damaged."));i.src=u;});
+ }
+ const w=bmp.naturalWidth||bmp.width, h=bmp.naturalHeight||bmp.height;
+ const long=Math.max(w,h);
+ if(!opts.skipMin && long<IMG_MIN_LONG) throw new Error("Photo too small ("+w+"×"+h+" px). Minimum "+IMG_MIN_LONG+" px on the longest side — smaller photos turn blurry when customers zoom. Please upload the original/full-size export.");
+ const scale=Math.min(1, IMG_TARGET_LONG/long);
+ const cw=Math.max(1,Math.round(w*scale)), ch=Math.max(1,Math.round(h*scale));
+ const cv=document.createElement("canvas"); cv.width=cw; cv.height=ch;
+ cv.getContext("2d").drawImage(bmp,0,0,cw,ch);
+ const blob=await new Promise(res=>cv.toBlob(res,"image/webp",IMG_QUALITY));
+ // Use the optimized WebP whenever it exists and actually helps; otherwise keep
+ // the original bytes (already small / encoder unavailable).
+ if(blob && (scale<1 || blob.size<file.size)) return {blob,ext:"webp",type:"image/webp",width:cw,height:ch};
+ return {blob:file,ext:((file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg"),type:file.type||"image/jpeg",width:w,height:h};
+}
 const Chip=({label,color="#9a9ca8",solid,sm})=>
  <span style={{display:"inline-flex",alignItems:"center",gap:5,background:solid?color:color+"18",color:solid?"#fff":color,border:`1px solid ${color}${solid?"":"30"}`,borderRadius:8,padding:sm?"1px 8px":"2px 10px",fontSize:sm?10.5:11.5,fontWeight:600,whiteSpace:"nowrap"}}>{label}</span>;
 const BranchChips=({list,sm})=>(list&&list.length)?<span style={{display:"inline-flex",gap:6,flexWrap:"wrap"}}>{list.map(b=><span key={b} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:sm?10.5:11.5,color:"var(--soft)",fontWeight:500}}><Dot c={BR_COLOR[b]||'#bbb'} s={6}/>{b}</span>)}</span>:<span style={{fontSize:11,color:"var(--muted)"}}>—</span>;
@@ -296,9 +330,9 @@ function PhotoField({value,onChange,prefix}){
    if(!sb){setErr("No connection — can't upload");return;}
    setBusy(true);setErr("");
    try{
-     const ext=((file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg');
-     const path=`images/${prefix}/${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}.${ext}`;
-     const up=await sb.storage.from('app').upload(path,file,{contentType:file.type||'image/jpeg',upsert:false});
+     const opt=await optimizeImageFile(file);
+     const path=`images/${prefix}/${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}.${opt.ext}`;
+     const up=await sb.storage.from('app').upload(path,opt.blob,{contentType:opt.type,upsert:false});
      if(up.error)throw up.error;
      onChange(sb.storage.from('app').getPublicUrl(path).data.publicUrl);
    }catch(ex){setErr((ex&&ex.message)||"Upload failed");}
@@ -329,9 +363,9 @@ function Gallery({photos,onChange,prefix}){
    try{
      const next=[...arr];
      for(const file of files){
-       const ext=((file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg');
-       const path=`images/${prefix||"inv"}/${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}.${ext}`;
-       const up=await sb.storage.from('app').upload(path,file,{contentType:file.type||'image/jpeg',upsert:false});
+       const opt=await optimizeImageFile(file);
+       const path=`images/${prefix||"inv"}/${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}.${opt.ext}`;
+       const up=await sb.storage.from('app').upload(path,opt.blob,{contentType:opt.type,upsert:false});
        if(up.error)throw up.error;
        next.push({p:sb.storage.from('app').getPublicUrl(path).data.publicUrl,n:""});
      }
@@ -598,11 +632,11 @@ function CoverTile({label,sub,coverKey,fallback,onClick,onChanged,badge}){
  const [busy,setBusy]=useState(false);const inp=useRef();
  const img=(coverKey&&SHOWCASE_COVERS[coverKey])||fallback;
  const pick=async e=>{const file=e.target.files&&e.target.files[0];if(!file||!sb)return;setBusy(true);
-   try{const ext=((file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg');
-     const path=`images/showcase/${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}.${ext}`;
-     const up=await sb.storage.from('app').upload(path,file,{contentType:file.type||'image/jpeg',upsert:false});
+   try{const opt=await optimizeImageFile(file);
+     const path=`images/showcase/${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}.${opt.ext}`;
+     const up=await sb.storage.from('app').upload(path,opt.blob,{contentType:opt.type,upsert:false});
      if(!up.error){await setCover(coverKey,sb.storage.from('app').getPublicUrl(path).data.publicUrl);onChanged&&onChanged();}
-   }catch(ex){}setBusy(false);if(inp.current)inp.current.value="";};
+   }catch(ex){alert((ex&&ex.message)||"Upload failed");}setBusy(false);if(inp.current)inp.current.value="";};
  return <div className="fade" style={{position:"relative",height:170,borderRadius:12,overflow:"hidden",border:"1px solid var(--line)",boxShadow:"var(--shadow)",background:"var(--panel2)"}}>
    <button onClick={onClick} style={{position:"absolute",inset:0,width:"100%",height:"100%",cursor:"pointer",textAlign:"left",border:"none",background:"none",padding:0}}>
      {img?<img src={img} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.image} s={30} c="#c4c7d2"/></div>}
@@ -2399,9 +2433,9 @@ function FindByPhoto({rows,onClose,onOpen}){
  const inp=useRef();
  useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
  const pickFile=async e=>{const file=e.target.files&&e.target.files[0];if(!file||!sb)return;setUpBusy(true);setMsg("");setResults(null);
-   try{const ext=((file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg');
-     const path=`images/ref/${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}.${ext}`;
-     const up=await sb.storage.from('app').upload(path,file,{contentType:file.type||'image/jpeg',upsert:false});
+   try{const opt=await optimizeImageFile(file,{skipMin:true});
+     const path=`images/ref/${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}.${opt.ext}`;
+     const up=await sb.storage.from('app').upload(path,opt.blob,{contentType:opt.type,upsert:false});
      if(up.error)throw up.error;setRefUrl(sb.storage.from('app').getPublicUrl(path).data.publicUrl);
    }catch(ex){setMsg((ex&&ex.message)||"Upload failed");}
    setUpBusy(false);if(inp.current)inp.current.value="";};
