@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260713-dragbadges";
+  var BUILD="20260713-crossmove";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -891,25 +891,55 @@ function Showcase({themes,onOpen,onItemsChanged}){
  // Persist a new item order inside one manual section after a drag-drop.
  // Note: display still ranks by this studio's demand first — the dragged order
  // is the tiebreak between equally-demanded items (most items, since most are 0).
+ // Item drop — two cases:
+ //  a) same section  → reorder (targetLinkId = the tile dropped on)
+ //  b) OTHER section → MOVE the product across sections (targetLinkId = tile
+ //     dropped on for a position, or null when dropped on the section body =
+ //     append at the end). Same page ⇒ same studio, so no cross-studio stock
+ //     concerns. Duplicates blocked; only hand-picked sections accept drops.
  const dropItem=async(sid,targetLinkId)=>{
-   const d=dragItem.current; dragItem.current=null;
-   if(!d||d.sid!==sid||d.linkId===targetLinkId) return;
-   // Work in DISPLAY order (demand-sorted) — the order the user actually dragged
-   // in. Using raw stored order made the gesture move tiles the wrong way
-   // whenever demand ranking differed from curated order.
+   const d=dragItem.current; dragItem.current=null; setDragOverSec(null);
+   if(!d||(d.sid===sid&&d.linkId===targetLinkId)) return;
+   // Work in DISPLAY order (demand-sorted) — the order the user actually sees.
    const loc=(activeBoard||"").split(" · ")[0];
-   const mine=links.filter(l=>l.section_id===sid).slice().sort((a,b)=>selAtM(b.item_id,loc)-selAtM(a.item_id,loc));
-   const from=mine.findIndex(l=>l.id===d.linkId), to=mine.findIndex(l=>l.id===targetLinkId);
-   if(from<0||to<0) return;
-   const next=mine.slice(); const [m]=next.splice(from,1); next.splice(to,0,m);
-   setLinks(prev=>{const others=prev.filter(l=>l.section_id!==sid); return [...others,...next.map((l,i)=>({...l,sort:i+1}))];});
-   let itemErr=null;
-   for(let i=0;i<next.length;i++){
-     if(String(next[i].id).startsWith("tmp_")) continue;   // optimistic row not yet in DB — its sort saves on reload
-     const {error}=await sb.from("showcase_section_item").update({sort:i+1}).eq("id",next[i].id);
-     if(error){itemErr=error;break;}
+   const dispOf=list=>list.slice().sort((a,b)=>selAtM(b.item_id,loc)-selAtM(a.item_id,loc));
+   if(d.sid===sid){
+     // (a) reorder within one section
+     const mine=dispOf(links.filter(l=>l.section_id===sid));
+     const from=mine.findIndex(l=>l.id===d.linkId), to=mine.findIndex(l=>l.id===targetLinkId);
+     if(from<0||to<0) return;
+     const next=mine.slice(); const [m]=next.splice(from,1); next.splice(to,0,m);
+     setLinks(prev=>{const others=prev.filter(l=>l.section_id!==sid); return [...others,...next.map((l,i)=>({...l,sort:i+1}))];});
+     let itemErr=null;
+     for(let i=0;i<next.length;i++){
+       if(String(next[i].id).startsWith("tmp_")) continue;   // optimistic row not yet in DB
+       const {error}=await sb.from("showcase_section_item").update({sort:i+1}).eq("id",next[i].id);
+       if(error){itemErr=error;break;}
+     }
+     if(itemErr){ console.warn("item reorder save failed",itemErr); setAddErr("Couldn't save the item order — "+(itemErr.message||"error")+". Reloaded the saved order."); load(); }
+     return;
    }
-   if(itemErr){ console.warn("item reorder save failed",itemErr); setAddErr("Couldn't save the item order — "+(itemErr.message||"error")+". Reloaded the saved order."); load(); }
+   // (b) move to another section on this page
+   if(String(d.linkId).startsWith("tmp_")){ setAddErr("That item was just added — give it a second, then drag again."); return; }
+   const moving=links.find(l=>l.id===d.linkId); if(!moving) return;
+   const targetLinks=links.filter(l=>l.section_id===sid);
+   if(targetLinks.some(l=>l.item_id===moving.item_id)){
+     setAddErr("“"+((moving.inv_item&&moving.inv_item.name)||"That item")+"” is already in that section.");
+     return;
+   }
+   const disp=dispOf(targetLinks);
+   let pos=disp.length;
+   if(targetLinkId){ const ti=disp.findIndex(l=>l.id===targetLinkId); if(ti>=0) pos=ti; }
+   const nextT=disp.slice(); nextT.splice(pos,0,{...moving,section_id:sid});
+   setLinks(prev=>{const others=prev.filter(l=>l.id!==d.linkId&&l.section_id!==sid); return [...others,...nextT.map((l,i)=>({...l,sort:i+1}))];});
+   let mvErr=null;
+   for(let i=0;i<nextT.length;i++){
+     if(String(nextT[i].id).startsWith("tmp_")) continue;
+     const patch=(nextT[i].id===d.linkId)?{section_id:sid,sort:i+1}:{sort:i+1};
+     const {error}=await sb.from("showcase_section_item").update(patch).eq("id",nextT[i].id);
+     if(error){mvErr=error;break;}
+   }
+   if(mvErr){ console.warn("cross-section move failed",mvErr); setAddErr("Couldn't move the item — "+(mvErr.message||"error")+". Reloaded the saved layout."); load(); }
  };
  const upd=async(id,patch)=>{setSecs(ss=>ss.map(s=>s.id===id?{...s,...patch}:s));if(sb)await sb.from("showcase_section").update(patch).eq("id",id);};
  const move=async(s,dir)=>{const arr=boardSecs(s.board);const i=arr.findIndex(x=>x.id===s.id);const j=i+dir;if(j<0||j>=arr.length)return;const a=arr[i],b=arr[j];await sb.from("showcase_section").update({sort:b.sort}).eq("id",a.id);await sb.from("showcase_section").update({sort:a.sort}).eq("id",b.id);load();};
@@ -1049,7 +1079,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
        {scLoc&&scSession&&scKind&&needGender&&!scGender&&[["Girls","Girl"],["Boys","Boy"],["Twins","Twins"]].map(([g,gv])=><CoverTile key={g} label={g} sub={boardSecs([scLoc,scSession,scKind,g].join(" · ")).length+" sections"} coverKey={[scLoc,scSession,scKind,g].join(" · ")} fallback={pic(t=>t.category===scSession&&genHit(t.gender,gv)&&(scKind==="Outfits"?(t._row&&t._row.kind==="outfit"):(t._row&&t._row.type==="theme"))&&(t.branches||[]).includes(scLoc))} onClick={()=>setScGender(g)} onChanged={()=>setCoverV(v=>v+1)}/>)}
      </div>
    :<div style={{display:"flex",flexDirection:"column",gap:14}}>
-     {boardSecs(activeBoard).map((s,i,arr)=>{const its=secItems(s);return <div key={s.id} onDragOver={e=>{if(dragSec.current&&dragSec.current!==s.id){e.preventDefault();if(dragOverSec!==s.id)setDragOverSec(s.id);}}} onDragLeave={()=>{if(dragOverSec===s.id)setDragOverSec(null);}} onDrop={e=>{e.preventDefault();dropSec(s.id);}} style={{background:"var(--panel)",border:dragOverSec===s.id?"1.5px dashed var(--accent)":"1px solid var(--line)",borderRadius:10,padding:"14px 16px",boxShadow:"var(--shadow)"}}>
+     {boardSecs(activeBoard).map((s,i,arr)=>{const its=secItems(s);return <div key={s.id} onDragOver={e=>{const di=dragItem.current;if(dragSec.current&&dragSec.current!==s.id){e.preventDefault();if(dragOverSec!==s.id)setDragOverSec(s.id);}else if(di&&di.sid!==s.id&&!s.dyn){e.preventDefault();if(dragOverSec!==s.id)setDragOverSec(s.id);}}} onDragLeave={()=>{if(dragOverSec===s.id)setDragOverSec(null);}} onDrop={e=>{e.preventDefault();if(dragSec.current)dropSec(s.id);else if(dragItem.current)dropItem(s.id,null);}} style={{background:"var(--panel)",border:dragOverSec===s.id?"1.5px dashed var(--accent)":"1px solid var(--line)",borderRadius:10,padding:"14px 16px",boxShadow:"var(--shadow)"}}>
        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
          <span draggable onDragStart={e=>{dragSec.current=s.id;try{e.dataTransfer.setData("text/plain",String(s.id));}catch(_){}e.dataTransfer.effectAllowed="move";}} onDragEnd={()=>{dragSec.current=null;setDragOverSec(null);}} title="Drag to reorder sections" style={{cursor:"grab",color:"var(--muted)",fontSize:15,padding:"0 2px",userSelect:"none",lineHeight:1}}>⠿</span>
          <input value={s.title} onChange={e=>upd(s.id,{title:e.target.value})} style={{fontSize:15,fontWeight:700,border:"none",borderBottom:"1px dashed var(--line2)",background:"transparent",flex:1,minWidth:120,padding:"2px 0"}}/>
@@ -1067,7 +1097,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
          <div><div style={{fontSize:11.5,color:"var(--muted)",marginBottom:8}}>Auto-filled · top 15 {s.rule==="popular"?"most-selected (by real booking picks)":"newest arrivals (tagged “New” first)"} for this page. Updates itself.</div>
            <div style={{display:"flex",gap:9,flexWrap:"wrap"}}>{its.length?its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>🔥 {it.sel}</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>):<span style={{fontSize:12,color:"var(--muted)"}}>No matching items yet.</span>}</div></div>
          :<div style={{display:"flex",gap:9,flexWrap:"wrap",alignItems:"center"}}>
-         {its.map(it=><div key={it.key} draggable onDragStart={e=>{dragItem.current={sid:s.id,linkId:it.linkId};try{e.dataTransfer.setData("text/plain",String(it.linkId));}catch(_){}e.dataTransfer.effectAllowed="move";}} onDragEnd={()=>{dragItem.current=null;}} onDragOver={e=>{const d=dragItem.current;if(d&&d.sid===s.id&&d.linkId!==it.linkId)e.preventDefault();}} onDrop={e=>{e.preventDefault();dropItem(s.id,it.linkId);}} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust · drag to reorder (most-booked still rank first)" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"grab"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}<button onClick={e=>{e.stopPropagation();rmItem(it.linkId);}} title="Remove from this section" style={{position:"absolute",top:3,right:3,width:22,height:22,borderRadius:"50%",background:"rgba(0,0,0,.65)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.x} s={11} c="#fff"/></button>{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>🔥 {it.sel}</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>)}
+         {its.map(it=><div key={it.key} draggable onDragStart={e=>{dragItem.current={sid:s.id,linkId:it.linkId};try{e.dataTransfer.setData("text/plain",String(it.linkId));}catch(_){}e.dataTransfer.effectAllowed="move";}} onDragEnd={()=>{dragItem.current=null;}} onDragOver={e=>{const d=dragItem.current;if(d&&d.linkId!==it.linkId)e.preventDefault();}} onDrop={e=>{e.preventDefault();e.stopPropagation();dropItem(s.id,it.linkId);}} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust · drag to reorder, or drop onto another section to move it there" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"grab"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}<button onClick={e=>{e.stopPropagation();rmItem(it.linkId);}} title="Remove from this section" style={{position:"absolute",top:3,right:3,width:22,height:22,borderRadius:"50%",background:"rgba(0,0,0,.65)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.x} s={11} c="#fff"/></button>{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>🔥 {it.sel}</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>)}
          <button onClick={()=>{setPq("");setPicker(s.id);}} style={{width:100,height:130,borderRadius:8,border:"1.5px dashed var(--line2)",color:"var(--soft)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,fontSize:11,fontWeight:600}}><Icon d={I.plus} s={18} c="var(--soft)"/>Add</button>
        </div>}
      </div>;})}
