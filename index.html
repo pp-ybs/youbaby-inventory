@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260629-condaudit";
+  var BUILD="20260630-pubcards";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -83,6 +83,15 @@ label{font-size:11px;font-weight:600;color:var(--soft);letter-spacing:.02em;disp
   .modalcard{width:100%!important;max-width:100%!important;max-height:100%!important;height:100%!important;border-radius:0!important}
   .filterbar{gap:7px!important}
   h1{font-size:21px!important}
+}
+/* Public showcase cards — uniform size, bigger on mobile */
+.pubcell{flex:0 0 190px;scroll-snap-align:start}
+.pubname{font-size:13px;font-weight:600;margin-top:7px;padding:0 2px;line-height:1.3;min-height:34px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pubcarousel{scrollbar-width:none}
+.pubcarousel::-webkit-scrollbar{display:none}
+@media(max-width:640px){
+  .pubcell{flex:0 0 60vw}
+  .pubname{font-size:14px;min-height:37px}
 }
 </style>
 </head>
@@ -606,14 +615,17 @@ function PublicLightbox({items,index,onClose}){
  useEffect(()=>setFIdx(startIdx),[startIdx]);
  const cur=flat[fIdx]||{}; const total=flat.length;
  useEffect(()=>{const h=e=>{ if(e.key==="Escape")onClose(); else if(e.key==="ArrowRight")setFIdx(i=>Math.min(total-1,i+1)); else if(e.key==="ArrowLeft")setFIdx(i=>Math.max(0,i-1)); }; window.addEventListener("keydown",h); return()=>window.removeEventListener("keydown",h); },[total]);
- // Touch swipe for mobile
+ // Touch swipe for mobile. touch-action pan-y+pinch-zoom keeps pinch-to-zoom
+ // working but hands horizontal pans to us instead of the (locked) page scroll,
+ // so photo-to-photo swiping is reliable. Body scroll is locked while open.
+ useEffect(()=>{const o=document.body.style.overflow;document.body.style.overflow="hidden";return()=>{document.body.style.overflow=o;};},[]);
  const touch=useRef({x:0});
  const onTouchStart=e=>{ const t=e.touches&&e.touches[0]; if(t) touch.current.x=t.clientX; };
  const onTouchEnd=e=>{ const t=e.changedTouches&&e.changedTouches[0]; if(!t) return; const dx=t.clientX-touch.current.x; if(Math.abs(dx)>30) setFIdx(i=>dx<0?Math.min(total-1,i+1):Math.max(0,i-1)); };
  const nav={position:"absolute",top:"50%",transform:"translateY(-50%)",width:46,height:46,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.16)",color:"#fff",fontSize:26,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"};
- return <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,.94)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+ return <div onClick={onClose} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,.94)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",touchAction:"pan-y pinch-zoom"}}>
    <button onClick={onClose} aria-label="Close" style={{position:"absolute",top:12,right:14,width:42,height:42,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.16)",color:"#fff",fontSize:21,cursor:"pointer"}}>✕</button>
-   <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onClick={e=>e.stopPropagation()} style={{display:"flex",alignItems:"center",justifyContent:"center",maxWidth:"94vw",maxHeight:"80vh"}}>
+   <div onClick={e=>e.stopPropagation()} style={{display:"flex",alignItems:"center",justifyContent:"center",maxWidth:"94vw",maxHeight:"80vh"}}>
      {cur.p?<img src={cur.p} style={{maxWidth:"94vw",maxHeight:"80vh",objectFit:"contain",borderRadius:10,boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}/>:<div style={{color:"#fff"}}>No image</div>}
    </div>
    {(cur.name||cur.size||cur.photoTotal>1)&&<div style={{color:"#fff",marginTop:16,fontSize:15,fontWeight:600,textAlign:"center",padding:"0 16px"}}>{cur.name}{cur.size?" · "+cur.size:""}{cur.photoTotal>1?<span style={{marginLeft:8,fontWeight:400,opacity:.7,fontSize:12.5}}>· photo {cur.photoIdx+1} of {cur.photoTotal}</span>:null}</div>}
@@ -624,30 +636,38 @@ function PublicLightbox({items,index,onClose}){
    <div style={{position:"absolute",bottom:14,color:"rgba(255,255,255,.7)",fontSize:12}}>{fIdx+1} / {total}</div>
  </div>;
 }
-// Customer-facing showcase tile — adapts its frame to the photo's orientation
-// (portrait 3/4 vs landscape 4/3), detected on image load. Defaults to portrait.
-// Multi-image: shows the cover by default; swipe / tap dots cycles through extras.
+// Customer-facing showcase tile. Every card is the SAME size: fixed 3/4 portrait
+// frame with object-fit:cover (no more orientation-adaptive heights → no ragged
+// rows), and a 2-line name slot so cells align perfectly.
+// Multi-photo: the photos live in a NATIVE nested scroll-snap carousel. The old
+// JS swipe handler never fired on mobile because the outer section row is itself
+// a scroll-snap container — the browser always handed the pan to the row. A real
+// inner scroller wins that contest natively: swiping ON the image slides the
+// product's own photos; at the last photo the gesture chains back to the row.
 function PubTile({it,onClick}){
  const photos=[it.img,...(Array.isArray(it.extras)?it.extras.map(e=>e&&e.p).filter(Boolean):[])].filter(Boolean);
- const [idx,setIdx]=useState(0),[por,setPor]=useState(true);
- const cur=photos[idx]||null,n=photos.length;
- const touch=useRef({x:0,t:0});
- const onTouchStart=e=>{const t=e.touches&&e.touches[0]; if(t){touch.current={x:t.clientX,t:Date.now()};}};
- const onTouchEnd=e=>{const t=e.changedTouches&&e.changedTouches[0]; if(!t||n<2) return; const dx=t.clientX-touch.current.x; if(Math.abs(dx)>30){ e.stopPropagation(); e.preventDefault(); setIdx(i=>dx<0?Math.min(n-1,i+1):Math.max(0,i-1)); }};
- const step=(e,delta)=>{e.stopPropagation();setIdx(i=>Math.max(0,Math.min(n-1,i+delta)));};
- return <button onClick={onClick} style={{padding:0,border:"none",background:"none",cursor:"pointer",textAlign:"left"}}>
-   <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{position:"relative",width:"100%",aspectRatio:por?"3/4":"4/3",borderRadius:12,overflow:"hidden",background:"#ececec",boxShadow:"0 1px 5px rgba(0,0,0,.07)"}}>
-     {cur?<img src={cur} loading="lazy" onLoad={e=>{const im=e.target;if(im.naturalWidth&&im.naturalHeight)setPor(im.naturalHeight>=im.naturalWidth);}} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:"#c4c4c4",fontSize:12}}>No image</div>}
-     {it.size&&<span style={{position:"absolute",top:7,right:7,fontSize:9.5,fontWeight:700,background:"rgba(0,0,0,.55)",color:"#fff",borderRadius:6,padding:"2px 7px"}}>{it.size}</span>}
-     {it.excl&&<span style={{position:"absolute",top:7,left:7,fontSize:8.5,fontWeight:800,letterSpacing:".06em",color:"#caa24a",background:"rgba(20,20,28,.82)",borderRadius:6,padding:"3px 7px"}}>EXCLUSIVE</span>}
+ const n=photos.length;
+ const [idx,setIdx]=useState(0);
+ const scRef=useRef(null);
+ const onScroll=e=>{const el=e.target;const w=el.clientWidth||1;const i=Math.round(el.scrollLeft/w);if(i!==idx)setIdx(Math.max(0,Math.min(n-1,i)));};
+ const step=(e,delta)=>{e.stopPropagation();const el=scRef.current;if(!el)return;el.scrollBy({left:delta*el.clientWidth,behavior:"smooth"});};
+ const goto=(e,i)=>{e.stopPropagation();const el=scRef.current;if(!el)return;el.scrollTo({left:i*el.clientWidth,behavior:"smooth"});};
+ return <div style={{width:"100%"}}>
+   <div style={{position:"relative",width:"100%",aspectRatio:"3/4",borderRadius:12,overflow:"hidden",background:"#ececec",boxShadow:"0 1px 5px rgba(0,0,0,.07)"}}>
+     {n?<div ref={scRef} onScroll={onScroll} className="pubcarousel" style={{position:"absolute",inset:0,display:"flex",overflowX:n>1?"auto":"hidden",overflowY:"hidden",scrollSnapType:"x mandatory",WebkitOverflowScrolling:"touch"}}>
+       {photos.map((p,i)=><div key={i} onClick={()=>onClick&&onClick()} style={{flex:"0 0 100%",width:"100%",height:"100%",scrollSnapAlign:"start",cursor:"pointer"}}><img src={p} loading="lazy" draggable={false} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/></div>)}
+     </div>
+     :<div onClick={()=>onClick&&onClick()} style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#c4c4c4",fontSize:12,cursor:"pointer"}}>No image</div>}
+     {it.size&&<span style={{position:"absolute",top:7,right:7,fontSize:9.5,fontWeight:700,background:"rgba(0,0,0,.55)",color:"#fff",borderRadius:6,padding:"2px 7px",pointerEvents:"none"}}>{it.size}</span>}
+     {it.excl&&<span style={{position:"absolute",top:7,left:7,fontSize:8.5,fontWeight:800,letterSpacing:".06em",color:"#caa24a",background:"rgba(20,20,28,.82)",borderRadius:6,padding:"3px 7px",pointerEvents:"none"}}>EXCLUSIVE</span>}
      {n>1&&<>
-       {idx>0&&<button onClick={e=>step(e,-1)} aria-label="Previous photo" style={{position:"absolute",left:6,top:"50%",transform:"translateY(-50%)",width:28,height:28,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.85)",color:"#1a1a1a",fontSize:17,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 4px rgba(0,0,0,.2)"}}>‹</button>}
-       {idx<n-1&&<button onClick={e=>step(e,1)} aria-label="Next photo" style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",width:28,height:28,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.85)",color:"#1a1a1a",fontSize:17,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 4px rgba(0,0,0,.2)"}}>›</button>}
-       <div style={{position:"absolute",left:0,right:0,bottom:7,display:"flex",justifyContent:"center",gap:4,pointerEvents:"none"}}>{photos.map((_,k)=><span key={k} style={{width:k===idx?14:6,height:6,borderRadius:3,background:k===idx?"#fff":"rgba(255,255,255,.6)",transition:"width .15s",boxShadow:"0 1px 2px rgba(0,0,0,.25)"}}/>)}</div>
+       {idx>0&&<button onClick={e=>step(e,-1)} aria-label="Previous photo" style={{position:"absolute",left:6,top:"50%",transform:"translateY(-50%)",width:32,height:32,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.92)",color:"#1a1a1a",fontSize:18,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 5px rgba(0,0,0,.25)"}}>‹</button>}
+       {idx<n-1&&<button onClick={e=>step(e,1)} aria-label="Next photo" style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",width:32,height:32,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.92)",color:"#1a1a1a",fontSize:18,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 5px rgba(0,0,0,.25)"}}>›</button>}
+       <div style={{position:"absolute",left:0,right:0,bottom:6,display:"flex",justifyContent:"center",gap:0}}>{photos.map((_,k)=><button key={k} onClick={e=>goto(e,k)} aria-label={"Photo "+(k+1)} style={{border:"none",background:"none",padding:"5px 3px",cursor:"pointer",display:"flex",alignItems:"center"}}><span style={{width:k===idx?15:6,height:6,borderRadius:3,background:k===idx?"#fff":"rgba(255,255,255,.6)",transition:"width .15s",boxShadow:"0 1px 2px rgba(0,0,0,.25)",display:"block"}}/></button>)}</div>
      </>}
    </div>
-   {it.name&&<div style={{fontSize:12.5,fontWeight:600,marginTop:6,padding:"0 2px",lineHeight:1.3}}>{it.name}</div>}
- </button>;
+   {it.name?<div className="pubname">{it.name}</div>:<div className="pubname"/>}
+ </div>;
 }
 function PublicShowcase({scope}){
  const [data,setData]=useState(null),[box,setBox]=useState(null);
@@ -729,8 +749,8 @@ function PublicShowcase({scope}){
        </div>
        {s.note&&<div style={{padding:"0 14px",fontSize:12.5,color:"#8a8a8a",marginBottom:10}}>{s.note}</div>}
        {/* Horizontal-scroll strip per section — Instagram-style; snaps to each card on mobile */}
-       <div style={{display:"flex",gap:10,overflowX:"auto",scrollSnapType:"x mandatory",WebkitOverflowScrolling:"touch",padding:"4px 14px 12px",scrollbarWidth:"thin"}}>
-         {its.map((it,idx)=><div key={idx} style={{flex:"0 0 158px",scrollSnapAlign:"start"}}><PubTile it={it} onClick={()=>setBox({list:its,index:idx})}/></div>)}
+       <div style={{display:"flex",gap:10,alignItems:"flex-start",overflowX:"auto",scrollSnapType:"x mandatory",WebkitOverflowScrolling:"touch",padding:"4px 14px 12px",scrollbarWidth:"thin"}}>
+         {its.map((it,idx)=><div key={idx} className="pubcell"><PubTile it={it} onClick={()=>setBox({list:its,index:idx})}/></div>)}
        </div>
      </div>)}
    </div>:null;})}
