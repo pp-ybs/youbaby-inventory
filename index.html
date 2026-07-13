@@ -84,13 +84,14 @@ label{font-size:11px;font-weight:600;color:var(--soft);letter-spacing:.02em;disp
   .filterbar{gap:7px!important}
   h1{font-size:21px!important}
 }
-/* Public showcase cards — uniform size, bigger on mobile */
-.pubcell{flex:0 0 190px;scroll-snap-align:start}
+/* Public showcase cards — height-justified row; width follows each photo's shape */
+.pubcell{flex:0 0 auto;scroll-snap-align:start}
+.pubframe{height:280px}
 .pubname{font-size:13px;font-weight:600;margin-top:7px;padding:0 2px;line-height:1.3;min-height:34px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .pubcarousel{scrollbar-width:none}
 .pubcarousel::-webkit-scrollbar{display:none}
 @media(max-width:640px){
-  .pubcell{flex:0 0 60vw}
+  .pubframe{height:230px}
   .pubname{font-size:14px;min-height:37px}
 }
 </style>
@@ -648,21 +649,26 @@ function PubTile({it,onClick}){
  const photos=[it.img,...(Array.isArray(it.extras)?it.extras.map(e=>e&&e.p).filter(Boolean):[])].filter(Boolean);
  const n=photos.length;
  const [idx,setIdx]=useState(0);
- // Per-photo orientation: portrait photos fill the 3/4 frame (cover); LANDSCAPE
- // photos are shown IN FULL (contain) over a soft blurred fill — the card stays
- // exactly the same size, the wide photo just isn't beheaded by the crop.
- const [wide,setWide]=useState({});
- const onImgLoad=(i,e)=>{const im=e.target;if(im.naturalWidth>im.naturalHeight*1.05)setWide(w=>w[i]?w:{...w,[i]:true});};
+ // The card takes the COVER photo's real shape (all cards share one row height,
+ // widths vary) so a 16:9 setup shows WIDE & full, a portrait dress stays tall.
+ // Extra photos that differ a lot from the card shape fall back to contain+blur.
+ const [ratio,setRatio]=useState(0.75);
+ const crRef=useRef(0.75);
+ const [fit,setFit]=useState({});
+ const onImgLoad=(i,e)=>{const im=e.target;const pr=im.naturalWidth/Math.max(1,im.naturalHeight);
+   if(i===0){const cr=Math.max(0.6,Math.min(1.85,pr));crRef.current=cr;setRatio(cr);}
+   const useContain=Math.abs(pr-crRef.current)>0.2;
+   setFit(f=>(i in f)?f:{...f,[i]:useContain});};
  const scRef=useRef(null);
  const onScroll=e=>{const el=e.target;const w=el.clientWidth||1;const i=Math.round(el.scrollLeft/w);if(i!==idx)setIdx(Math.max(0,Math.min(n-1,i)));};
  const step=(e,delta)=>{e.stopPropagation();const el=scRef.current;if(!el)return;el.scrollBy({left:delta*el.clientWidth,behavior:"smooth"});};
  const goto=(e,i)=>{e.stopPropagation();const el=scRef.current;if(!el)return;el.scrollTo({left:i*el.clientWidth,behavior:"smooth"});};
- return <div style={{width:"100%"}}>
-   <div style={{position:"relative",width:"100%",aspectRatio:"3/4",borderRadius:12,overflow:"hidden",background:"#ececec",boxShadow:"0 1px 5px rgba(0,0,0,.07)"}}>
+ return <div style={{width:"fit-content",maxWidth:"92vw"}}>
+   <div className="pubframe" style={{position:"relative",aspectRatio:ratio,borderRadius:12,overflow:"hidden",background:"#ececec",boxShadow:"0 1px 5px rgba(0,0,0,.07)"}}>
      {n?<div ref={scRef} onScroll={onScroll} className="pubcarousel" style={{position:"absolute",inset:0,display:"flex",overflowX:n>1?"auto":"hidden",overflowY:"hidden",scrollSnapType:"x mandatory",WebkitOverflowScrolling:"touch"}}>
        {photos.map((p,i)=><div key={i} onClick={()=>onClick&&onClick()} style={{position:"relative",flex:"0 0 100%",width:"100%",height:"100%",scrollSnapAlign:"start",cursor:"pointer",overflow:"hidden",background:"#f2f0ec"}}>
-         {wide[i]&&<img src={p} aria-hidden="true" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",filter:"blur(18px) saturate(1.05)",transform:"scale(1.25)",opacity:.55}}/>}
-         <img src={p} loading="lazy" draggable={false} onLoad={e=>onImgLoad(i,e)} style={{position:"relative",width:"100%",height:"100%",objectFit:wide[i]?"contain":"cover",display:"block"}}/>
+         {fit[i]&&<img src={p} aria-hidden="true" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",filter:"blur(18px) saturate(1.05)",transform:"scale(1.25)",opacity:.55}}/>}
+         <img src={p} loading="lazy" draggable={false} onLoad={e=>onImgLoad(i,e)} style={{position:"relative",width:"100%",height:"100%",objectFit:fit[i]?"contain":"cover",display:"block"}}/>
        </div>)}
      </div>
      :<div onClick={()=>onClick&&onClick()} style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#c4c4c4",fontSize:12,cursor:"pointer"}}>No image</div>}
