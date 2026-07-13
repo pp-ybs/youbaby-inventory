@@ -174,6 +174,8 @@ const NO_VALUE = new Set(["Key"]);
 let ASSET_TYPES=Object.keys(ELEC_CAT); // editable suggestion list for the asset Type field
 const ELEC_CAT_COLOR={"Cameras & Lenses":"#3e7bfa","Lighting":"#f0a23c","Power & Storage":"#22b573","Computers & Devices":"#7c4dff","Studio Equipment":"#18b8c4","Studio Props":"#22b573","Furniture":"#ff8f5e","Consumables":"#48b08c","Appliances":"#ff6468","Keys":"#9aa0b0","Other":"#9aa0b0"};
 // pick a friendly icon + tint for items without a photo, based on type/kind
+// kind → tint (used by itemIcon, the Add-form kind pills, and the catalog card)
+const dTC=t=>t==="fabric"||t==="background"||t==="backdrop"?"#7c4dff":t==="wrap"?"#3e7bfa":(t==="prop"||t==="accessory"||t==="basket")?"#22b573":t==="outfit"?"#ff6468":t==="setup"?"#f0a23c":"#9aa0b0";
 function itemIcon(r){
   const sc=r.subcategory||"";
   const byType={Camera:["camera","#3e7bfa"],Lens:["lens","#3e7bfa"],"Lens Adaptor":["lens","#3e7bfa"],"Camera Bag":["box","#3e7bfa"],
@@ -337,7 +339,7 @@ function Gallery({photos,onChange,prefix}){
      }
      onChange(next);
    }catch(ex){setErr((ex&&ex.message)||"Upload failed");}
-   setBusy(false); if(inp.current)inp.current.value="";
+   setBusy(false); if(inp.current)inp.current.value=""; if(cam.current)cam.current.value="";
  };
  const rm=i=>onChange(arr.filter((_,k)=>k!==i));
  const note=(i,v)=>onChange(arr.map((e,k)=>k===i?{...e,n:v}:e));
@@ -469,39 +471,6 @@ function ScanModal({onClose,onFound}){
  </div>;
 }
 
-// ---- catalog card ----
-function Card({t,onClick,onToggle}){
- const src=imgUrl(t);
- return <div onClick={onClick} className="fade" style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",overflow:"hidden",cursor:"pointer",boxShadow:"var(--shadow)",transition:"transform .16s,box-shadow .16s",display:"flex",flexDirection:"column"}}
-   onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="var(--shadow-h)"}} onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="var(--shadow)"}}>
-   <div style={{position:"relative",width:"100%",aspectRatio:"4/3",background:"var(--panel2)"}}>
-     {src?<img src={src} loading="lazy" alt={t.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Placeholder cat={t.category} kind={t._row&&t._row.kind}/>}
-     <span style={{position:"absolute",top:9,left:9}}><Chip label={t.category} color={CAT_COLOR[t.category]} solid sm/></span>
-     <span style={{position:"absolute",top:9,right:9,display:"inline-flex",alignItems:"center",gap:4,background:"#000000a8",color:"#fff",borderRadius:8,padding:"2px 9px",fontSize:11,fontWeight:600,backdropFilter:"blur(4px)"}}><Icon d={I.cursor} s={11} c="#f3c64a" fill="#f3c64a" sw={0}/>{sc(t)}</span>
-   </div>
-   <div style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:8,flex:1}}>
-     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-       <span style={{fontWeight:600,fontSize:14,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.name}</span>
-       {t.gender&&<span style={{fontSize:10.5,fontWeight:700,color:t.gender==="Boy"?"#5a93d6":t.gender==="Girl"?"#e06b94":"#9a9ca8",flexShrink:0}}>{t.gender.toUpperCase()}</span>}</div>
-     <BranchChips list={t.branches}/>
-     <div style={{marginTop:"auto",display:"flex",alignItems:"center",justifyContent:"space-between",borderTop:"1px solid var(--line)",paddingTop:9}}>
-       <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:11.5,color:t.display?"var(--ok)":"var(--muted)",fontWeight:600}}><Icon d={t.display?I.eye:I.eyeoff} s={14}/>{t.display?"On website":"Hidden"}</span>
-       <Toggle on={t.display} size={18} onChange={()=>onToggle(t)}/></div>
-   </div></div>;
-}
-function Row({t,onClick,onToggle}){
- const src=imgUrl(t);
- return <div onClick={onClick} className="fade" style={{display:"flex",alignItems:"center",gap:14,padding:"9px 14px",background:"var(--panel)",border:"1px solid var(--line)",borderRadius:8,cursor:"pointer",transition:"background .12s"}}
-   onMouseEnter={e=>e.currentTarget.style.background="var(--panel2)"} onMouseLeave={e=>e.currentTarget.style.background="var(--panel)"}>
-   <div style={{width:46,height:46,borderRadius:9,overflow:"hidden",flexShrink:0,background:"var(--panel2)"}}>{src?<img src={src} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Placeholder cat={t.category} kind={t._row&&t._row.kind} size={26}/>}</div>
-   <div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.name}</div><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{t.id}</div></div>
-   <Chip label={t.category} color={CAT_COLOR[t.category]} sm/>
-   {t.gender&&<span style={{fontSize:11,fontWeight:600,color:"var(--soft)",width:42,textAlign:"center"}}>{t.gender}</span>}
-   <div style={{width:150}}><BranchChips list={t.branches} sm/></div>
-   <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:12.5,fontWeight:600,width:48,justifyContent:"flex-end"}} title="Times selected"><Icon d={I.cursor} s={12} c="#bd9b43" fill="#bd9b43" sw={0}/>{sc(t)}</span>
-   <Toggle on={t.display} size={18} onChange={()=>onToggle(t)}/></div>;
-}
-
 // ---- detail drawer ----
 function Drawer({t,onClose,onToggle,onEdit,onDelete}){
  const src=imgUrl(t); const [del,setDel]=useState(false);
@@ -568,22 +537,6 @@ function ThemeForm({init,onSave,onClose}){
 }
 
 // ---- showcase (public website presentation) ----
-function ShowRow({title,sub,items,onOpen}){
- const ref=useRef();
- const scroll=d=>ref.current&&ref.current.scrollBy({left:d,behavior:"smooth"});
- if(!items.length) return null;
- return <div style={{marginBottom:46}}>
-   <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",padding:"0 4px",marginBottom:18}}>
-     <div><div className="pop" style={{fontSize:13,fontWeight:600,color:"var(--ink)"}}>{title}</div><div className="pop" style={{fontSize:26,fontWeight:500,color:"#5b6b86",lineHeight:1.1,marginTop:2}}>{sub}</div></div>
-     <div style={{display:"flex",gap:8}}><button onClick={()=>scroll(-560)} style={{width:38,height:38,borderRadius:"50%",background:"#fff",border:"1px solid var(--line2)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"var(--shadow)"}}><Icon d={I.chevL} s={18}/></button><button onClick={()=>scroll(560)} style={{width:38,height:38,borderRadius:"50%",background:"#fff",border:"1px solid var(--line2)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"var(--shadow)"}}><Icon d={I.chev} s={18}/></button></div>
-   </div>
-   <div ref={ref} className="hscroll" style={{display:"flex",gap:18,padding:"4px",scrollSnapType:"x mandatory"}}>
-     {items.map(t=><div key={t.id} onClick={()=>onOpen(t)} style={{flex:"0 0 auto",width:300,scrollSnapAlign:"start",cursor:"pointer"}}>
-       <div style={{width:"100%",aspectRatio:"3/4",borderRadius:24,overflow:"hidden",background:"#eceef2",boxShadow:"var(--shadow)",transition:"transform .18s"}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.015)"} onMouseLeave={e=>e.currentTarget.style.transform=""}>
-         <img src={imgUrl(t)} loading="lazy" alt={t.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
-       <div className="pop" style={{fontSize:16,fontWeight:500,marginTop:12,textAlign:"center",color:"var(--ink)"}}>{t.name}</div></div>)}
-   </div></div>;
-}
 // after gender/twins (or directly for no-gender sessions) the page splits into Themes vs Outfits
 const SHOWCASE_KINDS={Maternity:["Outfits"],"Gender Reveal":["Themes & setups"]};
 const showKindsFor=s=>SHOWCASE_KINDS[s]||["Themes & setups","Outfits"];
@@ -592,7 +545,11 @@ const GENDER_VAL={Girls:"Girl",Boys:"Boy",Twins:"Twins"};
 // custom cover images for the showcase drill tiles
 let SHOWCASE_COVERS={};
 async function loadCovers(){if(!sb)return;try{const {data}=await sb.from("app_settings").select("value").eq("key","showcase_covers").maybeSingle();if(data&&data.value)SHOWCASE_COVERS=data.value;}catch(e){}}
-async function setCover(key,url){SHOWCASE_COVERS={...SHOWCASE_COVERS,[key]:url};if(sb)await sb.from("app_settings").upsert({key:"showcase_covers",value:SHOWCASE_COVERS,updated_at:new Date().toISOString()});}
+async function setCover(key,url){
+ if(sb){try{const {data}=await sb.from("app_settings").select("value").eq("key","showcase_covers").maybeSingle();if(data&&data.value)SHOWCASE_COVERS={...data.value,...SHOWCASE_COVERS};}catch(_e){}}
+ SHOWCASE_COVERS={...SHOWCASE_COVERS,[key]:url};
+ if(sb){const {error}=await sb.from("app_settings").upsert({key:"showcase_covers",value:SHOWCASE_COVERS,updated_at:new Date().toISOString()});if(error)console.warn("cover save failed",error);}
+}
 // a drill tile with a built-in "replace cover image" control
 function CoverTile({label,sub,coverKey,fallback,onClick,onChanged,badge}){
  const [busy,setBusy]=useState(false);const inp=useRef();
@@ -668,11 +625,16 @@ function PubTile({it,onClick}){
  // Extra photos that differ a lot from the card shape fall back to contain+blur.
  const [ratio,setRatio]=useState(0.75);
  const crRef=useRef(0.75);
+ const prRef=useRef({});               // per-photo natural ratios, so fits can be re-judged
  const [fit,setFit]=useState({});
  const onImgLoad=(i,e)=>{const im=e.target;const pr=im.naturalWidth/Math.max(1,im.naturalHeight);
-   if(i===0){const cr=Math.max(0.6,Math.min(1.85,pr));crRef.current=cr;setRatio(cr);}
+   prRef.current[i]=pr;
+   if(i===0){const cr=Math.max(0.6,Math.min(1.85,pr));crRef.current=cr;setRatio(cr);
+     // the cover defines the card shape — re-judge every photo that loaded before it
+     setFit(()=>{const nf={};Object.entries(prRef.current).forEach(([k,v])=>{nf[k]=Math.abs(v-cr)>0.2;});return nf;});
+     return;}
    const useContain=Math.abs(pr-crRef.current)>0.2;
-   setFit(f=>(i in f)?f:{...f,[i]:useContain});};
+   setFit(f=>({...f,[i]:useContain}));};
  const scRef=useRef(null);
  const onScroll=e=>{const el=e.target;const w=el.clientWidth||1;const i=Math.round(el.scrollLeft/w);if(i!==idx)setIdx(Math.max(0,Math.min(n-1,i)));};
  const step=(e,delta)=>{e.stopPropagation();const el=scRef.current;if(!el)return;el.scrollBy({left:delta*el.clientWidth,behavior:"smooth"});};
@@ -712,7 +674,8 @@ function PublicShowcase({scope}){
      const out=[]; let off=0;
      for(;;){
        const {data,error}=await builderFn().range(off,off+size-1);
-       if(error||!data) return out;
+       if(error) throw error;
+       if(!data) return out;
        out.push(...data);
        if(data.length<size) return out;
        off+=size;
@@ -720,11 +683,11 @@ function PublicShowcase({scope}){
      }
    };
    try{const [s,l,it]=await Promise.all([
-     fetchAll(()=>sb.from("v_show_sections").select("*").order("sort")),
-     fetchAll(()=>sb.from("v_show_links").select("*").order("sort")),
-     fetchAll(()=>sb.from("v_show_items").select("*"))
-   ]).then(([s,l,it])=>[{data:s},{data:l},{data:it}]);
-     setData({secs:s.data||[],links:l.data||[],items:it.data||[]});}catch(e){setData({secs:[],links:[],items:[]});}
+     fetchAll(()=>sb.from("v_show_sections").select("*").order("sort").order("id")),
+     fetchAll(()=>sb.from("v_show_links").select("*").order("sort").order("id")),
+     fetchAll(()=>sb.from("v_show_items").select("*").order("id"))
+   ]);
+     setData({secs:s||[],links:l||[],items:it||[]});}catch(e){setData({secs:[],links:[],items:[],loadError:true});}
  },[]);
  useEffect(()=>{load();
    // Refetch when the customer comes back to this tab (they were sent a link,
@@ -771,7 +734,7 @@ function PublicShowcase({scope}){
      .slice().sort((a,b)=>selAt(b,loc)-selAt(a,loc))   // stable: ties keep curated order
      .map(l=>({img:l.photo_url,extras:Array.isArray(l.extra_photos)?l.extra_photos:[],name:l.name,size:l.size,sel:selAt(l,loc),isn:isFresh(l.static_tags,createdOf[l.item_id]),excl:Array.isArray(l.static_tags)&&l.static_tags.includes("Exclusive")})),null);
  };
- const titleOf=b=>{const p=parse(b);return [p.session,p.gender].filter(Boolean).join(" · ")||p.loc||"Our work";};
+ const titleOf=b=>{const p=parse(b);return [p.session,p.kind,p.gender].filter(Boolean).join(" · ")||p.loc||"Our work";};
  // Resolve the studio/branch this preview link is for (taken from the top-level scope OR the only board's loc).
  const scopeLoc=scope?parse(scope).loc:null;
  const allLocs=[...new Set(boards.map(b=>parse(b).loc).filter(Boolean))];
@@ -786,6 +749,14 @@ function PublicShowcase({scope}){
    {(() => {
      // Pre-compute whether anything renders at all — covers the "boards exist but every section is empty" case.
      const anyBlocks = boards.some(b => secs.filter(x=>x.board===b).some(s => secItems(s).length>0));
+     if (data.loadError) {
+       return <div style={{textAlign:"center",color:"#9a9a9a",padding:"70px 24px",fontSize:14,lineHeight:1.55}}>
+         <div style={{fontSize:32,marginBottom:12}}>📶</div>
+         <div style={{fontWeight:600,color:"#6a6a6a",marginBottom:6}}>{"Couldn\u2019t load the gallery"}</div>
+         <div style={{fontSize:12.5,maxWidth:360,margin:"0 auto 14px"}}>Please check your connection and try again.</div>
+         <button onClick={()=>{setData(null);load();}} style={{padding:"9px 22px",borderRadius:20,border:"1px solid #d9d9d9",background:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>Retry</button>
+       </div>;
+     }
      if (!boards.length || !anyBlocks) {
        return <div style={{textAlign:"center",color:"#9a9a9a",padding:"70px 24px",fontSize:14,lineHeight:1.55}}>
          <div style={{fontSize:32,marginBottom:12}}>📷</div>
@@ -850,8 +821,8 @@ function Showcase({themes,onOpen,onItemsChanged}){
    return {data:all,error:null};
  };
  const load=async()=>{if(!sb){setLoaded(true);return;}await loadCovers();
-   const {data:s,error:se}=await fetchAllPages(()=>sb.from("showcase_section").select("*").order("sort"));
-   const {data:l,error:le}=await fetchAllPages(()=>sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender,static_tags)").order("sort"));
+   const {data:s,error:se}=await fetchAllPages(()=>sb.from("showcase_section").select("*").order("sort").order("id"));
+   const {data:l,error:le}=await fetchAllPages(()=>sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender,static_tags,archived)").order("sort").order("id"));
    if(!se&&s) setSecs(s);
    if(!le&&l){
      // Belt-and-braces: even with full pagination, if a row we just optimistically
@@ -874,7 +845,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const openItem=id=>{const t=themes.find(x=>x.id===id);if(t&&t._row)setEditItem(t._row);};
  const needGender=scSession&&!NO_GENDER.includes(scSession);
  const kindOpts=showKindsFor(scSession);
- useEffect(()=>{if(scSession&&kindOpts.length===1&&!scKind)setScKind(kindOpts[0]);},[scSession]);
+ useEffect(()=>{if(scSession&&kindOpts.length===1&&!scKind)setScKind(kindOpts[0]);},[scSession,scKind]);
  const kindDone=!!scKind;
  const genderDone=!needGender||!!scGender;
  const activeBoard=(scLoc&&scSession&&kindDone&&genderDone)?[scLoc,scSession,scKind,(needGender?scGender:null)].filter(Boolean).join(" · "):"";
@@ -886,7 +857,8 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const boardsUnder=prefix=>[...new Set(secs.filter(s=>prefix?(s.board===prefix||s.board.startsWith(prefix+" · ")):true).map(s=>s.board))].sort();
  // Section TYPE is chosen at creation (hand-picked vs auto) — flipping later
  // goes through an explicit confirm, not a one-click toggle.
- const addSection=async(dyn)=>{const arr=boardSecs(activeBoard);const mx=Math.max(0,...arr.map(s=>s.sort||0));await sb.from("showcase_section").insert({board:activeBoard,title:dyn?"Most demanded":"New section",sort:mx+1,dyn:!!dyn,rule:dyn?"popular":null});setAddChoice(false);load();};
+ const addBusyRef=useRef(false);
+ const addSection=async(dyn)=>{if(addBusyRef.current)return;addBusyRef.current=true;try{const arr=boardSecs(activeBoard);const mx=Math.max(0,...arr.map(s=>s.sort||0));const {error}=await sb.from("showcase_section").insert({board:activeBoard,title:dyn?"Most demanded":"New section",sort:mx+1,dyn:!!dyn,rule:dyn?"popular":null});if(error)setAddErr("Couldn\u2019t add section: "+(error.message||""));setAddChoice(false);load();}finally{addBusyRef.current=false;}};
  // Persist a new section order for the active board after a drag-drop.
  const dropSec=async(targetId)=>{
    const src=dragSec.current; dragSec.current=null; setDragOverSec(null);
@@ -955,7 +927,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
    }
    if(mvErr){ console.warn("cross-section move failed",mvErr); setAddErr("Couldn't move the item — "+(mvErr.message||"error")+". Reloaded the saved layout."); load(); }
  };
- const upd=async(id,patch)=>{setSecs(ss=>ss.map(s=>s.id===id?{...s,...patch}:s));if(sb)await sb.from("showcase_section").update(patch).eq("id",id);};
+ const upd=async(id,patch)=>{setSecs(ss=>ss.map(s=>s.id===id?{...s,...patch}:s));if(sb){const {error}=await sb.from("showcase_section").update(patch).eq("id",id);if(error){setAddErr("Couldn\u2019t save section change: "+(error.message||""));load();}}};
  const move=async(s,dir)=>{const arr=boardSecs(s.board);const i=arr.findIndex(x=>x.id===s.id);const j=i+dir;if(j<0||j>=arr.length)return;const a=arr[i],b=arr[j];await sb.from("showcase_section").update({sort:b.sort}).eq("id",a.id);await sb.from("showcase_section").update({sort:a.sort}).eq("id",b.id);load();};
  const delSection=async(s)=>{if(!window.confirm("Delete section “"+s.title+"”?"))return;await sb.from("showcase_section").delete().eq("id",s.id);load();};
  const addItem=async(sid,it)=>{
@@ -1031,7 +1003,9 @@ function Showcase({themes,onOpen,onItemsChanged}){
          : prev.map(l=>l.id===tempId?{...l,id:realRow.id,sort:realRow.sort,_addedAt:Date.now()}:l);
      });
    }
-   if(scLoc&&!(it.branches||[]).includes(scLoc)) onItemsChanged&&onItemsChanged();
+   // always refresh the parent — the DB trigger may have flipped website_display
+   // and/or auto-stocked the section's studio regardless of what we knew client-side
+   onItemsChanged&&onItemsChanged();
    load();
  };
  const rmItem=async(linkId)=>{await sb.from("showcase_section_item").delete().eq("id",linkId);load();};
@@ -1059,7 +1033,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
    const loc=(s.board||"").split(" · ")[0];
    return itemsOf(s.id)
      .slice().sort((a,b)=>selAtM(b.item_id,loc)-selAtM(a.item_id,loc))   // stable: ties keep curated order
-     .map(l=>({key:l.id,id:l.item_id,linkId:l.id,img:l.inv_item&&l.inv_item.photo_url,name:l.inv_item&&l.inv_item.name,size:l.inv_item&&l.inv_item.size,sel:selAtM(l.item_id,loc),excl:l.inv_item&&Array.isArray(l.inv_item.static_tags)&&l.inv_item.static_tags.includes("Exclusive")}));
+     .map(l=>({key:l.id,id:l.item_id,linkId:l.id,img:l.inv_item&&l.inv_item.photo_url,name:l.inv_item&&l.inv_item.name,size:l.inv_item&&l.inv_item.size,sel:selAtM(l.item_id,loc),excl:l.inv_item&&Array.isArray(l.inv_item.static_tags)&&l.inv_item.static_tags.includes("Exclusive"),arch:!!(l.inv_item&&l.inv_item.archived)}));
  };
  const publicUrl=()=>window.location.origin+window.location.pathname+"#p="+encodeURIComponent(scope);
  const shareLink=()=>{if(navigator.clipboard)navigator.clipboard.writeText(publicUrl());setCopied(true);setTimeout(()=>setCopied(false),2200);};
@@ -1109,9 +1083,9 @@ function Showcase({themes,onOpen,onItemsChanged}){
        <input value={s.note||""} onChange={e=>upd(s.id,{note:e.target.value})} placeholder="Optional note (e.g. +DRESS 600 AED · studio only)" style={{fontSize:12,color:"var(--muted)",border:"none",background:"transparent",width:"100%",padding:"0 0 10px"}}/>
        {s.dyn?
          <div><div style={{fontSize:11.5,color:"var(--muted)",marginBottom:8}}>Auto-filled · top 15 {s.rule==="popular"?"most-selected (by real booking picks)":"newest arrivals (tagged “New” first)"} for this page. Updates itself.</div>
-           <div style={{display:"flex",gap:9,flexWrap:"wrap"}}>{its.length?its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>🔥 {it.sel}</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>):<span style={{fontSize:12,color:"var(--muted)"}}>No matching items yet.</span>}</div></div>
+           <div style={{display:"flex",gap:9,flexWrap:"wrap"}}>{its.length?its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}{it.arch&&<span style={{position:"absolute",top:4,left:it.excl?40:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#fff",background:"rgba(200,60,60,.9)",borderRadius:4,padding:"1px 4px"}}>ARCHIVED</span>}{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>🔥 {it.sel}</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>):<span style={{fontSize:12,color:"var(--muted)"}}>No matching items yet.</span>}</div></div>
          :<div style={{display:"flex",gap:9,flexWrap:"wrap",alignItems:"center"}}>
-         {its.map(it=><div key={it.key} draggable onDragStart={e=>{dragItem.current={sid:s.id,linkId:it.linkId};try{e.dataTransfer.setData("text/plain",String(it.linkId));}catch(_){}e.dataTransfer.effectAllowed="move";}} onDragEnd={()=>{dragItem.current=null;}} onDragOver={e=>{const d=dragItem.current;if(d&&d.linkId!==it.linkId)e.preventDefault();}} onDrop={e=>{e.preventDefault();e.stopPropagation();dropItem(s.id,it.linkId);}} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust · drag to reorder, or drop onto another section to move it there" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"grab"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}<button onClick={e=>{e.stopPropagation();rmItem(it.linkId);}} title="Remove from this section" style={{position:"absolute",top:3,right:3,width:22,height:22,borderRadius:"50%",background:"rgba(0,0,0,.65)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.x} s={11} c="#fff"/></button>{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>🔥 {it.sel}</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>)}
+         {its.map(it=><div key={it.key} draggable onDragStart={e=>{dragItem.current={sid:s.id,linkId:it.linkId};try{e.dataTransfer.setData("text/plain",String(it.linkId));}catch(_){}e.dataTransfer.effectAllowed="move";}} onDragEnd={()=>{dragItem.current=null;}} onDragOver={e=>{const d=dragItem.current;if(d&&d.linkId!==it.linkId)e.preventDefault();}} onDrop={e=>{e.preventDefault();e.stopPropagation();dropItem(s.id,it.linkId);}} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust · drag to reorder, or drop onto another section to move it there" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"grab"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}{it.arch&&<span style={{position:"absolute",top:4,left:it.excl?40:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#fff",background:"rgba(200,60,60,.9)",borderRadius:4,padding:"1px 4px"}}>ARCHIVED</span>}<button onClick={e=>{e.stopPropagation();rmItem(it.linkId);}} title="Remove from this section" style={{position:"absolute",top:3,right:3,width:22,height:22,borderRadius:"50%",background:"rgba(0,0,0,.65)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.x} s={11} c="#fff"/></button>{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>🔥 {it.sel}</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>)}
          <button onClick={()=>{setPq("");setPicker(s.id);}} style={{width:100,height:130,borderRadius:8,border:"1.5px dashed var(--line2)",color:"var(--soft)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,fontSize:11,fontWeight:600}}><Icon d={I.plus} s={18} c="var(--soft)"/>Add</button>
        </div>}
      </div>;})}
@@ -1209,291 +1183,6 @@ function Showcase({themes,onOpen,onItemsChanged}){
  </div>;
 }
 
-// ---- dashboard / catalog / categories ----
-function Dashboard({themes,go}){
- const onWeb=themes.filter(t=>t.display).length, withPhoto=themes.filter(t=>imgUrl(t)).length;
- const top=[...themes].sort((a,b)=>sc(b)-sc(a)).slice(0,6);
- const byCat=CATS.map(c=>({c,n:themes.filter(t=>t.category===c).length})).sort((a,b)=>b.n-a.n);
- const maxCat=Math.max(...byCat.map(x=>x.n),1);
- return <div className="scroll fade" style={{flex:1,padding:"26px 30px"}}>
-   <h1 style={{fontSize:26,fontWeight:700,letterSpacing:"-.01em"}}>Dashboard</h1>
-   <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:22}}>Your live theme catalogue across all studios</p>
-   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:15,marginBottom:22}}>
-     <Stat icon={I.grid} label="Themes / Setups" value={themes.length} sub={`across ${CATS.length} session types`}/>
-     <Stat icon={I.globe} label="On the website" value={onWeb} color="#2f9e54" sub={`${Math.round(onWeb/themes.length*100||0)}% of catalogue`}/>
-     <Stat icon={I.image} label="With a photo" value={withPhoto} color="#5577d6" sub={`${themes.length-withPhoto} still need one`}/>
-     <Stat icon={I.cursor} label="Most selected" value={top[0]?sc(top[0]):0} color="var(--gold)" sub={top[0]?`${top[0].name} · ${top[0].category}`:"—"}/>
-   </div>
-   <div style={{display:"grid",gridTemplateColumns:"1.2fr 1fr",gap:18}}>
-     <div style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",padding:22,boxShadow:"var(--shadow)"}}>
-       <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:600,fontSize:14,marginBottom:16}}><Icon d={I.cursor} s={16} c="var(--gold)"/>Most selected themes</div>
-       {top.map((t,i)=><div key={t.id} onClick={()=>go(t)} style={{display:"flex",alignItems:"center",gap:13,padding:"9px 0",borderBottom:i<top.length-1?"1px solid var(--line)":"none",cursor:"pointer"}}>
-         <span style={{fontSize:14,fontWeight:700,color:"var(--muted)",width:18}}>{i+1}</span>
-         <div style={{width:40,height:40,borderRadius:8,overflow:"hidden",flexShrink:0,background:"var(--panel2)"}}>{imgUrl(t)?<img src={imgUrl(t)} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Placeholder cat={t.category} size={20}/>}</div>
-         <div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,fontSize:13.5}}>{t.name}</div><div style={{fontSize:11,color:"var(--muted)"}}>{t.category}</div></div>
-         <span style={{fontWeight:700,fontSize:14,color:"var(--gold)"}}>{sc(t)}</span></div>)}
-     </div>
-     <div style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",padding:22,boxShadow:"var(--shadow)"}}>
-       <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:600,fontSize:14,marginBottom:16}}><Icon d={I.layers} s={16} c="var(--gold)"/>By session type</div>
-       {byCat.map(({c,n})=><div key={c} onClick={()=>go({__cat:c})} style={{marginBottom:14,cursor:"pointer"}}>
-         <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,marginBottom:5}}><span style={{color:"var(--soft)",fontWeight:500}}>{c}</span><span style={{fontWeight:700,color:CAT_COLOR[c]}}>{n}</span></div>
-         <div style={{height:7,background:"var(--line)",borderRadius:8}}><div style={{height:"100%",width:`${n/maxCat*100}%`,background:CAT_COLOR[c],borderRadius:8,transition:"width .6s"}}/></div></div>)}
-     </div></div></div>;
-}
-function Catalog({themes,onToggle,onOpen,onAdd,state}){
- const {q,setQ,cat,setCat,br,setBr,gen,setGen,disp,setDisp,onlyPhoto,setOnlyPhoto,sort,setSort,mode,setMode}=state;
- const filtered=useMemo(()=>{
-   let r=themes.filter(t=>{const s=q.trim().toLowerCase();
-     return (!s||t.name.toLowerCase().includes(s)||t.category.toLowerCase().includes(s)||(t.id||"").toLowerCase().includes(s))
-       &&(!cat||t.category===cat)&&(!br||(t.branches||[]).includes(br))&&(!gen||t.gender===gen)
-       &&(disp===""||(disp==="on"?t.display:!t.display))&&(!onlyPhoto||imgUrl(t));});
-   r.sort((a,b)=>sort==="pop"?sc(b)-sc(a):sort==="az"?a.name.localeCompare(b.name):sort==="cat"?a.category.localeCompare(b.category)||sc(b)-sc(a):0);
-   return r;},[themes,q,cat,br,gen,disp,onlyPhoto,sort]);
- const active=q||cat||br||gen||disp||onlyPhoto;
- return <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-   <div style={{padding:"13px 20px",borderBottom:"1px solid var(--line)",background:"var(--panel)",display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
-     <div style={{position:"relative",flex:1,minWidth:200}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search themes…" style={{paddingLeft:34}}/></div>
-     <select value={cat} onChange={e=>setCat(e.target.value)} style={{width:"auto"}}><option value="">All types</option>{CATS.map(c=><option key={c}>{c}</option>)}</select>
-     <select value={br} onChange={e=>setBr(e.target.value)} style={{width:"auto"}}><option value="">All studios</option>{BR.map(b=><option key={b}>{b}</option>)}</select>
-     <select value={gen} onChange={e=>setGen(e.target.value)} style={{width:"auto"}}><option value="">Any</option>{GENDERS.map(g=><option key={g}>{g}</option>)}</select>
-     <select value={disp} onChange={e=>setDisp(e.target.value)} style={{width:"auto"}}><option value="">Website: all</option><option value="on">On site</option><option value="off">Hidden</option></select>
-     <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}><option value="pop">Most selected</option><option value="az">A–Z</option><option value="cat">By type</option></select>
-     <button onClick={()=>setOnlyPhoto(!onlyPhoto)} style={{padding:"8px 12px",borderRadius:8,border:`1px solid ${onlyPhoto?"var(--gold)":"var(--line2)"}`,background:onlyPhoto?"var(--gold-soft)":"var(--panel)",color:onlyPhoto?"var(--gold)":"var(--soft)",fontSize:12.5,fontWeight:600,display:"flex",alignItems:"center",gap:6}}><Icon d={I.image} s={14}/>Photo</button>
-     <div style={{display:"flex",border:"1px solid var(--line2)",borderRadius:9,overflow:"hidden"}}><button onClick={()=>setMode("grid")} style={{padding:"8px 10px",background:mode==="grid"?"var(--ink)":"var(--panel)",color:mode==="grid"?"#fff":"var(--muted)"}}><Icon d={I.grid} s={15}/></button><button onClick={()=>setMode("list")} style={{padding:"8px 10px",background:mode==="list"?"var(--ink)":"var(--panel)",color:mode==="list"?"#fff":"var(--muted)"}}><Icon d={I.list} s={15}/></button></div>
-     {active&&<button onClick={()=>{setQ("");setCat("");setBr("");setGen("");setDisp("");setOnlyPhoto(false)}} style={{fontSize:12.5,color:"var(--soft)",fontWeight:600,padding:"8px 6px"}}>Clear</button>}
-     <span style={{fontSize:11.5,color:"var(--muted)"}} title="Add new items in the New Inventory section">legacy catalogue · add in New Inventory</span>
-   </div>
-   <div className="scroll fade" style={{flex:1,padding:20}}>
-     <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:14}}>{filtered.length} theme{filtered.length!==1?"s":""}{active?" found":""}</div>
-     {filtered.length===0?<div style={{textAlign:"center",padding:"70px 20px",color:"var(--muted)"}}><Icon d={I.search} s={40} c="var(--line2)" sw={1.5}/><div style={{fontSize:15,marginTop:14}}>No themes match your filters</div></div>
-       :mode==="grid"?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(214px,1fr))",gap:16}}>{filtered.map(t=><Card key={t.id} t={t} onClick={()=>onOpen(t)} onToggle={onToggle}/>)}</div>
-       :<div style={{display:"flex",flexDirection:"column",gap:7}}>{filtered.map(t=><Row key={t.id} t={t} onClick={()=>onOpen(t)} onToggle={onToggle}/>)}</div>}
-   </div></div>;
-}
-function Categories({themes,go}){
- const data=SESSION_CATS.map(c=>{const ts=themes.filter(t=>t.category===c);return{c,n:ts.length,on:ts.filter(t=>t.display).length,ph:ts.filter(t=>imgUrl(t)).length,pop:ts.reduce((s,t)=>s+sc(t),0)}});
- return <div className="scroll fade" style={{flex:1,padding:"26px 30px"}}>
-   <h1 style={{fontSize:26,fontWeight:700,letterSpacing:"-.01em"}}>Session types</h1>
-   <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:22}}>Tap a session to open the Catalog filtered to it</p>
-   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:16}}>
-     {data.map(({c,n,on,ph,pop})=><div key={c} onClick={()=>go(c)} style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",padding:22,boxShadow:"var(--shadow)",cursor:"pointer",transition:"transform .15s,box-shadow .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="var(--shadow-h)"}} onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="var(--shadow)"}}>
-       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}><span style={{width:38,height:38,borderRadius:8,background:CAT_COLOR[c]+"1e",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.layers} s={19} c={CAT_COLOR[c]}/></span><Icon d={I.chev} s={18} c="var(--muted)"/></div>
-       <div style={{fontWeight:700,fontSize:17}}>{c}</div>
-       <div style={{fontSize:34,fontWeight:700,color:CAT_COLOR[c],lineHeight:1.1,marginTop:6,letterSpacing:"-.02em"}}>{n}</div>
-       <div style={{fontSize:11.5,color:"var(--muted)",marginBottom:14}}>items</div>
-       <div style={{display:"flex",gap:14,fontSize:11.5,color:"var(--soft)",borderTop:"1px solid var(--line)",paddingTop:12}}><span style={{display:"flex",alignItems:"center",gap:5}}><Icon d={I.globe} s={13} c="#2f9e54"/>{on} live</span><span style={{display:"flex",alignItems:"center",gap:5}}><Icon d={I.image} s={13} c="#5577d6"/>{ph} photos</span><span style={{display:"flex",alignItems:"center",gap:5}}><Icon d={I.cursor} s={13} c="var(--gold)"/>{pop}</span></div>
-     </div>)}
-   </div></div>;
-}
-
-// ---- Doha inventory (Qatar — separate stock) ----
-const DITYPES=["setup","outfit","fabric","background","prop","accessory","backdrop","other"];
-// item_types that live in the "Items & Props" section (cross-shoot stuff), not in the shoot-category view.
-// NOTE: maternity fabrics stay in their shoot category (Maternity) — only backgrounds/backdrops/props/accessories move here.
-const PROP_TYPES=["backdrop","background","prop","accessory","other"];
-const PROP_GROUP={backdrop:"Backdrops",background:"Backgrounds",prop:"Props",accessory:"Accessories",other:"Other"};
-// shoot types an item can be used for (usable_for)
-const SHOOT_TYPES=["Maternity","Newborn","Sitter","Infant","Cake Smash","Children","Gender Reveal"];
-const dTC=t=>t==="fabric"||t==="background"||t==="backdrop"?"#7c4dff":t==="wrap"?"#3e7bfa":(t==="prop"||t==="accessory"||t==="basket")?"#22b573":t==="outfit"?"#ff6468":t==="setup"?"#f0a23c":"#9aa0b0";
-function DohaEdit({item,onSave,onClose,allItems=[],links=[],onLink,onUnlink}){
- const [f,setF]=useState({...item});
- const set=(k,v)=>setF(p=>({...p,[k]:v}));
- const isSetup=item.item_type!=="outfit";
- const pairType=isSetup?"outfit":"setup";
- const byId=Object.fromEntries(allItems.map(i=>[i.id,i]));
- const linkedIds=links.filter(l=>isSetup?l.setup_id===item.id:l.outfit_id===item.id).map(l=>isSetup?l.outfit_id:l.setup_id);
- const candidates=allItems.filter(i=>i.location===item.location&&i.id!==item.id&&(pairType==="outfit"?i.item_type==="outfit":i.item_type!=="outfit")&&!linkedIds.includes(i.id));
- const doLink=id=>isSetup?onLink(item.id,id):onLink(id,item.id);
- const doUnlink=id=>isSetup?onUnlink(item.id,id):onUnlink(id,item.id);
- useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
- return <div style={{position:"fixed",inset:0,background:"#1a1a2433",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-   <div className="scroll fade modalcard" style={{width:560,maxWidth:"96vw",maxHeight:"92vh",background:"var(--panel)",borderRadius:9,boxShadow:"0 30px 80px rgba(20,20,30,.25)",overflow:"auto"}}>
-     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 24px",borderBottom:"1px solid var(--line)",position:"sticky",top:0,background:"var(--panel)",zIndex:1}}>
-       <div><span style={{fontWeight:700,fontSize:16}}>Edit item</span><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{f.id} · {f.category} · Doha</div></div>
-       <button onClick={onClose} style={{padding:4}}><Icon d={I.x} s={19} c="var(--muted)"/></button></div>
-     {f.photo&&<div style={{padding:"16px 24px 0"}}><img src={f.photo} style={{width:"100%",maxHeight:460,objectFit:"contain",borderRadius:8,border:"1px solid var(--line)",background:"var(--panel2)"}} onError={e=>e.target.style.display="none"}/></div>}
-     <div style={{padding:24,display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-       <div style={{gridColumn:"1/-1"}}><label>NAME / DESCRIPTION</label><input value={f.name||""} onChange={e=>set("name",e.target.value)} placeholder="e.g. Classic Long Gown - Black"/></div>
-       <div><label>Type</label><select value={f.item_type||""} onChange={e=>set("item_type",e.target.value)}><option value="">—</option>{DITYPES.map(t=><option key={t}>{t}</option>)}</select></div>
-       <div><label>Gender</label><select value={f.gender||""} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS.map(g=><option key={g}>{g}</option>)}</select></div>
-       <div><label>SIZE / MEASUREMENT</label><input value={f.measurement||""} onChange={e=>set("measurement",e.target.value)} placeholder="e.g. M-L / 4 Meters"/></div>
-       <div><label>QUANTITY</label><input value={f.quantity||""} onChange={e=>set("quantity",e.target.value)} placeholder="1"/></div>
-       <div><label>Condition</label><CondMeter value={f.condition||"Good"} onChange={v=>set("condition",v)}/></div>
-       <div><label>TIMES USED</label><input type="number" min="0" value={f.times_used||0} onChange={e=>set("times_used",e.target.value)}/></div>
-       <div style={{gridColumn:"1/-1"}}><label>OUTFIT <span style={{color:"var(--muted)",fontWeight:400}}>(note for now; we'll link the actual outfit item later)</span></label><input value={f.outfit_note||""} onChange={e=>set("outfit_note",e.target.value)} placeholder="e.g. Available / On spot / white & brown only"/></div>
-       <div style={{gridColumn:"1/-1"}}><label>PHOTO <span style={{color:"var(--muted)",fontWeight:400}}>(upload from your device, or paste a link)</span></label><PhotoField value={f.photo||""} onChange={v=>set("photo",v)} prefix="qatar"/></div>
-       <div style={{gridColumn:"1/-1"}}><label>OUTFIT PHOTO <span style={{color:"var(--muted)",fontWeight:400}}>(the specific outfit, if different from the setup)</span></label>{f.outfit_photo&&<img src={f.outfit_photo} style={{width:90,height:90,objectFit:"cover",borderRadius:8,border:"1px solid var(--line)",marginBottom:8,display:"block"}} onError={e=>e.target.style.display="none"}/>}<PhotoField value={f.outfit_photo||""} onChange={v=>set("outfit_photo",v)} prefix="qatar"/></div>
-       {Array.isArray(f.extra_photos)&&f.extra_photos.length>0&&<div style={{gridColumn:"1/-1"}}><label>ATTACHED PHOTOS <span style={{color:"var(--muted)",fontWeight:400}}>(variants / different items noted)</span></label><div style={{display:"flex",gap:12,flexWrap:"wrap"}}>{f.extra_photos.map((e,k)=><div key={k} style={{maxWidth:100}}><img src={e.p} style={{width:100,height:100,objectFit:"cover",borderRadius:8,border:"1px solid var(--line)"}} onError={ev=>ev.target.style.display="none"}/><div style={{fontSize:10.5,color:"var(--muted)",marginTop:4,lineHeight:1.3}}>{e.n}</div></div>)}</div></div>}
-       <div style={{gridColumn:"1/-1"}}><label>REMARKS <span style={{color:"var(--muted)",fontWeight:400}}>(availability / backdrop notes)</span></label><input value={f.remarks||""} onChange={e=>set("remarks",e.target.value)}/></div>
-       <div style={{gridColumn:"1/-1"}}><label>Notes</label><textarea rows={2} value={f.notes||""} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical"}}/></div>
-       <div style={{gridColumn:"1/-1"}}><label>Usable for <span style={{color:"var(--muted)",fontWeight:400}}>(which shoot types this item fits — for backdrops, props, accessories…)</span></label>
-         <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{SHOOT_TYPES.map(s=>{const on=(f.usable_for||[]).includes(s);return <button key={s} type="button" onClick={()=>set("usable_for",on?(f.usable_for||[]).filter(x=>x!==s):[...(f.usable_for||[]),s])} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${on?(CAT_COLOR[s]||"var(--ink)"):"var(--line2)"}`,background:on?(CAT_COLOR[s]||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:12,fontWeight:600}}>{s}</button>})}</div>
-       </div>
-       {onLink&&<div style={{gridColumn:"1/-1"}}><label>{isSetup?"LINKED OUTFITS":"LINKED TO SETUP(S)"} <span style={{color:"var(--muted)",fontWeight:400}}>({isSetup?"outfits used with this setup":"setups this outfit belongs to"})</span></label>
-         <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:8}}>
-           {linkedIds.length===0&&<span style={{fontSize:12,color:"var(--muted)"}}>None yet.</span>}
-           {linkedIds.map(id=>{const o=byId[id];return <span key={id} style={{display:"inline-flex",alignItems:"center",gap:6,background:"var(--panel2)",border:"1px solid var(--line2)",borderRadius:8,padding:"3px 6px 3px 3px",fontSize:12}}>{o&&o.photo?<img src={o.photo} style={{width:24,height:24,objectFit:"cover",borderRadius:"50%"}}/>:<span style={{width:24}}/>}<span>{o?(o.name||o.id):id}</span><button onClick={()=>doUnlink(id)} title="Unlink" style={{display:"flex",padding:1}}><Icon d={I.x} s={13} c="var(--muted)"/></button></span>})}
-         </div>
-         <select value="" onChange={e=>{if(e.target.value){doLink(e.target.value);}}} style={{width:"100%"}}><option value="">+ link an existing {pairType}…</option>{candidates.map(c=><option key={c.id} value={c.id}>{(c.name||c.id)}{c.measurement?" · "+c.measurement:""}{c.gender?" · "+c.gender:""}</option>)}</select>
-       </div>}
-       <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={!!f.on_website} onChange={v=>set("on_website",v)}/><span style={{fontSize:13,fontWeight:500}}>{f.on_website?"Shown on website":"Hidden from website"}</span></div>
-     </div>
-     <div style={{display:"flex",gap:10,justifyContent:"flex-end",padding:"0 24px 22px"}}>
-       <button onClick={onClose} style={{padding:"11px 20px",border:"1px solid var(--line2)",borderRadius:8,fontWeight:600}}>Cancel</button>
-       <button onClick={()=>onSave({...f,times_used:Number(f.times_used)||0})} style={{padding:"11px 22px",background:"var(--ink)",color:"#fff",borderRadius:8,fontWeight:600}}>Save changes</button></div>
-   </div></div>;
-}
-function DohaInventory({loc="",setLoc}){
- const [items,setItems]=useState(null),[err,setErr]=useState(""),[cat,setCat]=useState(""),[sel,setSel]=useState(null),[links,setLinks]=useState([]);
- const [typeF,setTypeF]=useState(""),[genF,setGenF]=useState(""),[ageF,setAgeF]=useState(""),[q,setQ]=useState("");
- useEffect(()=>{(async()=>{
-   if(!sb){setItems([]);return;}
-   const {data,error}=await sb.from("doha_inventory").select("*").order("category").order("slot_no");
-   if(error){setErr(error.message);setItems([]);}else setItems(data||[]);
-   const {data:lk}=await sb.from("doha_outfit_links").select("*"); setLinks(lk||[]);
- })()},[]);
- const addLink=async(s,o)=>{setLinks(l=>l.find(x=>x.setup_id===s&&x.outfit_id===o)?l:[...l,{setup_id:s,outfit_id:o}]);if(sb){const {error}=await sb.from("doha_outfit_links").insert({setup_id:s,outfit_id:o});if(error)setErr("Link failed: "+error.message)}};
- const rmLink=async(s,o)=>{setLinks(l=>l.filter(x=>!(x.setup_id===s&&x.outfit_id===o)));if(sb)await sb.from("doha_outfit_links").delete().eq("setup_id",s).eq("outfit_id",o)};
- if(items===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading Doha inventory…</div>;
- const inLoc=items.filter(i=>!loc||i.location===loc); // current location scope
- const shootItems=inLoc.filter(i=>!PROP_TYPES.includes(i.item_type)); // setups/outfits — props live in Items & Props
- const cats=[...new Set(shootItems.map(i=>i.category).filter(Boolean))];
- const byId=Object.fromEntries(items.map(i=>[i.id,i]));
- const ageBucket=m=>{const s=(m||"").toLowerCase().replace(/\([^)]*kg[^)]*\)/g,"").replace(/up to[^,;]*kg/g,"");
-   if(/year|1\s*y|12\s*month|годик/.test(s)) return "1 year+";
-   const ns=(s.match(/\d+/g)||[]).map(Number).filter(x=>x<=18); const mx=ns.length?Math.max(...ns):null;
-   if(mx===null) return "Other"; if(mx<=3)return "0–3 m"; if(mx<=6)return "3–6 m"; if(mx<=12)return "6–12 m"; return "1 year+";};
- const matchF=i=>(!typeF||i.item_type===typeF)&&(!genF||i.gender===genF)&&(cat!=="Infant"||!ageF||ageBucket(i.measurement)===ageF)
-   &&(!q||((i.name||"")+" "+(i.id||"")+" "+(i.measurement||"")+" "+(i.notes||"")+" "+(i.remarks||"")+" "+(i.outfit_note||"")).toLowerCase().includes(q.trim().toLowerCase()));
- const ftypes=[...new Set(shootItems.map(i=>i.item_type).filter(Boolean))];
- const PLAN=["Maternity","Infant","Cake Smash","Sitter","Newborn"];
- const present=PLAN.filter(c=>shootItems.some(i=>i.category===c)).concat(cats.filter(c=>!PLAN.includes(c)));
- const coming=PLAN.filter(c=>!shootItems.some(i=>i.category===c));
- const sections=cat?present.filter(c=>c===cat):present;
- const save=async d=>{
-   setItems(its=>its.map(x=>x.id===d.id?{...x,...d}:x)); setSel(null);
-   if(sb){const {error}=await sb.from("doha_inventory").update({name:d.name,item_type:d.item_type,gender:d.gender,measurement:d.measurement,quantity:d.quantity,condition:d.condition,times_used:d.times_used,photo:d.photo,outfit_photo:d.outfit_photo,remarks:d.remarks,notes:d.notes,outfit_note:d.outfit_note,on_website:d.on_website,usable_for:d.usable_for}).eq("id",d.id);if(error)setErr("Couldn't save: "+error.message);}
- };
- const card=i=><div key={i.id} onClick={()=>setSel(i)} className="fade" style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",overflow:"hidden",boxShadow:"var(--shadow)",cursor:"pointer",transition:"transform .16s,box-shadow .16s",display:"flex",flexDirection:"column"}}
-     onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="var(--shadow-h)"}} onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="var(--shadow)"}}>
-     <div style={{position:"relative",width:"100%",aspectRatio:"4/3",background:"var(--panel2)"}}>
-       {i.photo?<img src={i.photo} loading="lazy" alt={i.name||i.id} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";if(e.target.nextSibling)e.target.nextSibling.style.display="flex"}}/>:null}
-       <div style={{display:i.photo?"none":"flex",position:"absolute",inset:0,flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,color:"#a47cd1c0",fontSize:11,fontWeight:600}}><Icon d={I.image} s={26} c="#a47cd190" sw={1.5}/>No photo yet</div>
-       {i.outfit_photo&&<img src={i.outfit_photo} title="Outfit" loading="lazy" style={{position:"absolute",bottom:8,right:8,width:48,height:48,objectFit:"cover",borderRadius:9,border:"2px solid #fff",boxShadow:"0 2px 7px rgba(0,0,0,.3)"}}/>}
-       <span style={{position:"absolute",top:9,left:9}}><Chip label={i.category||"—"} color={CAT_COLOR[i.category]||"#a47cd1"} solid sm/></span>
-       <span style={{position:"absolute",top:9,right:9,display:"inline-flex",alignItems:"center",gap:4,background:"#000000a8",color:"#fff",borderRadius:8,padding:"2px 9px",fontSize:11,fontWeight:600,backdropFilter:"blur(4px)"}} title="Times used"><Icon d={I.cursor} s={11} c="#f3c64a" fill="#f3c64a" sw={0}/>{i.times_used||0}</span>
-     </div>
-     <div style={{padding:"11px 13px",display:"flex",flexDirection:"column",gap:7,flex:1}}>
-       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-         <span style={{fontWeight:600,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{i.name||<span style={{color:"var(--muted)"}}>— no name —</span>}</span>
-         {i.gender&&<span style={{fontSize:10,fontWeight:700,color:i.gender==="Boy"?"#5a93d6":i.gender==="Girl"?"#e06b94":"#9a9ca8",flexShrink:0}}>{i.gender.toUpperCase()}</span>}</div>
-       <div style={{fontSize:10.5,color:"var(--muted)"}}>{i.id}</div>
-       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-         {i.item_type&&<Chip label={i.item_type} color={dTC(i.item_type)} sm/>}
-         <Chip label={i.condition||"Good"} color={COND_COLOR[i.condition||"Good"]} sm/></div>
-       <div style={{fontSize:11.5,color:"var(--soft)",marginTop:"auto",borderTop:"1px solid var(--line)",paddingTop:8}}>{i.measurement||"—"} · qty {i.quantity||"—"}</div>
-       {i.outfit_note&&<div style={{fontSize:11,color:"#5a93d6",fontWeight:600,display:"flex",alignItems:"center",gap:5}}><Icon d={I.users} s={12} c="#5a93d6"/>Outfit: {i.outfit_note}</div>}
-       {(()=>{const lo=links.filter(l=>l.setup_id===i.id).map(l=>byId[l.outfit_id]).filter(Boolean);return lo.length>0?<div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--muted)",fontWeight:600}}>Outfits:</span>{lo.slice(0,6).map(o=>o.photo?<img key={o.id} src={o.photo} title={o.name||o.id} style={{width:28,height:28,objectFit:"cover",borderRadius:6,border:"1px solid var(--line)"}}/>:<span key={o.id} style={{fontSize:10,color:"var(--soft)"}}>{o.name}</span>)}</div>:null})()}
-       {Array.isArray(i.extra_photos)&&i.extra_photos.length>0&&<div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>{i.extra_photos.slice(0,6).map((e,k)=><img key={k} src={e.p} title={e.n} loading="lazy" style={{width:28,height:28,objectFit:"cover",borderRadius:6,border:"1px solid #d2734a"}}/>)}</div>}
-       {(i.remarks||i.notes)&&<div style={{fontSize:11,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{[i.remarks,i.notes].filter(Boolean).join(" · ")}</div>}
-     </div></div>;
- return <div className="scroll fade" style={{flex:1,padding:"26px 30px"}}>
-   <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-     <h1 style={{fontSize:26,fontWeight:700,letterSpacing:"-.01em"}}>Inventory</h1>
-     <span style={{display:"inline-flex",alignItems:"center",gap:5,background:"var(--gold-soft)",color:"var(--gold)",borderRadius:8,padding:"3px 11px",fontSize:11,fontWeight:700}}><Dot c={BR_COLOR[loc]||"#d2734a"} s={6}/>{loc||"All locations"}</span></div>
-   <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:18}}>{shootItems.length} item{shootItems.length!==1?"s":""} · set-ups & outfits by category · tap a card to edit</p>
-   {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8,marginBottom:14}}>{err}</div>}
-   {setLoc&&<div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:12}}>
-     <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>LOCATION</span>
-     <button onClick={()=>{setLoc("");setCat("")}} style={{padding:"6px 13px",borderRadius:8,border:`1px solid ${!loc?"var(--ink)":"var(--line2)"}`,background:!loc?"var(--ink)":"var(--panel)",color:!loc?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All ({items.length})</button>
-     {BR.map(l=>{const n=items.filter(i=>i.location===l).length;return <button key={l} onClick={()=>{setLoc(loc===l?"":l);setCat("")}} style={{padding:"6px 13px",borderRadius:8,border:`1px solid ${loc===l?(BR_COLOR[l]||"var(--ink)"):"var(--line2)"}`,background:loc===l?(BR_COLOR[l]||"var(--ink)"):"var(--panel)",color:loc===l?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.5}}>{l} ({n})</button>})}
-   </div>}
-   <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:24}}>
-     <button onClick={()=>setCat("")} style={{padding:"6px 13px",borderRadius:8,border:`1px solid ${!cat?"var(--ink)":"var(--line2)"}`,background:!cat?"var(--ink)":"var(--panel)",color:!cat?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All ({shootItems.length})</button>
-     {present.map(c=><button key={c} onClick={()=>setCat(c)} style={{padding:"6px 13px",borderRadius:8,border:`1px solid ${cat===c?"var(--ink)":"var(--line2)"}`,background:cat===c?"var(--ink)":"var(--panel)",color:cat===c?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{c} ({shootItems.filter(i=>i.category===c).length})</button>)}
-   </div>
-   <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:22}}>
-     <div style={{position:"relative",flex:1,minWidth:180}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name / size / notes…" style={{paddingLeft:34}}/></div>
-     <select value={typeF} onChange={e=>setTypeF(e.target.value)} style={{width:"auto"}}><option value="">All types</option>{ftypes.map(t=><option key={t} value={t}>{t}</option>)}</select>
-     <select value={genF} onChange={e=>setGenF(e.target.value)} style={{width:"auto"}}><option value="">Any gender</option>{GENDERS.map(g=><option key={g} value={g}>{g}</option>)}</select>
-     {cat==="Infant"&&<select value={ageF} onChange={e=>setAgeF(e.target.value)} style={{width:"auto"}}><option value="">All ages</option>{["0–3 m","3–6 m","6–12 m","1 year+","Other"].map(a=><option key={a} value={a}>{a}</option>)}</select>}
-     {(typeF||genF||ageF||q)&&<button onClick={()=>{setTypeF("");setGenF("");setAgeF("");setQ("")}} style={{fontSize:12.5,color:"var(--soft)",fontWeight:600,padding:"8px 6px"}}>Clear</button>}
-   </div>
-   {sections.map(c=>{const list=shootItems.filter(i=>i.category===c&&matchF(i));if(!list.length)return null;return <div key={c} style={{marginBottom:34}}>
-     <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:14}}><Dot c={CAT_COLOR[c]||"#a47cd1"} s={9}/><span style={{fontWeight:700,fontSize:16}}>{c}</span><span style={{fontSize:12,color:"var(--muted)",fontWeight:600}}>{list.length} item{list.length!==1?"s":""}</span></div>
-     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(214px,1fr))",gap:16}}>{list.map(card)}</div>
-   </div>;})}
-   {!cat&&coming.length>0&&<div style={{marginTop:10,padding:"14px 16px",background:"var(--panel2)",border:"1px dashed var(--line2)",borderRadius:8,fontSize:12.5,color:"var(--muted)"}}><b style={{color:"var(--soft)"}}>Скоро в этом разделе:</b> {coming.join(" · ")} — подгрузим из ваших катарских таблиц следующими.</div>}
-   {sel&&<DohaEdit item={sel} onSave={save} onClose={()=>setSel(null)} allItems={items} links={links} onLink={addLink} onUnlink={rmLink}/>}
- </div>;
-}
-
-// ---- Items & Props (cross-shoot stuff: backdrops / props / accessories / fabrics) ----
-function ItemsProps(){
- const [items,setItems]=useState(null),[err,setErr]=useState(""),[sel,setSel]=useState(null);
- const [loc,setLoc]=useState(""),[shoot,setShoot]=useState(""),[sub,setSub]=useState(""),[q,setQ]=useState("");
- useEffect(()=>{(async()=>{
-   if(!sb){setItems([]);return;}
-   const {data,error}=await sb.from("doha_inventory").select("*").order("category").order("slot_no");
-   if(error){setErr(error.message);setItems([]);}else setItems(data||[]);
- })()},[]);
- if(items===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading Items & Props…</div>;
- const props=items.filter(i=>PROP_TYPES.includes(i.item_type));
- const locs=[...new Set(props.map(i=>i.location).filter(Boolean))];
- const subtypes=PROP_TYPES.filter(t=>props.some(i=>i.item_type===t));
- const match=i=>(!loc||i.location===loc)&&(!sub||i.item_type===sub)&&(!shoot||(i.usable_for||[]).includes(shoot))
-   &&(!q||((i.name||"")+" "+(i.id||"")+" "+(i.notes||"")+" "+(i.remarks||"")+" "+((i.usable_for||[]).join(" "))).toLowerCase().includes(q.trim().toLowerCase()));
- const filtered=props.filter(match);
- const save=async d=>{
-   setItems(its=>its.map(x=>x.id===d.id?{...x,...d}:x)); setSel(null);
-   if(sb){const {error}=await sb.from("doha_inventory").update({name:d.name,item_type:d.item_type,gender:d.gender,measurement:d.measurement,quantity:d.quantity,condition:d.condition,times_used:d.times_used,photo:d.photo,outfit_photo:d.outfit_photo,remarks:d.remarks,notes:d.notes,outfit_note:d.outfit_note,on_website:d.on_website,usable_for:d.usable_for}).eq("id",d.id);if(error)setErr("Couldn't save: "+error.message);}
- };
- const card=i=><div key={i.id} onClick={()=>setSel(i)} className="fade" style={{background:"var(--panel)",border:"1px solid var(--line)",borderRadius:"var(--r)",overflow:"hidden",boxShadow:"var(--shadow)",cursor:"pointer",transition:"transform .16s,box-shadow .16s",display:"flex",flexDirection:"column"}}
-     onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="var(--shadow-h)"}} onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="var(--shadow)"}}>
-     <div style={{position:"relative",width:"100%",aspectRatio:"4/3",background:"var(--panel2)"}}>
-       {i.photo?<img src={i.photo} loading="lazy" alt={i.name||i.id} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";if(e.target.nextSibling)e.target.nextSibling.style.display="flex"}}/>:null}
-       <div style={{display:i.photo?"none":"flex",position:"absolute",inset:0,flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,color:"#a47cd1c0",fontSize:11,fontWeight:600}}><Icon d={I.image} s={26} c="#a47cd190" sw={1.5}/>No photo yet</div>
-       <span style={{position:"absolute",top:9,left:9}}><Chip label={i.item_type||"—"} color={dTC(i.item_type)} solid sm/></span>
-     </div>
-     <div style={{padding:"11px 13px",display:"flex",flexDirection:"column",gap:7,flex:1}}>
-       <span style={{fontWeight:600,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{i.name||<span style={{color:"var(--muted)"}}>— no name —</span>}</span>
-       <div style={{fontSize:10.5,color:"var(--muted)"}}>{i.id} · {i.location}</div>
-       {(i.usable_for||[]).length>0?<div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{i.usable_for.map(s=><span key={s} style={{fontSize:10,fontWeight:600,color:CAT_COLOR[s]||"var(--soft)",background:"var(--panel2)",border:`1px solid ${CAT_COLOR[s]||"var(--line2)"}`,borderRadius:8,padding:"1px 8px"}}>{s}</span>)}</div>:<div style={{fontSize:10.5,color:"var(--muted)",fontStyle:"italic"}}>usable for: not set</div>}
-       {Array.isArray(i.extra_photos)&&i.extra_photos.length>0&&<div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>{i.extra_photos.slice(0,6).map((e,k)=><img key={k} src={e.p} title={e.n} loading="lazy" style={{width:28,height:28,objectFit:"cover",borderRadius:6,border:"1px solid #d2734a"}}/>)}</div>}
-       <div style={{fontSize:11.5,color:"var(--soft)",marginTop:"auto",borderTop:"1px solid var(--line)",paddingTop:8}}>qty {i.quantity||"—"}{i.measurement?" · "+i.measurement:""}</div>
-       {(i.remarks||i.notes)&&<div style={{fontSize:11,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{[i.remarks,i.notes].filter(Boolean).join(" · ")}</div>}
-     </div></div>;
- return <div className="scroll fade" style={{flex:1,padding:"26px 30px"}}>
-   <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-     <h1 style={{fontSize:26,fontWeight:700,letterSpacing:"-.01em"}}>Items &amp; Props</h1>
-     <span style={{display:"inline-flex",alignItems:"center",gap:5,background:"var(--gold-soft)",color:"var(--gold)",borderRadius:8,padding:"3px 11px",fontSize:11,fontWeight:700}}><Dot c="#d2734a" s={6}/>Backdrops · props · accessories · fabrics</span></div>
-   <p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:18}}>{props.length} item{props.length!==1?"s":""} · shared across shoot types · filter by what they can be used for</p>
-   {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8,marginBottom:14}}>{err}</div>}
-   <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
-     <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>LOCATION</span>
-     <button onClick={()=>setLoc("")} style={{padding:"6px 13px",borderRadius:8,border:`1px solid ${!loc?"var(--ink)":"var(--line2)"}`,background:!loc?"var(--ink)":"var(--panel)",color:!loc?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All ({props.length})</button>
-     {BR.map(l=>{const n=props.filter(i=>i.location===l).length;return <button key={l} onClick={()=>setLoc(loc===l?"":l)} style={{padding:"6px 13px",borderRadius:8,border:`1px solid ${loc===l?(BR_COLOR[l]||"var(--ink)"):"var(--line2)"}`,background:loc===l?(BR_COLOR[l]||"var(--ink)"):"var(--panel)",color:loc===l?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600,opacity:n?1:.5}}>{l} ({n})</button>})}
-   </div>
-   <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
-     <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em",marginRight:4}}>SHOOT TYPE</span>
-     <button onClick={()=>setShoot("")} style={{padding:"6px 13px",borderRadius:8,border:`1px solid ${!shoot?"var(--ink)":"var(--line2)"}`,background:!shoot?"var(--ink)":"var(--panel)",color:!shoot?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>All</button>
-     {SHOOT_TYPES.map(s=>{const n=props.filter(i=>(!loc||i.location===loc)&&(i.usable_for||[]).includes(s)).length;if(!n)return null;return <button key={s} onClick={()=>setShoot(shoot===s?"":s)} style={{padding:"6px 13px",borderRadius:8,border:`1px solid ${shoot===s?(CAT_COLOR[s]||"var(--ink)"):"var(--line2)"}`,background:shoot===s?(CAT_COLOR[s]||"var(--ink)"):"var(--panel)",color:shoot===s?"#fff":"var(--soft)",fontSize:12.5,fontWeight:600}}>{s} ({n})</button>})}
-   </div>
-   <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:22}}>
-     <span style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:".14em"}}>ITEM TYPE</span>
-     <select value={sub} onChange={e=>setSub(e.target.value)} style={{width:"auto"}}><option value="">All sub-types</option>{subtypes.map(t=><option key={t} value={t}>{PROP_GROUP[t]||t}</option>)}</select>
-     <div style={{position:"relative",flex:1,minWidth:180}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={15} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name / id / notes…" style={{paddingLeft:34}}/></div>
-     {(shoot||sub||loc||q)&&<button onClick={()=>{setShoot("");setSub("");setLoc("");setQ("")}} style={{fontSize:12.5,color:"var(--soft)",fontWeight:600,padding:"8px 6px"}}>Clear</button>}
-   </div>
-   {subtypes.map(t=>{const list=filtered.filter(i=>i.item_type===t);if(!list.length)return null;return <div key={t} style={{marginBottom:34}}>
-     <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:14}}><Dot c={dTC(t)} s={9}/><span style={{fontWeight:700,fontSize:16}}>{PROP_GROUP[t]||t}</span><span style={{fontSize:12,color:"var(--muted)",fontWeight:600}}>{list.length} item{list.length!==1?"s":""}</span></div>
-     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(214px,1fr))",gap:16}}>{list.map(card)}</div>
-   </div>;})}
-   {!filtered.length&&<div style={{color:"var(--muted)",fontSize:13,padding:"30px 0"}}>Nothing matches these filters.</div>}
-   {sel&&<DohaEdit item={sel} onSave={save} onClose={()=>setSel(null)} allItems={items}/>}
- </div>;
-}
-
 // ---- New unified inventory (inv_item): Add wizard + browse ----
 let CAT_CODE={"Cake Smash":"CS",Newborn:"NB",Infant:"IN",Maternity:"MA",Sitter:"SI",Children:"CH","Gender Reveal":"GR",Christmas:"XM"};
 const KIND_CODE={outfit:"OF",fabric:"FB",prop:"PR",backdrop:"BD",wrap:"WR",basket:"BS",accessory:"AC",other:"IT",setup:"SET"};
@@ -1533,7 +1222,7 @@ function applyTax(t){
  if(t.propSubtypesByCat&&typeof t.propSubtypesByCat==="object")PROP_SUBTYPES_BY_CAT=t.propSubtypesByCat;
  if(t.sizeByCat&&typeof t.sizeByCat==="object")SIZE_BY_CAT=t.sizeByCat;
  if(Array.isArray(t.noGender))NO_GENDER=t.noGender;
- if(Array.isArray(t.assetTypes)&&t.assetTypes.length)ASSET_TYPES=t.assetTypes;
+ if(Array.isArray(t.assetTypes))ASSET_TYPES=t.assetTypes;
  if(t.defaultCurrency)DEFAULT_CCY=t.defaultCurrency;
 }
 function currentTax(){
@@ -1570,7 +1259,7 @@ async function addTaxOption(kind,session,raw){
  }else if(kind==="propsub"&&session){PROP_SUBTYPES_BY_CAT[session]=[...new Set([...(PROP_SUBTYPES_BY_CAT[session]||PROP_SUBTYPES),v])];
  }else if(kind==="subkind"&&session){SUBTYPE_OPTS[session]=[...new Set([...(SUBTYPE_OPTS[session]||[]),v])];
  }else if(kind==="assettype"){if(!ASSET_TYPES.includes(v))ASSET_TYPES=[...ASSET_TYPES,v];}
- await saveTax();_taxBump();return v;
+ {const {error}=await saveTax();if(error){console.warn("taxonomy save failed",error);const r2=await saveTax();if(r2.error)console.error("taxonomy save failed twice — option may not persist across reloads",r2.error);}}_taxBump();return v;
 }
 // a <select> that carries an inline "+ Add new…" affordance, so option lists are editable from the card
 function TaxSelect({value,onChange,options=[],onAdd,allowEmpty,addLabel="+ Add new…",placeholder="New option…"}){
@@ -1600,10 +1289,10 @@ function SizePicker({value,onChange,opts=SIZE_OPTS,onAdd}){
 function UsablePicker({value,onChange}){
  const cur=Array.isArray(value)?value:[];
  const toggle=s=>onChange(cur.includes(s)?cur.filter(x=>x!==s):[...cur,s]);
- return <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{SHOOT_TYPES.map(s=>{const on=cur.includes(s);return <button type="button" key={s} onClick={()=>toggle(s)} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${on?(CAT_COLOR[s]||"var(--ink)"):"var(--line2)"}`,background:on?(CAT_COLOR[s]||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:12,fontWeight:600}}>{s}</button>})}</div>;
+ return <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{SESSION_CATS.map(s=>{const on=cur.includes(s);return <button type="button" key={s} onClick={()=>toggle(s)} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${on?(CAT_COLOR[s]||"var(--ink)"):"var(--line2)"}`,background:on?(CAT_COLOR[s]||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:12,fontWeight:600}}>{s}</button>})}</div>;
 }
 const codePrefix=(cat,seg)=>(CAT_CODE[cat]||((cat||"XX").replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase()||"XX"))+"-"+seg;
-async function nextCode(cat,seg){const p=codePrefix(cat,seg)+"-";if(!sb)return p+"001";const {data}=await sb.from("inv_item").select("code").like("code",p+"%");let mx=0;(data||[]).forEach(r=>{const m=/(\d+)\s*$/.exec(r.code||"");if(m)mx=Math.max(mx,parseInt(m[1],10))});return p+String(mx+1).padStart(3,"0");}
+async function nextCode(cat,seg){const p=codePrefix(cat,seg)+"-";if(!sb)return p+"001";const {data}=await sbAll(()=>sb.from("inv_item").select("code").like("code",p+"%").order("code"));let mx=0;(data||[]).forEach(r=>{const m=/(\d+)\s*$/.exec(r.code||"");if(m)mx=Math.max(mx,parseInt(m[1],10))});return p+String(mx+1).padStart(3,"0");}
 function Barcode({value,height=46}){const ref=useRef(null);useEffect(()=>{if(ref.current&&window.JsBarcode&&value){try{window.JsBarcode(ref.current,value,{format:"CODE128",height,fontSize:13,margin:6,displayValue:true});}catch(e){}}},[value,height]);return <svg ref={ref} style={{maxWidth:"100%"}}/>;}
 // Phone-scannable QR code. The CODE128 barcode at the bottom of a label is great
 // for a handheld POS gun, but a phone's built-in Camera app only reliably reads
@@ -1681,7 +1370,7 @@ function CondMeter({value, onChange, compact}){
 }
 
 // pick the exact showcase board + section an item should publish into
-function WebsitePlacement({studios=[],session,type,kind,gender,value=[],onChange}){
+function WebsitePlacement({studios=[],session,type,kind,gender,value=[],onChange,allowPrune}){
  const [secs,setSecs]=useState([]);
  const [addB,setAddB]=useState(""),[addT,setAddT]=useState("");
  useEffect(()=>{if(sb)sb.from("showcase_section").select("id,board,title,sort,dyn").order("sort").then(({data})=>setSecs(data||[]))},[]);
@@ -1689,11 +1378,19 @@ function WebsitePlacement({studios=[],session,type,kind,gender,value=[],onChange
  const sel=new Set(value);
  const toggle=id=>{const n=new Set(sel);n.has(id)?n.delete(id):n.add(id);onChange([...n]);};
  const mk=async(board)=>{const t=addT.trim();if(!t||!sb){setAddB("");return;}const mx=Math.max(0,...secs.filter(s=>s.board===board).map(s=>s.sort||0));const {data}=await sb.from("showcase_section").insert({board,title:t,sort:mx+1,dyn:false}).select().single();if(data){setSecs(s=>[...s,data]);onChange([...value,data.id]);}setAddB("");setAddT("");};
+ const needGender=!!session&&!NO_GENDER.includes(session);
+ const genSegs=!needGender?[null]:((gender&&gender!=="Unisex"&&gender!=="Neutral")?[gender==="Girl"?"Girls":gender==="Boy"?"Boys":"Twins"]:["Girls","Boys","Twins"]);
+ const boards=[];if(showKind&&session)studios.forEach(st=>genSegs.forEach(g=>boards.push([st,session,showKind,g].filter(Boolean).join(" · "))));
+ // when studio/session/type/gender change AFTER chips were ticked, drop selections
+ // whose section no longer belongs to one of the item's boards — otherwise the item
+ // silently publishes into a page it doesn't match.
+ useEffect(()=>{if(!allowPrune||!secs.length||!value.length)return;
+   const ok=new Set(secs.filter(s=>boards.includes(s.board)).map(s=>s.id));
+   const pruned=value.filter(id=>ok.has(id));
+   if(pruned.length!==value.length)onChange(pruned);
+ },[boards.join("|"),secs.length]);
  if(!showKind) return <div style={{fontSize:12,color:"var(--muted)"}}>Only setups (themes) and outfits appear in the public website galleries.</div>;
  if(!studios.length||!session) return <div style={{fontSize:12,color:"var(--muted)"}}>Pick the studio(s) and session above first — then choose where it appears.</div>;
- const needGender=!NO_GENDER.includes(session);
- const genSegs=!needGender?[null]:((gender&&gender!=="Unisex"&&gender!=="Neutral")?[gender==="Girl"?"Girls":gender==="Boy"?"Boys":"Twins"]:["Girls","Boys","Twins"]);
- const boards=[];studios.forEach(st=>genSegs.forEach(g=>boards.push([st,session,showKind,g].filter(Boolean).join(" · "))));
  const chip=(label,on,onClick,dim)=><button type="button" key={label} onClick={onClick} disabled={!!dim} style={{fontSize:11.5,fontWeight:600,padding:"5px 11px",borderRadius:20,border:`1px solid ${on?"var(--ink)":"var(--line2)"}`,background:on?"var(--ink)":"var(--panel)",color:on?"#fff":dim?"var(--muted)":"var(--soft)",cursor:dim?"default":"pointer",opacity:dim?.7:1}}>{label}{on?" ✓":""}</button>;
  const selNames=value.map(id=>secs.find(x=>x.id===id)).filter(Boolean);
  return <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -1718,7 +1415,7 @@ function AddInvItem({onClose,onSaved,init={}}){
  const OPSTATUS=["Available","In use","In repair","Retired","For sale"];
  const [locs,setLocs]=useState(()=>{const m={};(init.locs||[]).forEach(b=>{if(BR.includes(b))m[b]={on:true,qty:1,times:0};});return m;});
  const [linkIds,setLinkIds]=useState([]),[cand,setCand]=useState([]);
- useEffect(()=>{if(sb)sbAll(()=>sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").order("name")).then(({data})=>setCand(data||[]))},[]);
+ useEffect(()=>{if(sb)sbAll(()=>sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").order("name").order("id")).then(({data})=>setCand(data||[]))},[]);
  const [busy,setBusy]=useState(false),[err,setErr]=useState(""),[saved,setSaved]=useState(null);
  const [kAdd,setKAdd]=useState(false),[kTxt,setKTxt]=useState("");
  const [moreOpen,setMoreOpen]=useState(false);
@@ -1737,13 +1434,15 @@ function AddInvItem({onClose,onSaved,init={}}){
      .map(c=>({...c,score:nameSim(c.name,nm)})).sort((a,b)=>b.score-a.score).slice(0,3);
  },[f.name,f.sessionRel,f.session_type,f.type,f.kind,cand]);
  const mergeInto=async(c)=>{if(busy||!chosen.length)return;setBusy(true);setErr("");
-   try{const {data:exist}=await sb.from("inv_item_location").select("location").eq("item_id",c.id);
+   try{const {data:exist,error:e0}=await sb.from("inv_item_location").select("location").eq("item_id",c.id);
+     if(e0)throw new Error("Couldn't check existing studios: "+(e0.message||""));
      const have=new Set((exist||[]).map(x=>x.location));const addB=chosen.filter(b=>!have.has(b));
-     if(addB.length)await sb.from("inv_item_location").insert(addB.map(b=>({item_id:c.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:f.condition,acquired_on:(f.perLocDate?(locs[b].date||f.acquired_on):f.acquired_on)||null})));
-     if((f.placeSections||[]).length)await sb.from("showcase_section_item").insert(f.placeSections.map(sid=>({section_id:sid,item_id:c.id})));
-     if((f.placeSections||[]).length||f.website_display)await sb.from("inv_item").update({website_display:true}).eq("id",c.id);
+     if(addB.length){const {error}=await sb.from("inv_item_location").insert(addB.map(b=>({item_id:c.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:f.condition,size:f.kind==="outfit"?(locs[b].size||null):null,acquired_on:(f.perLocDate?(locs[b].date||f.acquired_on):f.acquired_on)||null})));if(error)throw new Error("Couldn't add the studio: "+(error.message||""));}
+     if((f.placeSections||[]).length){const {error}=await sb.from("showcase_section_item").upsert(f.placeSections.map(sid=>({section_id:sid,item_id:c.id})),{onConflict:"section_id,item_id",ignoreDuplicates:true});if(error)throw new Error("Couldn't add website placement: "+(error.message||""));}
+     if((f.placeSections||[]).length||f.website_display){const {error}=await sb.from("inv_item").update({website_display:true}).eq("id",c.id);if(error)throw new Error("Couldn't publish: "+(error.message||""));}
      onSaved&&onSaved({id:c.id,name:c.name});onClose&&onClose();
-   }catch(e){setErr(e.message||String(e));setBusy(false);}
+   }catch(e){setErr(e.message||String(e));}
+   finally{setBusy(false);}
  };
  // visual duplicate check — compares the uploaded photo against existing items' photos via AI
  const [photoDupe,setPhotoDupe]=useState(null),[matchBusy,setMatchBusy]=useState(false),[matchMsg,setMatchMsg]=useState("");
@@ -1804,18 +1503,22 @@ function AddInvItem({onClose,onSaved,init={}}){
  const save=async()=>{
    if(!valid||busy)return;setBusy(true);setErr("");
    try{
-     const code=await nextCode(catForCode,seg);
-     const row={code,item_group:f.grp||(f.sessionRel?"shoot":"supplies"),type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.sessionRel?f.session_type:null,subcategory:f.subcategory||null,gender:(!f.sessionRel||NO_GENDER.includes(f.session_type))?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:isAsset?(f.op_status||"Available"):null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:f.condition,website_display:!!f.website_display||(f.placeSections||[]).length>0,notes:f.notes||null};
-     const {data,error}=await sb.from("inv_item").insert({...row,times_selected:chosen.reduce((s,b)=>s+(Number(locs[b].times)||0),0)}).select().single();if(error)throw error;
+     let code=await nextCode(catForCode,seg);
+     const mkRow=()=>({code,item_group:f.grp||(f.sessionRel?"shoot":"supplies"),type:f.type,kind:f.type==="item"?f.kind:null,name:f.name.trim(),session_type:f.sessionRel?f.session_type:null,subcategory:f.subcategory||null,gender:(!f.sessionRel||NO_GENDER.includes(f.session_type))?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:isAsset?(f.op_status||"Available"):null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:f.condition,website_display:!!f.website_display||(f.placeSections||[]).length>0,notes:f.notes||null,times_selected:chosen.reduce((s,b)=>s+(Number(locs[b].times)||0),0)});
+     let ins=await sb.from("inv_item").insert(mkRow()).select().single();
+     // duplicate-code race (two people adding at once): regenerate once and retry
+     if(ins.error&&/duplicate|unique/i.test(ins.error.message||"")){code=await nextCode(catForCode,seg);ins=await sb.from("inv_item").insert(mkRow()).select().single();}
+     if(ins.error)throw ins.error;
+     const data=ins.data;
      const locRows=chosen.map(b=>({item_id:data.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,condition:noCond?null:f.condition,size:f.kind==="outfit"?(locs[b].size||null):null,acquired_on:(f.perLocDate?(locs[b].date||f.acquired_on):f.acquired_on)||null}));
      if(locRows.length){const {error:e2}=await sb.from("inv_item_location").insert(locRows);if(e2)throw e2;}
-     if(linkIds.length)await sb.from("inv_theme_item").insert(linkIds.map(cid=>f.type==="theme"?({theme_id:data.id,component_item_id:cid}):({theme_id:cid,component_item_id:data.id})));
-     if((f.placeSections||[]).length)await sb.from("showcase_section_item").insert(f.placeSections.map(sid=>({section_id:sid,item_id:data.id})));
+     if(linkIds.length){const {error:e3}=await sb.from("inv_theme_item").insert(linkIds.map(cid=>f.type==="theme"?({theme_id:data.id,component_item_id:cid}):({theme_id:cid,component_item_id:data.id})));if(e3)throw new Error("Item saved, but linking failed: "+(e3.message||""));}
+     if((f.placeSections||[]).length){const {error:e4}=await sb.from("showcase_section_item").upsert(f.placeSections.map(sid=>({section_id:sid,item_id:data.id})),{onConflict:"section_id,item_id",ignoreDuplicates:true});if(e4)throw new Error("Item saved, but website placement failed: "+(e4.message||""));}
      setSaved({...data,_locs:locRows});onSaved&&onSaved(data);
    }catch(e){setErr(e.message||String(e));}
-   setBusy(false);
+   finally{setBusy(false);}
  };
- const reset=()=>{setSaved(null);setLinkIds([]);setAiPreview(null);setAiMsg("");setMoreOpen(false);setF(p=>({...p,name:"",size:"",color:"",brand:"",photo_url:"",extra_photos:[],purchase_url:"",value:"",notes:""}));};
+ const reset=()=>{setSaved(null);setLinkIds([]);setAiPreview(null);setAiMsg("");setMoreOpen(false);setPhotoDupe(null);setMatchMsg("");setF(p=>({...p,name:"",size:"",color:"",brand:"",photo_url:"",extra_photos:[],purchase_url:"",value:"",notes:"",placeSections:[]}));};
  // ── shared style tokens ──────────────────────────────────────────────────
  const lab={display:"block",fontSize:10.5,fontWeight:700,color:"var(--muted)",letterSpacing:".06em",marginBottom:6,textTransform:"uppercase"};
  const labHint={color:"var(--muted)",fontWeight:500,textTransform:"none",letterSpacing:0,marginLeft:4};
@@ -1861,14 +1564,15 @@ function AddInvItem({onClose,onSaved,init={}}){
                  <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:12.5,fontWeight:700,color:BR_COLOR[b],minWidth:78}}><Dot c={BR_COLOR[b]} s={8}/>{b}</span>
                  <span style={{fontSize:11,color:"var(--muted)"}}>Qty</span><input type="number" min="1" value={locs[b].qty} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,qty:e.target.value}}))} style={{width:56,minHeight:34,fontSize:13,padding:"5px 8px"}}/>
                  {(f.type==="theme"||f.kind==="outfit")&&<><span style={{fontSize:11,color:"var(--muted)"}}>·</span><span style={{fontSize:11,color:"var(--muted)"}}>Sel</span><input type="number" min="0" value={locs[b].times} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,times:e.target.value}}))} style={{width:54,minHeight:34,fontSize:13,padding:"5px 8px"}}/></>}
+                 {f.perLocDate&&<><span style={{fontSize:11,color:"var(--muted)"}}>·</span><span style={{fontSize:11,color:"var(--muted)"}}>Added</span><input type="date" max={today()} value={locs[b].date||f.acquired_on} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,date:e.target.value}}))} style={{minHeight:34,fontSize:12,padding:"4px 6px",width:135}}/></>}
                  {f.kind==="outfit"&&<><span style={{fontSize:11,color:"var(--muted)"}}>·</span><span style={{fontSize:11,color:"var(--muted)"}}>Size</span><select value={locs[b].size||""} onChange={e=>setLocs(p=>({...p,[b]:{...p[b],on:true,size:e.target.value}}))} style={{minHeight:34,fontSize:13,padding:"4px 6px",width:"auto"}}><option value="">—</option>{sizeOpts.map(s=><option key={s} value={s}>{s}</option>)}</select></>}
                </div>)}</div>}</div>
              {f.sessionRel&&<div><span style={lab}>Session type</span><TaxSelect value={f.session_type} onChange={v=>set("session_type",v)} options={SESSION_CATS} onAdd={v=>addTaxOption("session",null,v)} placeholder="New session type…" addLabel="+ Add session type…"/></div>}
-             {!isAsset&&<div><span style={lab}>Type</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{pill(f.type==="theme",()=>set("type","theme"),f.session_type==="Gender Reveal"?"Reveal":"Setup (theme)","var(--accent)")}{kinds.includes("outfit")&&pill(f.type==="item"&&f.kind==="outfit",()=>{set("type","item");set("kind","outfit");},"Outfit","#9a6fd1")}{pill(f.type==="item"&&f.kind!=="outfit",()=>{set("type","item");if(f.kind==="outfit")set("kind",(kinds.find(k=>k!=="outfit")||"prop"));},"Item","#48b08c")}</div></div>}
+             {!isAsset&&<div><span style={lab}>Type</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{pill(f.type==="theme",()=>{if(f.type!=="theme")setLinkIds([]);set("type","theme");},f.session_type==="Gender Reveal"?"Reveal":"Setup (theme)","var(--accent)")}{kinds.includes("outfit")&&pill(f.type==="item"&&f.kind==="outfit",()=>{if(f.type==="theme")setLinkIds([]);set("type","item");set("kind","outfit");},"Outfit","#9a6fd1")}{pill(f.type==="item"&&f.kind!=="outfit",()=>{if(f.type==="theme")setLinkIds([]);set("type","item");if(f.kind==="outfit")set("kind",(kinds.find(k=>k!=="outfit")||"prop"));},"Item","#48b08c")}</div></div>}
              {!isAsset&&f.type==="item"&&<div><span style={lab}>Kind</span><div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>{kinds.map(k=>pill(f.kind===k,()=>set("kind",k),ucf(k),dTC(k)))}
                {kAdd?<span style={{display:"inline-flex",gap:5,alignItems:"center"}}><input autoFocus value={kTxt} placeholder="new kind…" onChange={e=>setKTxt(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addKind();}else if(e.key==="Escape"){setKTxt("");setKAdd(false);}}} style={{width:110,minHeight:38}}/><button type="button" onMouseDown={e=>{e.preventDefault();addKind();}} style={{padding:"9px 13px",borderRadius:8,border:"none",background:"var(--ink)",color:"#fff",fontSize:12.5,fontWeight:600,minHeight:38}}>Add</button></span>
                  :<button type="button" onClick={()=>setKAdd(true)} style={{padding:"9px 13px",borderRadius:8,border:"1px dashed var(--line2)",background:"var(--panel)",color:"var(--soft)",fontSize:13,fontWeight:600,minHeight:38}}>+ Add</button>}</div></div>}
-             {showGender&&<div><span style={lab}>Gender</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{["","Boy","Girl","Neutral","Twins"].filter(g=>g===""||GENDERS_T.includes(g)).map(g=>pill(f.gender===g||(g===""&&!f.gender),()=>set("gender",g),g||"—",g==="Boy"?"#5a93d6":g==="Girl"?"#e06b94":g==="Twins"?"#9a8f80":g==="Neutral"?"#7a8447":"var(--ink)"))}</div></div>}
+             {showGender&&<div><span style={lab}>Gender</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{["",...GENDERS_T].map(g=>pill(f.gender===g||(g===""&&!f.gender),()=>set("gender",g),g||"—",g==="Boy"?"#5a93d6":g==="Girl"?"#e06b94":g==="Twins"?"#9a8f80":g==="Unisex"?"#7a8447":"var(--ink)"))}</div></div>}
            </div>
          </Section>
 
@@ -1944,7 +1648,7 @@ function AddInvItem({onClose,onSaved,init={}}){
              {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<label style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px",cursor:"pointer"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>· shows under the New filter</span></span></label>}
              {f.session_type==="Maternity"&&<label style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px",cursor:"pointer"}}><Toggle on={(f.static_tags||[]).includes("Exclusive")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Exclusive"])]:(f.static_tags||[]).filter(x=>x!=="Exclusive"))}/><span style={{fontSize:13,fontWeight:500}}>Exclusive <span style={{color:"var(--muted)",fontWeight:400}}>· exclusive dress / setup (Maternity)</span></span></label>}
              {(f.type==="theme"&&(f.session_type==="Cake Smash"||f.session_type==="Sitter"))&&<label style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px",cursor:"pointer"}}><Toggle on={(f.static_tags||[]).includes("Real balloon")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Real balloon"])]:(f.static_tags||[]).filter(x=>x!=="Real balloon"))}/><span style={{fontSize:13,fontWeight:500}}>Real balloon <span style={{color:"var(--muted)",fontWeight:400}}>· off = plain theme (Cake Smash &amp; Sitter)</span></span></label>}
-             {!isAsset&&<div style={{background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"12px 14px"}}><div style={{fontSize:12.5,fontWeight:700,marginBottom:9}}>Show on website <span style={{color:"var(--muted)",fontWeight:400}}>· choose exactly where it appears</span></div><WebsitePlacement studios={chosen} session={f.session_type} type={f.type} kind={f.kind} gender={f.gender} value={f.placeSections||[]} onChange={v=>set("placeSections",v)}/></div>}
+             {!isAsset&&<div style={{background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"12px 14px"}}><div style={{fontSize:12.5,fontWeight:700,marginBottom:9}}>Show on website <span style={{color:"var(--muted)",fontWeight:400}}>· choose exactly where it appears</span></div><WebsitePlacement allowPrune studios={chosen} session={f.session_type} type={f.type} kind={f.kind} gender={f.gender} value={f.placeSections||[]} onChange={v=>set("placeSections",v)}/></div>}
            </div>
          </Section>
 
@@ -1988,6 +1692,9 @@ function InvEdit({item,onClose,onSaved}){
  const [links,setLinks]=useState([]);      // component links where this item is the parent
  const [all,setAll]=useState([]);
  const [busy,setBusy]=useState(false),[err,setErr]=useState(""),[del,setDel]=useState(false),[xfer,setXfer]=useState({from:"",to:"",qty:1});
+ // loaded gates Save until the async location/placement fetch has really succeeded —
+ // otherwise a fast click computes off=ALL studios and wipes every stock row.
+ const [loaded,setLoaded]=useState(false); const [locs0,setLocs0]=useState([]);
  const [genBusy,setGenBusy]=useState(false),[genMsg,setGenMsg]=useState("");
  const [staffNames,setStaffNames]=useState([]);
  useEffect(()=>{loadStaffNames().then(setStaffNames)},[]);
@@ -1999,20 +1706,23 @@ function InvEdit({item,onClose,onSaved}){
    try{
      const res=await fetch(SB_URL+"/functions/v1/generate-photo",{method:"POST",headers:{"content-type":"application/json","apikey":SB_KEY,"authorization":"Bearer "+SB_KEY},body:JSON.stringify({item_id:item.id,overwrite:!!f.photo_url})});
      const j=await res.json().catch(()=>({ok:false,reason:"bad_response"}));
-     if(!j.ok){ setGenMsg(j.reason==="no_api_key"?"Auto-photo needs OPENAI_API_KEY set in Supabase secrets.":("Couldn't generate: "+(j.message||j.reason||"unknown"))); return; }
-     setF(p=>({...p,photo_url:j.photo_url}));
-     setGenMsg("");
+     if(!j.ok){ setGenMsg(j.reason==="no_api_key"?"Auto-photo needs OPENAI_API_KEY set in Supabase secrets.":("Couldn't generate: "+(j.message||j.reason||"unknown"))); }
+     else { setF(p=>({...p,photo_url:j.photo_url})); setGenMsg(""); }
    }catch(e){ setGenMsg(String(e?.message||e)); }
-   setGenBusy(false);
+   finally{ setGenBusy(false); }
  };
  const remove=async()=>{setBusy(true);setErr("");if(sb){const {error}=await sb.from("inv_item").delete().eq("id",item.id);if(error){setErr("Couldn't delete: "+error.message);setBusy(false);return;}}onSaved&&onSaved();};
  const archive=async()=>{const na=!f.archived;setBusy(true);setErr("");if(sb){const {error}=await sb.from("inv_item").update({archived:na,archived_at:na?new Date().toISOString():null}).eq("id",item.id);if(error){setErr("Couldn't "+(na?"archive":"restore")+": "+error.message);setBusy(false);return;}}onSaved&&onSaved();};
- const doXfer=()=>{const {from,to}=xfer,q=Number(xfer.qty)||0;if(!from||!to||from===to||q<=0)return;setLocs(p=>{const fq=Math.max(0,(Number((p[from]||{}).qty)||0)-q);const nf={...(p[from]||{}),qty:fq,on:fq>0?(p[from]||{}).on:false};const ex=p[to]||{};const nt={on:true,qty:(Number(ex.qty)||0)+q,times:ex.times||0,cond:ex.cond||(p[from]||{}).cond||"Good",date:ex.date||today()};return {...p,[from]:nf,[to]:nt};});setXfer({from:"",to:"",qty:1});};
+ const doXfer=()=>{const {from,to}=xfer,q=Number(xfer.qty)||0;if(!from||!to||from===to||q<=0)return;setLocs(p=>{const fq=Math.max(0,(Number((p[from]||{}).qty)||0)-q);const nf={...(p[from]||{}),qty:fq,on:fq>0?(p[from]||{}).on:false};const ex=p[to]||{};
+   // spread the existing destination entry so size/units/condition stamps survive the move
+   const nt={...ex,on:true,qty:(Number(ex.qty)||0)+q,times:ex.times||0,cond:ex.cond||(p[from]||{}).cond||"Good",size:ex.size||(p[from]||{}).size||"",date:ex.date||today()};return {...p,[from]:nf,[to]:nt};});setXfer({from:"",to:"",qty:1});};
  const set=(k,v)=>setF(p=>({...p,[k]:v}));
  const [place,setPlace]=useState([]),[place0,setPlace0]=useState([]);
- useEffect(()=>{(async()=>{if(!sb)return;
-   const {data:pl}=await sb.from("showcase_section_item").select("section_id").eq("item_id",item.id);const pids=[...new Set((pl||[]).map(x=>x.section_id))];setPlace(pids);setPlace0(pids);
-   const {data:l}=await sb.from("inv_item_location").select("*").eq("item_id",item.id);
+ useEffect(()=>{(async()=>{if(!sb){setLoaded(true);return;}
+   const {data:pl,error:pe}=await sb.from("showcase_section_item").select("section_id").eq("item_id",item.id);
+   const {data:l,error:le}=await sb.from("inv_item_location").select("*").eq("item_id",item.id);
+   if(pe||le){setErr("Couldn't load this item's locations — close and reopen before saving. "+((pe||le).message||""));return;}
+   const pids=[...new Set((pl||[]).map(x=>x.section_id))];setPlace(pids);setPlace0(pids);
    const m={};(l||[]).forEach(r=>{
      const baseCond=r.condition||item.condition||"Good";
      const qty=Math.max(1, Number(r.quantity)||1);
@@ -2025,10 +1735,10 @@ function InvEdit({item,onClose,onSaved}){
      // condition change and only then stamp condition_logged_at/by (otherwise
      // 'last logged' degrades into 'last saved' for every qty/size edit).
      m[r.location]={on:true,qty:r.quantity,times:r.times_selected||0,cond:baseCond,units,size:r.size||item.size||"",date:r.acquired_on||(item.created_at?item.created_at.slice(0,10):""),condLoaded:baseCond,unitsLoaded:units.slice(),logged_at:r.condition_logged_at||null,logged_by:r.condition_logged_by||null};
-   });setLocs(m);
+   });setLocs(m);setLocs0(Object.keys(m));setLoaded(true);
    if(item.type==="theme"){const {data:tl}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",item.id);setLinks((tl||[]).map(x=>x.component_item_id));}
    else{const {data:tl}=await sb.from("inv_theme_item").select("theme_id").eq("component_item_id",item.id);setLinks((tl||[]).map(x=>x.theme_id));}
-   const {data:av}=await sbAll(()=>sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").neq("id",item.id).order("name"));setAll(av||[]);
+   const {data:av}=await sbAll(()=>sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").neq("id",item.id).order("name").order("id"));setAll(av||[]);
  })()},[]);
  useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
  const kindsE=KIND_BY_CAT[f.session_type]||ITEM_KINDS;
@@ -2048,11 +1758,13 @@ function InvEdit({item,onClose,onSaved}){
  const showUsable=!isAsset&&f.type==="item"&&(f.kind==="prop"||f.kind==="backdrop");
  const OPSTATUS=["Available","In use","In repair","Retired","For sale"];
  const totalSel=BR.reduce((s,b)=>s+(locs[b]&&locs[b].on?(Number(locs[b].times)||0):0),0);
- const save=async()=>{if(busy)return;setBusy(true);setErr("");
+ const save=async()=>{if(busy||!loaded)return;setBusy(true);setErr("");
    try{
      const segE=f.type==="theme"?"SET":(KIND_CODE[f.kind]||"IT");const catE=f.session_type||"GEN";
      let code=f.code;if(code&&!code.startsWith(codePrefix(catE,segE)+"-"))code=await nextCode(catE,segE);
-     const on=BR.filter(b=>locs[b]&&locs[b].on),off=BR.filter(b=>!(locs[b]&&locs[b].on));
+     // deletes may only target rows we KNOW existed at load (locs0) — never BR-minus-state
+     const on=BR.filter(b=>locs[b]&&locs[b].on),off=locs0.filter(b=>!(locs[b]&&locs[b].on));
+     const fail=(what,error)=>{throw new Error(what+": "+(error.message||error.code||"failed"));};
      const _worstOf=arr=>arr.slice().sort((a,b)=>(COND_RANK[a]||3)-(COND_RANK[b]||3))[0]||"Good";
      // Per-location worst + whether the condition actually CHANGED since open.
      const _locCond={}, _changed={}, _nowIso=new Date().toISOString();
@@ -2066,24 +1778,28 @@ function InvEdit({item,onClose,onSaved}){
      });
      // Item headline = worst across ALL stocked locations (unified rule, matches rate_inv_condition RPC).
      const itemCond=noCond?null:(on.length?_worstOf(on.map(b=>_locCond[b].worst)):(f.condition||"Good"));
-     await sb.from("inv_item").update({code,name:f.name,type:f.type,kind:f.type==="item"?f.kind:null,session_type:f.session_type,subcategory:f.subcategory||null,gender:NO_GENDER.includes(f.session_type)?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:f.op_status||null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:itemCond,notes:f.notes||null,website_display:place.length>0,times_selected:totalSel}).eq("id",item.id);
+     {const {data:updRows,error}=await sb.from("inv_item").update({code,name:f.name,type:f.type,kind:f.type==="item"?f.kind:null,session_type:f.session_type,subcategory:f.subcategory||null,gender:NO_GENDER.includes(f.session_type)?null:(f.gender||null),size:f.size||null,dimensions:f.dimensions||null,color:f.color||null,serial_no:f.serial_no||null,assignee:f.assignee||null,op_status:f.op_status||null,origin:f.origin||null,photo_url:f.photo_url||null,extra_photos:Array.isArray(f.extra_photos)?f.extra_photos:[],purchase_url:f.purchase_url||null,value:(f.value===""||f.value==null)?null:Number(f.value),value_currency:f.value_currency||"AED",purchase_date:f.purchase_date||null,usable_for:f.usable_for||[],static_tags:f.static_tags||[],condition:itemCond,notes:f.notes||null,website_display:place.length>0,times_selected:totalSel}).eq("id",item.id).select("id");
+      if(error)fail("Couldn't save the item",error);
+      if(!updRows||!updRows.length)fail("Couldn't save the item",{message:"no row updated — your session may have expired; sign in again"});}
      {const add=place.filter(id=>!place0.includes(id)),rem=place0.filter(id=>!place.includes(id));
-      if(add.length)await sb.from("showcase_section_item").insert(add.map(sid=>({section_id:sid,item_id:item.id})));
-      for(const sid of rem)await sb.from("showcase_section_item").delete().eq("item_id",item.id).eq("section_id",sid);}
-     if(on.length)await sb.from("inv_item_location").upsert(on.map(b=>{
+      if(add.length){const {error}=await sb.from("showcase_section_item").upsert(add.map(sid=>({section_id:sid,item_id:item.id})),{onConflict:"section_id,item_id",ignoreDuplicates:true});if(error)fail("Couldn't add website placement",error);}
+      for(const sid of rem){const {error}=await sb.from("showcase_section_item").delete().eq("item_id",item.id).eq("section_id",sid);if(error)fail("Couldn't remove website placement",error);}}
+     if(on.length){const {error}=await sb.from("inv_item_location").upsert(on.map(b=>{
        const lc=_locCond[b];
        // Stamp who/when ONLY when the condition really changed; otherwise carry the old stamp.
        const stampAt=noCond?null:(_changed[b]?_nowIso:(locs[b].logged_at||null));
        const stampBy=noCond?null:(_changed[b]?(ME||"Staff"):(locs[b].logged_by||null));
-       return {item_id:item.id,location:b,quantity:Number(locs[b].qty)||1,times_selected:Number(locs[b].times)||0,
+       // respect an explicit quantity of 0 (deliberately out of stock but still listed)
+       const qRaw=locs[b].qty; const qty=(qRaw===""||qRaw==null)?1:Math.max(0,Number(qRaw)||0);
+       return {item_id:item.id,location:b,quantity:qty,times_selected:Number(locs[b].times)||0,
          condition:noCond?null:lc.worst,
          unit_conditions:noCond?null:lc.units,
          condition_logged_at:stampAt,
          condition_logged_by:stampBy,
          size:f.kind==="outfit"?(locs[b].size||null):null,
          acquired_on:locs[b].date||null};
-     }));
-     for(const b of off)await sb.from("inv_item_location").delete().eq("item_id",item.id).eq("location",b);
+     }));if(error)fail("Couldn't save studio stock",error);}
+     for(const b of off){const {error}=await sb.from("inv_item_location").delete().eq("item_id",item.id).eq("location",b);if(error)fail("Couldn't remove "+b,error);}
      // Append-only audit trail for the locations whose condition changed (best-effort).
      try{
        const logRows=on.filter(b=>_changed[b]).map(b=>({item_id:item.id,location:b,unit_index:null,
@@ -2145,7 +1861,7 @@ function InvEdit({item,onClose,onSaved}){
          <div style={{gridColumn:"1/-1"}}><span style={lab}>Notes</span><textarea rows={2} value={f.notes||""} onChange={e=>set("notes",e.target.value)} style={{resize:"vertical"}}/></div>
        </div>
        <div><span style={lab}>Locations <span style={{color:"var(--muted)",fontWeight:400}}>(total qty {BR.reduce((s,b)=>s+(locs[b]&&locs[b].on?(Number(locs[b].qty)||0):0),0)} · {totalSel} selected)</span></span>
-         <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <button type="button" key={b} onClick={()=>setLocs(p=>({...p,[b]:{on:!on,qty:(p[b]&&p[b].qty)||1,times:(p[b]&&p[b].times)||0,cond:(p[b]&&p[b].cond)||"Good"}}))} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 13px",borderRadius:8,border:`1px solid ${on?BR_COLOR[b]:"var(--line2)"}`,background:on?BR_COLOR[b]+"1c":"var(--panel)",color:on?BR_COLOR[b]:"var(--soft)",fontSize:12.5,fontWeight:on?700:600}}><Dot c={BR_COLOR[b]} s={7}/>{b}</button>})}</div>
+         <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{BR.map(b=>{const on=locs[b]&&locs[b].on;return <button type="button" key={b} onClick={()=>setLocs(p=>({...p,[b]:{...(p[b]||{}),on:!on,qty:(p[b]&&p[b].qty)!=null?p[b].qty:1,times:(p[b]&&p[b].times)||0,cond:(p[b]&&p[b].cond)||"Good"}}))} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 13px",borderRadius:8,border:`1px solid ${on?BR_COLOR[b]:"var(--line2)"}`,background:on?BR_COLOR[b]+"1c":"var(--panel)",color:on?BR_COLOR[b]:"var(--soft)",fontSize:12.5,fontWeight:on?700:600}}><Dot c={BR_COLOR[b]} s={7}/>{b}</button>})}</div>
          {BR.some(b=>locs[b]&&locs[b].on)&&<div style={{display:"flex",flexDirection:"column",gap:14,marginTop:11,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"11px 13px"}}>{BR.filter(b=>locs[b]&&locs[b].on).map(b=>{
            const q=Math.max(1, Number(locs[b].qty)||1);
            const units=Array.isArray(locs[b].units)&&locs[b].units.length?locs[b].units.slice(0,q):Array(q).fill(locs[b].cond||"Good");
@@ -2195,7 +1911,7 @@ function InvEdit({item,onClose,onSaved}){
            :<button onClick={()=>setDel(true)} style={{marginRight:"auto",display:"flex",alignItems:"center",gap:5,color:"var(--danger)",fontSize:12.5,fontWeight:600,border:"1px solid #f0c9c4",borderRadius:8,padding:"9px 14px"}}><Icon d={I.trash} s={14} c="var(--danger)"/>Delete</button>}
          {!del&&<button onClick={archive} disabled={busy} title={f.archived?"Bring back into the active catalog":"Hide from the catalog but keep all history & stats"} style={{display:"flex",alignItems:"center",gap:5,color:"var(--soft)",fontSize:12.5,fontWeight:600,border:"1px solid var(--line2)",borderRadius:8,padding:"9px 14px"}}>{f.archived?"Restore":"Archive"}</button>}
          <button onClick={onClose} style={{padding:"11px 20px",border:"1px solid var(--line2)",borderRadius:8,fontWeight:600}}>Cancel</button>
-         <button onClick={save} disabled={busy} style={{padding:"11px 22px",background:"var(--ink)",color:"#fff",borderRadius:8,fontWeight:600}}>{busy?"Saving…":"Save changes"}</button></div>
+         <button onClick={save} disabled={busy||!loaded} style={{padding:"11px 22px",background:(busy||!loaded)?"#bcbcc4":"var(--ink)",color:"#fff",borderRadius:8,fontWeight:600}}>{busy?"Saving…":!loaded?"Loading…":"Save changes"}</button></div>
      </div></div></div>;
 }
 
@@ -2233,7 +1949,7 @@ function LabelSheet({items=[],onClose}){
 }
 // ---- right-hand detail panel (Pulse-style) ----
 const ST_COL=s=>s==="Available"?"#16a34a":s==="In use"?"#2563eb":s==="In repair"?"#d97706":s==="Overdue"?"#ea580c":s==="For sale"?"#7c3aed":s==="Retired"?"#6b7280":"#9aa0b0";
-function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
+function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen,onChanged}){
  const [tab,setTab]=useState("Overview");
  const [comp,setComp]=useState([]);
  const [staffNames,setStaffNames]=useState([]);
@@ -2242,7 +1958,7 @@ function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
  const [cbody,setCbody]=useState(""),[cflag,setCflag]=useState("");
  useEffect(()=>{loadStaffNames().then(setStaffNames)},[]);
  useEffect(()=>{setAssignee(r.assignee||"");if(sb)sb.from("item_comment").select("*").eq("item_id",r.id).order("created_at",{ascending:false}).then(({data})=>setComments(data||[]));},[r.id]);
- const saveAssignee=async v=>{setAssignee(v);if(sb)await sb.from("inv_item").update({assignee:v||null}).eq("id",r.id);};
+ const saveAssignee=async v=>{setAssignee(v);if(sb){const {error}=await sb.from("inv_item").update({assignee:v||null}).eq("id",r.id);if(error){setAssignee(r.assignee||"");return;}}onChanged&&onChanged();};
  const addComment=async()=>{const b=cbody.trim();if(!b)return;const row={item_id:r.id,author:ME||"Staff",body:b,flag:cflag||null};if(sb){const {data}=await sb.from("item_comment").insert(row).select().single();if(data)setComments(c=>[data,...c]);}else{setComments(c=>[{...row,id:Math.random(),created_at:new Date().toISOString()},...c]);}setCbody("");setCflag("");};
  const delComment=async id=>{setComments(c=>c.filter(x=>x.id!==id));if(sb)await sb.from("item_comment").delete().eq("id",id);};
  const CFLAGS=[["","Note"],["Issue","Issue"],["Broken","Broken"],["Maintenance","Maintenance"]];
@@ -2278,7 +1994,7 @@ function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
          {locs.length?locs.map(l=><div key={l.location} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid var(--line)"}}><Dot c={BR_COLOR[l.location]||"#bbb"} s={8}/><span style={{fontSize:13,fontWeight:600,flex:1}}>{l.location}</span>{!isAsset&&l.condition&&<span style={{fontSize:11.5,color:COND_COLOR[l.condition],fontWeight:600,marginRight:10}}>{l.condition}</span>}<span style={{fontSize:12.5,color:"var(--soft)"}}>qty {l.quantity}</span></div>):<div style={lab}>No locations.</div>}
          {r.value!=null&&r.value!==""&&<Row k="Value" v={(r.value_currency||"")+" "+r.value}/>}
          {!isAsset&&<div style={{marginTop:14,display:"flex",alignItems:"center",gap:11,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"11px 14px"}}><Icon d={I.globe} s={18} c={published?"#16a34a":"var(--muted)"}/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{published?"Published on website":"Not on website"}</div><div style={{fontSize:11,color:"var(--muted)"}}>{published?"Live because it's in the Website Showcase":"Add it in Website Showcase to publish"}</div></div></div>}
-         <div style={{marginTop:16}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><span style={{fontSize:11,fontWeight:700,color:"var(--muted)"}}>{r.type==="theme"?"Items in this setup":"Part of these setups"}</span><span style={{flex:1}}/>{onEdit&&<button onClick={()=>onEdit(r)} style={{fontSize:11.5,fontWeight:600,color:"var(--accent)"}}>{r.type==="theme"?"+ Add / manage":"Manage"}</button>}</div>
+         <div style={{marginTop:16}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><span style={{fontSize:11,fontWeight:700,color:"var(--muted)"}}>{r.type==="theme"?"Items in this setup":"Part of these setups"}</span><span style={{flex:1}}/>{onEdit&&r.type==="theme"&&<button onClick={()=>onEdit(r)} style={{fontSize:11.5,fontWeight:600,color:"var(--accent)"}}>+ Add / manage</button>}</div>
            {comp.length?<div style={{display:"flex",flexDirection:"column",gap:5}}>{comp.map(c=>{const ci=itemIcon(c);return <div key={c.id} onClick={()=>onOpen&&onOpen(c)} className="trow" style={{display:"flex",alignItems:"center",gap:10,padding:"6px 8px",borderRadius:8,cursor:"pointer",border:"1px solid var(--line)"}}><div style={{width:34,height:34,borderRadius:7,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:"var(--panel2)"}}>{c.photo_url?<img src={c.photo_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon d={ci.d} s={16} c={ci.c} sw={1.7}/>}</div><div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.name}</div><div style={{fontSize:10.5,color:"var(--muted)"}}>{c.type==="theme"?(c.session_type||"Setup"):ucf(c.kind||c.subcategory||"item")}</div></div><Icon d={I.chev} s={15} c="var(--muted)"/></div>;})}</div>
            :<div style={{fontSize:12,color:"var(--muted)",padding:"4px 0"}}>{r.type==="theme"?"No items linked yet — tap “Add / manage”.":"Not part of any setup."}</div>}
          </div>
@@ -2347,7 +2063,7 @@ function FindByPhoto({rows,onClose,onOpen}){
  const run=async()=>{if(busy||!refUrl)return;
    let pool=(rows||[]).filter(r=>!r.archived&&r.photo_url&&(r.item_group||"shoot")==="shoot"&&(!sessF||r.session_type===sessF));
    if(!pool.length){setMsg("No session items with photos to search"+(sessF?" in "+sessF:"")+" yet.");setResults([]);return;}
-   pool=pool.slice(0,36);setBusy(true);setMsg("");setResults(null);
+   const poolTotal=pool.length;pool=pool.slice(0,96);setBusy(true);setMsg(poolTotal>96?("Searching the 96 newest of "+poolTotal+" items — narrow by session to cover more."):"");setResults(null);
    try{const chunks=[];for(let i=0;i<pool.length;i+=12)chunks.push(pool.slice(i,i+12));const all=[];
      for(const ch of chunks){
        const res=await fetch(SB_URL+"/functions/v1/search-photo",{method:"POST",headers:{"content-type":"application/json","apikey":SB_KEY,"authorization":"Bearer "+SB_KEY},body:JSON.stringify({photo_url:refUrl,candidates:ch.map(r=>({id:r.id,name:r.name,photo_url:r.photo_url}))})});
@@ -2392,8 +2108,8 @@ function FindByPhoto({rows,onClose,onOpen}){
    </div>
  </div>;
 }
-function NewInventory({initCat=""}){
- const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[scan,setScan]=useState(false),[scanErr,setScanErr]=useState(""),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("popular"),[catF,setCatF]=useState(initCat),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState(""),[sizeF,setSizeF]=useState(""),[condF,setCondF]=useState(""),[newF,setNewF]=useState(false),[balloonF,setBalloonF]=useState(""),[unusedF,setUnusedF]=useState(false),[showArch,setShowArch]=useState(false),[labels,setLabels]=useState(false),[ecatF,setEcatF]=useState(""),[etypeF,setEtypeF]=useState(""),[estatF,setEstatF]=useState(""),[bucketF,setBucketF]=useState(""),[findOpen,setFindOpen]=useState(false);
+function NewInventory({initCat="",initLoc="",onGlobalRefresh}){
+ const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[scan,setScan]=useState(false),[scanErr,setScanErr]=useState(""),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("popular"),[catF,setCatF]=useState(initCat),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState(""),[sizeF,setSizeF]=useState(""),[condF,setCondF]=useState(""),[newF,setNewF]=useState(false),[balloonF,setBalloonF]=useState(""),[unusedF,setUnusedF]=useState(false),[showArch,setShowArch]=useState(false),[labels,setLabels]=useState(false),[labels2,setLabels2]=useState(false),[ecatF,setEcatF]=useState(""),[etypeF,setEtypeF]=useState(""),[estatF,setEstatF]=useState(""),[bucketF,setBucketF]=useState(""),[findOpen,setFindOpen]=useState(false);
  // Deep-link handler for #scan=<code> — fired by the QR codes on printed labels
  // and by any URL the team shares ("https://inventory.youbabystudio.com/#scan=NB-OF-014").
  // Looks the code up by inv_item.code and opens its edit panel. Listens for
@@ -2406,10 +2122,11 @@ function NewInventory({initCat=""}){
      const code=decodeURIComponent(m[1]).trim();
      if(!code) return;
      try{
-       const {data}=await sb.from("inv_item").select("*").eq("code",code).maybeSingle();
-       if(data) setEdit(data);
+       const {data,error}=await sb.from("inv_item").select("*").eq("code",code).maybeSingle();
+       if(error) setScanErr("Lookup failed: "+(error.message||"network error"));
+       else if(data) setEdit(data);
        else setScanErr("No item found for "+code+".");
-     }catch(_){}
+     }catch(e){ setScanErr("Lookup failed: "+((e&&e.message)||e)); }
      // Clear the hash so a reload doesn't re-trigger the same lookup.
      try{ history.replaceState(null,"",window.location.pathname+window.location.search); }catch(_){ window.location.hash=""; }
    };
@@ -2427,25 +2144,30 @@ function NewInventory({initCat=""}){
  const catSel=isElecView?ecatF:catF;
  const needGenderCat=c=>!!c&&!NO_GENDER.includes(c);
  const BUCKETS=[["theme","Themes & setups",I.layers],["outfit","Outfits",I.shirt],["items","Items",I.box]];
- const resetCat=()=>{setEcatF("");setEtypeF("");setCatF("");setTypeF("");setBucketF("");setGenF("");};
+ const clearFilters=()=>{setKindF("");setSubF("");setSizeF("");setCondF("");setEstatF("");setBalloonF("");setPubF("");setNewF(false);setUnusedF(false);};
+ const resetCat=()=>{setEcatF("");setEtypeF("");setCatF("");setTypeF("");setBucketF("");setGenF("");clearFilters();};
  const resetStudio=()=>{setLoc("");setBrowseAll(false);resetCat();};
- const resetBucket=()=>{setBucketF("");setTypeF("");setGenF("");};
+ const resetBucket=()=>{setBucketF("");setTypeF("");setGenF("");clearFilters();};
  const drillStudio=!!groupF&&!loc&&!browseAll;
  const drillCat=!!groupF&&(loc||browseAll)&&!catSel;
  const bucketGendered=!!bucketF&&bucketF!=="items"&&needGenderCat(catSel);
  const drillBucket=groupF==="shoot"&&(loc||browseAll)&&!!catSel&&!bucketF;
  const drillGender=groupF==="shoot"&&(loc||browseAll)&&!!catSel&&bucketGendered&&!genF;
  const atItems=!!groupF&&(loc||browseAll)&&!!catSel&&(isElecView||(!!bucketF&&(!bucketGendered||!!genF)));
- const pickGroup=g=>{setGroupF(g);setLoc("");setBrowseAll(false);setCatF("");setGenF("");setKindF("");setSubF("");setSizeF("");setTypeF("");setBucketF("");setNewF(false);setBalloonF("");setUnusedF(false);setEcatF("");setEtypeF("");setEstatF("");};
- const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sbAll(()=>sb.from("inv_item").select("*,inv_item_location(location,quantity,status,times_selected,condition,acquired_on)").order("created_at",{ascending:false}));if(error)setErr(error.message);setRows(data||[]);};
+ const pickGroup=g=>{setGroupF(g);setLoc("");setBrowseAll(false);setCatF("");setGenF("");setTypeF("");setBucketF("");setEcatF("");setEtypeF("");clearFilters();};
+ const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sbAll(()=>sb.from("inv_item").select("*,inv_item_location(location,quantity,status,times_selected,condition,acquired_on)").order("created_at",{ascending:false}).order("id"));if(error)setErr(error.message);setRows(data||[]);};
  const [pubF,setPubF]=useState("");
  const [pubSet,setPubSet]=useState(()=>new Set());
  const loadPub=async()=>{if(!sb)return;const {data}=await sbAll(()=>sb.from("showcase_section_item").select("item_id").order("id"));setPubSet(new Set((data||[]).map(x=>x.item_id)));};
  useEffect(()=>{loadPub()},[]);
  const isPub=r=>pubSet.has(r.id);
- const removeItem=async(r,e)=>{if(e)e.stopPropagation();if(!window.confirm("Remove “"+(r.name||r.code)+"”? This can't be undone."))return;if(sb){await sb.from("inv_item_location").delete().eq("item_id",r.id);await sb.from("inv_theme_item").delete().eq("theme_id",r.id);await sb.from("inv_theme_item").delete().eq("component_item_id",r.id);await sb.from("inv_item").delete().eq("id",r.id);}load();};
+ const removeItem=async(r,e)=>{if(e)e.stopPropagation();if(!window.confirm("Remove “"+(r.name||r.code)+"”? This can't be undone."))return;
+   if(sb){const {error}=await sb.from("inv_item").delete().eq("id",r.id); // locations/links/comments cascade via FK
+     if(error){setErr("Couldn't remove “"+(r.name||r.code)+"”: "+(error.message||""));return;}}
+   load();loadPub();onGlobalRefresh&&onGlobalRefresh();};
  useEffect(()=>{load()},[]);
  useEffect(()=>{if(initCat){setGroupF("shoot");setBrowseAll(true);setCatF(initCat);}},[initCat]);
+ useEffect(()=>{if(initLoc){setGroupF("shoot");setBrowseAll(false);setLoc(initLoc);}},[initLoc]);
  if(rows===null) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
  const locOf=r=>(r.inv_item_location||[]).map(x=>x.location);
  const selOf=r=>(r.inv_item_location||[]).reduce((s,x)=>s+(x.times_selected||0),0);
@@ -2480,7 +2202,7 @@ function NewInventory({initCat=""}){
        case"statA":return stat(a).localeCompare(stat(b));
        case"statZ":return stat(b).localeCompare(stat(a));
        case"cond":return worstCond(a)-worstCond(b);
-       case"condbest":return worstCond(b)-worstCond(a);
+       case"condbest":{const wa=worstCond(a),wb=worstCond(b);return (wb===99?-1:wb)-(wa===99?-1:wa);}
        case"least":return selOf(a)-selOf(b);
        default:return loc?((b.inv_item_location||[]).find(x=>x.location===loc)?.times_selected||0)-((a.inv_item_location||[]).find(x=>x.location===loc)?.times_selected||0):selOf(b)-selOf(a);
      }});
@@ -2601,14 +2323,20 @@ function NewInventory({initCat=""}){
        </div></div>;}
      return <div className="cardgrid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:10}}>{filtered.map(card)}</div>;
    })()}
-   {add&&<AddInvItem init={{grp:groupF||undefined,session_type:!isElecView?(catF||undefined):undefined,subcategory:isElecView?(etypeF||undefined):undefined,type:groupF==="shoot"?(bucketF==="theme"?"theme":bucketF?"item":undefined):undefined,kind:bucketF==="outfit"?"outfit":undefined,gender:(groupF==="shoot"&&genF)||undefined,locs:loc?[loc]:undefined}} onClose={()=>setAdd(false)} onSaved={()=>{load();loadPub();}}/>}
+   {add&&<AddInvItem init={{grp:groupF||undefined,session_type:!isElecView?(catF||undefined):undefined,subcategory:isElecView?(etypeF||undefined):undefined,type:groupF==="shoot"?(bucketF==="theme"?"theme":bucketF?"item":undefined):undefined,kind:bucketF==="outfit"?"outfit":undefined,gender:(groupF==="shoot"&&genF)||undefined,locs:loc?[loc]:undefined}} onClose={()=>setAdd(false)} onSaved={()=>{load();loadPub();onGlobalRefresh&&onGlobalRefresh();}}/>}
    {scan&&<ScanModal onClose={()=>{setScan(false);setScanErr("");}} onFound={async code=>{ setScanErr(""); try{ const {data,error}=await sb.from("inv_item").select("*").eq("code",code).maybeSingle(); if(error)throw error; if(!data){ setScanErr("No item found for "+code+"."); return; } setScan(false); setEdit(data); }catch(e){ setScanErr((e&&e.message)||"Lookup failed."); } }}/>}
    {scanErr&&<div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",background:"#fde2e0",color:"var(--danger)",border:"1px solid #f3b8b3",borderRadius:8,padding:"10px 16px",fontSize:13,zIndex:400,boxShadow:"var(--shadow)"}}>{scanErr} <button onClick={()=>setScanErr("")} style={{marginLeft:12,padding:0,fontWeight:700}}>×</button></div>}
-   {edit&&<InvEdit item={edit} onClose={()=>setEdit(null)} onSaved={()=>{setEdit(null);setDetail(null);load();}}/>}
-   {detail&&<ItemPanel item={detail} published={pubSet.has(detail.id)} onClose={()=>setDetail(null)} onEdit={r=>{setDetail(null);setEdit(r);}} onPrint={r=>setLabelItem(r)} onOpen={r=>setDetail(r)}/>}
+   {edit&&<InvEdit item={edit} onClose={()=>setEdit(null)} onSaved={()=>{setEdit(null);setDetail(null);load();loadPub();onGlobalRefresh&&onGlobalRefresh();}}/>}
+   {detail&&<ItemPanel item={detail} published={pubSet.has(detail.id)} onClose={()=>setDetail(null)} onEdit={r=>{setDetail(null);setEdit(r);}} onPrint={r=>setLabelItem(r)} onOpen={r=>setDetail(r)} onChanged={()=>{load();onGlobalRefresh&&onGlobalRefresh();}}/>}
    {findOpen&&<FindByPhoto rows={rows} onClose={()=>setFindOpen(false)} onOpen={r=>{setFindOpen(false);setDetail(r);}}/>}
    {labelItem&&<LabelSheet items={[labelItem]} onClose={()=>setLabelItem(null)}/>}
    {labels&&<LabelSheet items={filtered} onClose={()=>setLabels(false)}/>}
+   {picked.size>0&&<div className="fade" style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",zIndex:80,display:"flex",alignItems:"center",gap:10,background:"var(--ink)",color:"#fff",borderRadius:12,padding:"10px 16px",boxShadow:"0 10px 30px rgba(20,22,40,.35)"}}>
+     <span style={{fontSize:13,fontWeight:700}}>{picked.size} selected</span>
+     <button onClick={()=>setLabels2(true)} style={{padding:"7px 14px",borderRadius:8,border:"none",background:"#fff",color:"var(--ink)",fontWeight:700,fontSize:12.5,cursor:"pointer"}}>Print labels</button>
+     <button onClick={()=>setPicked(new Set())} style={{padding:"7px 10px",borderRadius:8,border:"1px solid rgba(255,255,255,.35)",background:"transparent",color:"#fff",fontWeight:600,fontSize:12.5,cursor:"pointer"}}>Clear</button>
+   </div>}
+   {labels2&&<LabelSheet items={rows.filter(r=>picked.has(r.id))} onClose={()=>setLabels2(false)}/>}
  </div>;
 }
 
@@ -2677,6 +2405,8 @@ function Field({label,children,hint}){
 }
 function Settings({onSaved,notify,rows=[],email,signOut,onNav}){
  const [t,setT]=useState(()=>JSON.parse(JSON.stringify(currentTax())));
+ const [t0]=useState(()=>JSON.parse(JSON.stringify(currentTax())));   // mount snapshot for 3-way merge
+ const [renames,setRenames]=useState([]);                              // [{old,nw}] session renames to migrate on save
  const [saving,setSaving]=useState(false); const [newSess,setNewSess]=useState("");
  const [showAdv,setShowAdv]=useState(false);
  const [staff,setStaff]=useState([]);
@@ -2684,9 +2414,9 @@ function Settings({onSaved,notify,rows=[],email,signOut,onNav}){
  const loadStaff=()=>{if(sb)sb.from("staff").select("id,name,role,studio,active").order("studio").then(({data})=>setStaff(data||[]));};
  useEffect(()=>{loadStaff();},[]);
  const ROLES=["Owner","Manager","Photographer","Editor","Retoucher","Receptionist","Assistant","Sales"];
- const updStaff=async(id,patch)=>{setStaff(ss=>ss.map(p=>p.id===id?{...p,...patch}:p));if(sb)await sb.from("staff").update(patch).eq("id",id);};
- const addStaff=async()=>{const name=newP.name.trim();if(!name)return;if(sb){const {data}=await sb.from("staff").insert({name,role:newP.role,studio:newP.studio,active:true,source:"manual"}).select().single();if(data)setStaff(ss=>[...ss,data]);}setNewP({name:"",role:newP.role,studio:newP.studio});};
- const removeStaff=async(id)=>{if(!window.confirm("Remove this person?"))return;setStaff(ss=>ss.filter(p=>p.id!==id));if(sb)await sb.from("staff").delete().eq("id",id);};
+ const updStaff=async(id,patch)=>{const prev=staff;setStaff(ss=>ss.map(p=>p.id===id?{...p,...patch}:p));if(sb){const {error}=await sb.from("staff").update(patch).eq("id",id);if(error){setStaff(prev);notify&&notify("Couldn't update staff: "+(error.message||""));}}};
+ const addStaff=async()=>{const name=newP.name.trim();if(!name)return;if(sb){const {data,error}=await sb.from("staff").insert({name,role:newP.role,studio:newP.studio,active:true,source:"manual"}).select().single();if(error){notify&&notify("Couldn't add "+name+": "+(error.message||""));return;}if(data)setStaff(ss=>[...ss,data]);}setNewP({name:"",role:newP.role,studio:newP.studio});};
+ const removeStaff=async(id)=>{if(!window.confirm("Remove this person?"))return;const prev=staff;setStaff(ss=>ss.filter(p=>p.id!==id));if(sb){const {error}=await sb.from("staff").delete().eq("id",id);if(error){setStaff(prev);notify&&notify("Couldn't remove: "+(error.message||""));}}};
  const sessions=t.sessions||[];
  const dirty=JSON.stringify(t)!==JSON.stringify(currentTax());
  const setCcy=c=>setT(p=>({...p,defaultCurrency:c}));
@@ -2699,7 +2429,8 @@ function Settings({onSaved,notify,rows=[],email,signOut,onNav}){
  const toggleNoGender=s=>setT(p=>({...p,noGender:(p.noGender||[]).includes(s)?p.noGender.filter(x=>x!==s):[...(p.noGender||[]),s]}));
  const renameSession=(old,raw)=>{const nw=(raw||"").trim();if(!nw||nw===old||sessions.includes(nw))return;
   setT(p=>{const mv=m=>{if(!m)return m;const n={...m};if(old in n){n[nw]=n[old];delete n[old];}return n;};
-   return {...p,sessions:p.sessions.map(s=>s===old?nw:s),catCode:mv(p.catCode),catColor:mv(p.catColor),kindByCat:mv(p.kindByCat),styleOpts:mv(p.styleOpts),setupStyle:mv(p.setupStyle),sizeByCat:mv(p.sizeByCat),propSubtypesByCat:mv(p.propSubtypesByCat),noGender:(p.noGender||[]).map(s=>s===old?nw:s)};});};
+   return {...p,sessions:p.sessions.map(s=>s===old?nw:s),catCode:mv(p.catCode),catColor:mv(p.catColor),kindByCat:mv(p.kindByCat),styleOpts:mv(p.styleOpts),setupStyle:mv(p.setupStyle),sizeByCat:mv(p.sizeByCat),propSubtypesByCat:mv(p.propSubtypesByCat),noGender:(p.noGender||[]).map(s=>s===old?nw:s)};});
+  setRenames(r=>[...r,{old,nw}]);};
  const removeSession=s=>{if(!window.confirm("Remove session “"+s+"”?\nExisting items keep their data — it just disappears from the menus."))return;
   setT(p=>{const del=m=>{if(!m)return m;const n={...m};delete n[s];return n;};
    return {...p,sessions:p.sessions.filter(x=>x!==s),catCode:del(p.catCode),catColor:del(p.catColor),kindByCat:del(p.kindByCat),styleOpts:del(p.styleOpts),setupStyle:del(p.setupStyle),sizeByCat:del(p.sizeByCat),propSubtypesByCat:del(p.propSubtypesByCat),noGender:(p.noGender||[]).filter(x=>x!==s)};});};
@@ -2708,10 +2439,44 @@ function Settings({onSaved,notify,rows=[],email,signOut,onNav}){
   setT(p=>({...p,sessions:[...p.sessions,nm],catCode:{...p.catCode,[nm]:code},catColor:{...p.catColor,[nm]:PALETTE[p.sessions.length%PALETTE.length]},kindByCat:{...p.kindByCat,[nm]:["outfit","prop","backdrop","accessory"]}}));
   setNewSess("");};
  const setKindSub=(k,arr)=>setT(p=>({...p,subtypeOpts:{...p.subtypeOpts,[k]:arr}}));
- const save=async()=>{setSaving(true);applyTax(t);const {error}=await saveTax();setSaving(false);
-  if(error){notify&&notify("Couldn't save settings: "+(error.message||error));}
-  else{onSaved&&onSaved();notify&&notify("Settings saved ✓");}};
- const reset=()=>setT(JSON.parse(JSON.stringify(currentTax())));
+ const save=async()=>{setSaving(true);
+  try{
+    // 3-way merge: overlay only what THIS screen changed (vs its mount snapshot)
+    // onto the server's current taxonomy — so options added inline from item
+    // cards (this tab or another) since the screen opened are not clobbered.
+    let base=null;
+    if(sb){try{const {data}=await sb.from("app_settings").select("value").eq("key","taxonomy").maybeSingle();base=(data&&data.value)||null;}catch(_e){}}
+    const merged=JSON.parse(JSON.stringify(base||currentTax()));
+    const KEYS=["sessions","catCode","catColor","kindByCat","styleOpts","setupStyle","subtypeOpts","propSubtypesByCat","sizeByCat","noGender","defaultCurrency","assetTypes"];
+    KEYS.forEach(k=>{
+      const nowV=t[k],was=t0[k];
+      if(JSON.stringify(nowV)===JSON.stringify(was))return;      // untouched here → keep server's
+      if(nowV&&typeof nowV==="object"&&!Array.isArray(nowV)){    // map: merge per sub-key
+        const m={...(merged[k]||{})};
+        const subs=new Set([...Object.keys(nowV),...Object.keys(was||{})]);
+        subs.forEach(s2=>{const a=JSON.stringify(nowV[s2]),b=JSON.stringify((was||{})[s2]);
+          if(a===b)return;
+          if(nowV[s2]===undefined)delete m[s2];else m[s2]=nowV[s2];});
+        merged[k]=m;
+      }else merged[k]=nowV;                                       // array / scalar: this screen wins
+    });
+    if(!sb){applyTax(merged);setT(JSON.parse(JSON.stringify(merged)));notify&&notify("Saved locally (offline)");return;}
+    const {error}=await sb.from("app_settings").upsert({key:"taxonomy",value:merged,updated_at:new Date().toISOString()});
+    if(error){notify&&notify("Couldn't save settings: "+(error.message||error));return;}
+    applyTax(merged);                                             // apply ONLY after the write succeeded
+    // migrate renamed sessions into the real data so items/boards don't orphan
+    for(const {old,nw} of renames){
+      const {error:e1}=await sb.from("inv_item").update({session_type:nw}).eq("session_type",old);
+      if(e1)notify&&notify("Saved, but couldn't move items from “"+old+"” to “"+nw+"”: "+(e1.message||""));
+      const {data:secs2}=await sb.from("showcase_section").select("id,board").like("board","%· "+old+" ·%");
+      for(const s2 of (secs2||[])){const nb=s2.board.split(" · ").map((seg,i)=>i===1&&seg===old?nw:seg).join(" · ");
+        if(nb!==s2.board)await sb.from("showcase_section").update({board:nb}).eq("id",s2.id);}
+    }
+    setRenames([]);
+    setT(JSON.parse(JSON.stringify(merged)));
+    onSaved&&onSaved();notify&&notify("Settings saved ✓");
+  }finally{setSaving(false);}};
+ const reset=()=>{setT(JSON.parse(JSON.stringify(currentTax())));setRenames([]);};
  const card={background:"var(--panel)",border:"1px solid var(--line)",borderRadius:9,padding:"16px 18px",marginBottom:14};
  const subKinds=Object.keys(t.subtypeOpts||{});
  const secTitle=(tt,ss)=><div style={{margin:"24px 0 10px"}}><div style={{fontSize:13.5,fontWeight:700,color:"var(--ink)"}}>{tt}</div>{ss&&<div style={{fontSize:12,color:"var(--muted)",marginTop:2}}>{ss}</div>}</div>;
@@ -2887,14 +2652,25 @@ function InvDashboard({rows,onOpen,go}){
  </div>;
 }
 function App(){
+ // public customer mode (#p=…) — decode defensively and skip every internal loader
+ const [pubScope]=useState(()=>{const m=/^#p=(.*)$/.exec(window.location.hash||"");if(!m)return null;try{return decodeURIComponent(m[1]);}catch(_e){return m[1];}});
+ const isPublic=pubScope!=null;
  const [themes,setThemes]=useState(()=>D.themes.map(t=>({...t})));
  const [source,setSource]=useState("local");
  const [invRows,setInvRows]=useState([]);
- const loadInv=()=>{if(sb)sbAll(()=>sb.from("inv_item").select("*,inv_item_location(location,quantity,times_selected,condition,acquired_on)").order("created_at",{ascending:false})).then(({data})=>setInvRows(data||[]));};
+ const loadInv=()=>{if(sb&&!isPublic)sbAll(()=>sb.from("inv_item").select("*,inv_item_location(location,quantity,times_selected,condition,acquired_on)").order("created_at",{ascending:false}).order("id")).then(({data})=>setInvRows(data||[]));};
  const [taxV,setTaxV]=useState(0);
- useEffect(()=>{loadInv()},[]);
- useEffect(()=>{loadTax().then(()=>setTaxV(v=>v+1))},[]);
+ useEffect(()=>{if(!isPublic)loadInv()},[]);
+ useEffect(()=>{if(!isPublic)loadTax().then(()=>setTaxV(v=>v+1))},[]);
  useEffect(()=>{_taxBump=()=>setTaxV(v=>v+1);return()=>{_taxBump=()=>{};}},[]);
+ // deep links arriving while the app is ALREADY open (QR scan into a running tab,
+ // pasted #show=/#p= link): route them. #scan= is handled inside NewInventory, we
+ // just make sure the catalog is showing; #p= flips to the public page via reload.
+ useEffect(()=>{const h=()=>{const hh=window.location.hash||"";
+   if(/^#p=/.test(hh)){window.location.reload();return;}
+   if(/^#scan=/.test(hh))setView("catalog");
+   else if(/^#show=/.test(hh))setView("showcase");
+ };window.addEventListener("hashchange",h);return()=>window.removeEventListener("hashchange",h);},[]);
  // SINGLE SOURCE: map inv_item rows into the shape the catalogue views expect
  const allThemes=useMemo(()=>invRows.filter(r=>!r.archived).map(r=>({id:r.id,name:r.name,category:r.session_type,gender:r.gender||"",branches:(r.inv_item_location||[]).map(l=>l.location),display:!!r.website_display,selection_count:r.times_selected||0,image:r.photo_url||"",notes:r.notes||"",__inv:true,_row:r})),[invRows]);
  const [toast,setToast]=useState("");
@@ -2907,10 +2683,10 @@ function App(){
    if(/^#scan=/.test(h)) return "catalog";   // a phone-scanned QR lands on the item editor inside catalog
    return "dashboard";
  });
- const [catInit,setCatInit]=useState("");
+ const [catInit,setCatInit]=useState(""); const [locInit,setLocInit]=useState("");
  const [sel,setSel]=useState(null); const [form,setForm]=useState(null); // form = {} for new, theme for edit
- const [q,setQ]=useState(""),[cat,setCat]=useState(""),[br,setBr2]=useState(""),[gen,setGen]=useState(""),[disp,setDisp]=useState(""),[onlyPhoto,setOnlyPhoto]=useState(false),[sort,setSort]=useState("pop"),[mode,setMode]=useState("grid");
  useEffect(()=>{(async()=>{
+   if(isPublic)return;
    if(!sb){const c=localStorage.getItem("ybs_themes_v2");if(c)setThemes(JSON.parse(c));return;}
    try{const {data,error}=await sb.from("themes").select("*");
      if(!error&&data&&data.length){setThemes(data);setSource("cloud");}
@@ -2930,23 +2706,20 @@ function App(){
    if(source==="cloud"&&sb){const {error}=await sb.from("themes").upsert(row);if(error){setThemes(()=>{persist(prev);return prev});notify("Couldn't save theme: "+error.message);}}
  };
  const delTheme=async t=>{const prev=themes;setThemes(ts=>{const n=ts.filter(x=>x.id!==t.id);persist(n);return n});setSel(null);if(source==="cloud"&&sb){const {error}=await sb.from("themes").delete().eq("id",t.id);if(error){setThemes(()=>{persist(prev);return prev});notify("Couldn't delete: "+error.message);}}};
- const openCat=c=>{setCatInit(c);setView("catalog")}; const openBr=b=>{setBr2(b);setView("catalog")};
- const navTo=id=>{if(id==="catalog")setCatInit("");setView(id)};
+ const openCat=c=>{setCatInit(c);setLocInit("");setView("catalog")}; const openBr=b=>{setLocInit(b);setCatInit("");setView("catalog")};
+ const navTo=id=>{if(id==="catalog"){setCatInit("");setLocInit("");}setView(id)};
  const go=x=>{if(x&&x.__cat)openCat(x.__cat);else if(typeof x==="string")openCat(x);else setSel(x)};
  const selLive=sel?allThemes.find(t=>t.id===sel.id)||sel:null;
- const catState={q,setQ,cat,setCat,br,setBr:setBr2,gen,setGen,disp,setDisp,onlyPhoto,setOnlyPhoto,sort,setSort,mode,setMode};
  const signOut=()=>sb&&sb.auth.signOut();
- const pubM=/^#p=(.*)$/.exec(window.location.hash||"");
- if(pubM) return <PublicShowcase scope={decodeURIComponent(pubM[1])}/>;
+ if(isPublic) return <PublicShowcase scope={pubScope}/>;
  if(sb&&session===undefined) return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
  if(sb&&!session) return <LoginScreen/>;
  return <div style={{display:"flex",height:"100vh",overflow:"hidden"}}>
    <Sidebar view={view} setView={navTo} themes={allThemes} setBr={openBr} source={source} signOut={signOut} email={session&&session.user&&session.user.email}/>
    <main className="app-main" style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:"var(--bg)"}}>
      {view==="dashboard"&&<InvDashboard rows={invRows} go={openCat} onOpen={r=>setSel(allThemes.find(t=>t.id===r.id)||{id:r.id,__inv:true,_row:r})}/>}
-     {view==="catalog"&&<NewInventory initCat={catInit}/>}
+     {view==="catalog"&&<NewInventory initCat={catInit} initLoc={locInit} onGlobalRefresh={loadInv}/>}
      {view==="showcase"&&<Showcase themes={allThemes} onOpen={setSel} onItemsChanged={loadInv}/>}
-     {view==="categories"&&<Categories themes={allThemes} go={openCat}/>}
      {view==="settings"&&<Settings key={taxV} onSaved={()=>setTaxV(v=>v+1)} notify={notify} rows={invRows} email={session&&session.user&&session.user.email} signOut={signOut} onNav={navTo}/>}
    </main>
    <nav className="app-mobnav" style={{position:"fixed",bottom:0,left:0,right:0,zIndex:90,background:"rgba(255,255,255,.92)",backdropFilter:"blur(12px)",borderTop:"1px solid var(--line)",height:"64px",alignItems:"center",justifyContent:"space-around",padding:"0 6px"}}>
