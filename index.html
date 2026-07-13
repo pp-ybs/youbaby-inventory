@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260630-pubcards2";
+  var BUILD="20260630-locdemand";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -716,17 +716,28 @@ function PublicShowcase({scope}){
  const {secs,links,items}=data;
  const boards=[...new Set(secs.filter(s=>scope?(s.board===scope||s.board.startsWith(scope+" · ")):true).map(s=>s.board))].sort();
  const parse=b=>{const seg=(b||"").split(" · ");return {loc:seg[0],session:seg[1],kind:seg.find(x=>["Themes & setups","Outfits"].includes(x)),gender:seg.find(x=>["Girls","Boys","Twins"].includes(x))};};
+ // PER-STUDIO demand: loc_selected is a {"Dubai":5,...} map of how many bookings
+ // picked the item AT THAT STUDIO (synced live from the OS). Every section — dynamic
+ // AND manual — orders its items by the board's own studio demand, so the same item
+ // can rank #1 in Dubai and #9 in Doha.
+ const selAt=(x,loc)=>Number((x&&x.loc_selected&&x.loc_selected[loc])||0);
  // Dynamic sections cap at the TOP 15 and are genuinely ordered:
- // "Most demanded" = times_selected desc (newest breaks ties);
+ // "Most demanded" = this studio's selection count desc (newest breaks ties);
  // "New arrivals"  = created date desc, with items hand-tagged "New" boosted first.
  const dyn=(s,board)=>{const p=parse(board);const gv=GENDER_VAL[p.gender];
    let pool=items.filter(i=>(i.branches||[]).includes(p.loc)&&i.session_type===p.session&&(!gv||genHit(i.gender,gv))&&(p.kind==="Outfits"?i.kind==="outfit":p.kind==="Themes & setups"?i.type==="theme":true));
    const isNew=i=>Array.isArray(i.static_tags)&&i.static_tags.includes("New");
    const dOf=i=>String(i.created_at||"");
-   if(s.rule==="popular")pool=[...pool].sort((a,b)=>((b.times_selected||0)-(a.times_selected||0))||dOf(b).localeCompare(dOf(a)));
+   if(s.rule==="popular")pool=[...pool].sort((a,b)=>(selAt(b,p.loc)-selAt(a,p.loc))||dOf(b).localeCompare(dOf(a)));
    else pool=[...pool].sort((a,b)=>((isNew(b)?1:0)-(isNew(a)?1:0))||dOf(b).localeCompare(dOf(a)));
    return pool.slice(0,15).map(i=>({img:i.photo_url,extras:Array.isArray(i.extra_photos)?i.extra_photos:[],name:i.name,size:i.size,excl:Array.isArray(i.static_tags)&&i.static_tags.includes("Exclusive")}));};
- const secItems=s=>s.dyn?dyn(s,s.board):links.filter(l=>l.section_id===s.id).map(l=>({img:l.photo_url,extras:Array.isArray(l.extra_photos)?l.extra_photos:[],name:l.name,size:l.size,excl:Array.isArray(l.static_tags)&&l.static_tags.includes("Exclusive")}));
+ const secItems=s=>{
+   if(s.dyn) return dyn(s,s.board);
+   const loc=parse(s.board).loc;
+   return links.filter(l=>l.section_id===s.id)
+     .slice().sort((a,b)=>selAt(b,loc)-selAt(a,loc))   // stable: ties keep curated order
+     .map(l=>({img:l.photo_url,extras:Array.isArray(l.extra_photos)?l.extra_photos:[],name:l.name,size:l.size,excl:Array.isArray(l.static_tags)&&l.static_tags.includes("Exclusive")}));
+ };
  const titleOf=b=>{const p=parse(b);return [p.session,p.gender].filter(Boolean).join(" · ")||p.loc||"Our work";};
  // Resolve the studio/branch this preview link is for (taken from the top-level scope OR the only board's loc).
  const scopeLoc=scope?parse(scope).loc:null;
@@ -920,17 +931,29 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const pickItems=themes.filter(t=>{const q=pq.trim().toLowerCase();const kindOk=!scKind||(scKind==="Outfits"?(t._row&&t._row.kind==="outfit"):(t._row&&t._row.type==="theme"));return kindOk&&(!q||((t.name||"")+" "+(t._row&&t._row.code||"")).toLowerCase().includes(q));});
  const thumb=(url,d,sz)=>url?<img src={url} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--panel2)"}}><Icon d={I.image} s={sz||20} c="#c4c7d2"/></div>;
  // resolve the items a section shows — manual links, or auto-filled when dynamic
- // Same rules the customer page uses: top 15, "Most demanded" by real selection
- // counts (newest breaks ties), "New arrivals" by first-stocked/created date desc
- // with hand-tagged "New" items boosted first.
+ // PER-STUDIO demand map: item id → {location → times_selected}. Every section
+ // (dynamic AND manual) orders by the BOARD'S OWN STUDIO count — the same item
+ // ranks differently in Dubai vs Doha, exactly matching what bookings at that
+ // studio actually picked (inv_item_location.times_selected, live-synced).
+ const selMap=useMemo(()=>{const m={};themes.forEach(t=>{const per={};(((t._row||{}).inv_item_location)||[]).forEach(l=>{if(l&&l.location)per[l.location]=Number(l.times_selected)||0;});m[t.id]=per;});return m;},[themes]);
+ const selAtM=(itemId,loc)=>Number((selMap[itemId]||{})[loc]||0);
+ // Same rules the customer page uses: top 15, "Most demanded" by THIS STUDIO'S
+ // selection counts (newest breaks ties), "New arrivals" by first-stocked/created
+ // date desc with hand-tagged "New" items boosted first.
  const dynFill=(s,board)=>{const seg=board.split(" · ");const bl=seg[0],bs=seg[1];const bGender=seg.find(x=>["Girls","Boys","Twins"].includes(x));const bKind=seg.find(x=>["Themes & setups","Outfits"].includes(x));const gv=GENDER_VAL[bGender];
    let pool=themes.filter(t=>(t.branches||[]).includes(bl)&&t.category===bs&&(!gv||genHit(t.gender,gv))&&(bKind==="Outfits"?(t._row&&t._row.kind==="outfit"):bKind==="Themes & setups"?(t._row&&t._row.type==="theme"):true));
    const isNew=t=>t._row&&Array.isArray(t._row.static_tags)&&t._row.static_tags.includes("New");
    const dOf=t=>{const r=t._row||{};const ds=(r.inv_item_location||[]).map(l=>l&&l.acquired_on).filter(Boolean).sort();return String(ds[0]||r.created_at||"");};
-   if(s.rule==="popular")pool=[...pool].sort((a,b)=>((b.selection_count||0)-(a.selection_count||0))||dOf(b).localeCompare(dOf(a)));
+   if(s.rule==="popular")pool=[...pool].sort((a,b)=>(selAtM(b.id,bl)-selAtM(a.id,bl))||dOf(b).localeCompare(dOf(a)));
    else pool=[...pool].sort((a,b)=>((isNew(b)?1:0)-(isNew(a)?1:0))||dOf(b).localeCompare(dOf(a)));
-   return pool.slice(0,15).map(t=>({key:t.id,id:t.id,img:t.image||(t._row&&t._row.photo_url),name:t.name,size:t._row&&t._row.size,excl:t._row&&Array.isArray(t._row.static_tags)&&t._row.static_tags.includes("Exclusive")}));};
- const secItems=(s)=>s.dyn?dynFill(s,s.board):itemsOf(s.id).map(l=>({key:l.id,id:l.item_id,linkId:l.id,img:l.inv_item&&l.inv_item.photo_url,name:l.inv_item&&l.inv_item.name,size:l.inv_item&&l.inv_item.size,excl:l.inv_item&&Array.isArray(l.inv_item.static_tags)&&l.inv_item.static_tags.includes("Exclusive")}));
+   return pool.slice(0,15).map(t=>({key:t.id,id:t.id,img:t.image||(t._row&&t._row.photo_url),name:t.name,size:t._row&&t._row.size,sel:selAtM(t.id,bl),excl:t._row&&Array.isArray(t._row.static_tags)&&t._row.static_tags.includes("Exclusive")}));};
+ const secItems=(s)=>{
+   if(s.dyn) return dynFill(s,s.board);
+   const loc=(s.board||"").split(" · ")[0];
+   return itemsOf(s.id)
+     .slice().sort((a,b)=>selAtM(b.item_id,loc)-selAtM(a.item_id,loc))   // stable: ties keep curated order
+     .map(l=>({key:l.id,id:l.item_id,linkId:l.id,img:l.inv_item&&l.inv_item.photo_url,name:l.inv_item&&l.inv_item.name,size:l.inv_item&&l.inv_item.size,sel:selAtM(l.item_id,loc),excl:l.inv_item&&Array.isArray(l.inv_item.static_tags)&&l.inv_item.static_tags.includes("Exclusive")}));
+ };
  const publicUrl=()=>window.location.origin+window.location.pathname+"#p="+encodeURIComponent(scope);
  const shareLink=()=>{if(navigator.clipboard)navigator.clipboard.writeText(publicUrl());setCopied(true);setTimeout(()=>setCopied(false),2200);};
  const openExternal=()=>window.open(publicUrl(),"_blank");
@@ -975,9 +998,9 @@ function Showcase({themes,onOpen,onItemsChanged}){
        <input value={s.note||""} onChange={e=>upd(s.id,{note:e.target.value})} placeholder="Optional note (e.g. +DRESS 600 AED · studio only)" style={{fontSize:12,color:"var(--muted)",border:"none",background:"transparent",width:"100%",padding:"0 0 10px"}}/>
        {s.dyn?
          <div><div style={{fontSize:11.5,color:"var(--muted)",marginBottom:8}}>Auto-filled · top 15 {s.rule==="popular"?"most-selected (by real booking picks)":"newest arrivals (tagged “New” first)"} for this page. Updates itself.</div>
-           <div style={{display:"flex",gap:9,flexWrap:"wrap"}}>{its.length?its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>):<span style={{fontSize:12,color:"var(--muted)"}}>No matching items yet.</span>}</div></div>
+           <div style={{display:"flex",gap:9,flexWrap:"wrap"}}>{its.length?its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>🔥 {it.sel}</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>):<span style={{fontSize:12,color:"var(--muted)"}}>No matching items yet.</span>}</div></div>
          :<div style={{display:"flex",gap:9,flexWrap:"wrap",alignItems:"center"}}>
-         {its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}<button onClick={e=>{e.stopPropagation();rmItem(it.linkId);}} title="Remove from this section" style={{position:"absolute",top:3,right:3,width:22,height:22,borderRadius:"50%",background:"rgba(0,0,0,.65)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.x} s={11} c="#fff"/></button><div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>)}
+         {its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}<button onClick={e=>{e.stopPropagation();rmItem(it.linkId);}} title="Remove from this section" style={{position:"absolute",top:3,right:3,width:22,height:22,borderRadius:"50%",background:"rgba(0,0,0,.65)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.x} s={11} c="#fff"/></button>{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>🔥 {it.sel}</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>)}
          <button onClick={()=>{setPq("");setPicker(s.id);}} style={{width:100,height:130,borderRadius:8,border:"1.5px dashed var(--line2)",color:"var(--soft)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,fontSize:11,fontWeight:600}}><Icon d={I.plus} s={18} c="var(--soft)"/>Add</button>
        </div>}
      </div>;})}
