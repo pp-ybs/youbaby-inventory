@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260713-nofire";
+  var BUILD="20260713-lookbook";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -701,6 +701,27 @@ function PubTile({it,onClick}){
    {it.name?<div className="pubname">{it.name}</div>:<div className="pubname"/>}
  </div>;
 }
+// Editorial "lookbook" tile for hero sessions (Cake Smash / Infant): the theme
+// artwork is shown BIG, uncropped at its natural shape, one per row, with a
+// centered title underneath — the Canva-page feel, straight from live inventory.
+function LookTile({it,onClick}){
+ return <div style={{margin:"0 auto 36px",maxWidth:880,padding:"0 16px"}}>
+   <button onClick={onClick} style={{width:"100%",padding:0,border:"none",background:"none",cursor:"pointer",textAlign:"left",display:"block"}}>
+     <div style={{position:"relative",borderRadius:18,overflow:"hidden",background:"#efece7",boxShadow:"0 10px 34px rgba(0,0,0,.10)"}}>
+       {it.badge&&<span style={{position:"absolute",top:12,left:12,zIndex:1,display:"inline-flex",alignItems:"center",gap:3,fontSize:11,fontWeight:800,letterSpacing:".02em",borderRadius:20,padding:"4px 11px",pointerEvents:"none",boxShadow:"0 1px 4px rgba(0,0,0,.18)",
+         ...(it.badge==="top"?{background:"rgba(255,255,255,.96)",color:"#b4356b"}
+           :it.badge==="excl"?{background:"rgba(20,20,28,.86)",color:"#e8c568"}
+           :{background:"rgba(255,255,255,.96)",color:"#2563c9"})}}>
+         {it.badge==="top"?"Most loved":it.badge==="excl"?"Exclusive":"New"}</span>}
+       {it.img?<img src={it.img} loading="lazy" style={{width:"100%",height:"auto",display:"block"}}/>:<div style={{aspectRatio:"16/10",display:"flex",alignItems:"center",justifyContent:"center",color:"#c4c4c4",fontSize:13}}>No image</div>}
+     </div>
+     <div style={{textAlign:"center",marginTop:13}}>
+       <span style={{fontSize:20,fontWeight:800,letterSpacing:"-.01em",color:"#1a1a1a"}}>{it.name}</span>
+       {it.size?<span style={{marginLeft:8,fontSize:12,color:"#9a9a9a",fontWeight:600}}>{it.size}</span>:null}
+     </div>
+   </button>
+ </div>;
+}
 function PublicShowcase({scope}){
  const [data,setData]=useState(null),[box,setBox]=useState(null);
  const load=React.useCallback(async()=>{
@@ -797,20 +818,60 @@ function PublicShowcase({scope}){
      }
      return null;
    })()}
-   {boards.map(b=>{const blocks=secs.filter(x=>x.board===b).sort((a,c)=>(a.sort||0)-(c.sort||0)).map(s=>({s,its:secItems(s)})).filter(x=>x.its.length);return blocks.length?<div key={b}>
-     {boards.length>1&&<h2 style={{textAlign:"center",fontSize:21,fontWeight:800,margin:"28px 0 14px",letterSpacing:"-.01em"}}>{titleOf(b)}</h2>}
-     {blocks.map(({s,its})=><div key={s.id} style={{marginBottom:28}}>
-       <div style={{padding:"0 14px",display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,marginBottom:s.note?2:10}}>
-         <div style={{fontSize:17,fontWeight:700}}>{s.title}</div>
-         {its.length>2&&<div style={{fontSize:11,color:"#a0a0a0",fontWeight:500}}>{its.length} items · swipe ›</div>}
-       </div>
-       {s.note&&<div style={{padding:"0 14px",fontSize:12.5,color:"#8a8a8a",marginBottom:10}}>{s.note}</div>}
-       {/* Horizontal-scroll strip per section — Instagram-style; snaps to each card on mobile */}
-       <div style={{display:"flex",gap:10,alignItems:"flex-start",overflowX:"auto",scrollSnapType:"x mandatory",WebkitOverflowScrolling:"touch",padding:"4px 14px 12px",scrollbarWidth:"thin"}}>
-         {its.map((it,idx)=><div key={idx} className="pubcell"><PubTile it={it} onClick={()=>setBox({list:its,index:idx})}/></div>)}
-       </div>
-     </div>)}
-   </div>:null;})}
+   {(() => {
+     // HERO "lookbook" mode for Cake Smash & Infant (any studio): themes render
+     // BIG and editorial (one artwork per row, uncropped), and the matching
+     // Outfits boards for the same studio/gender are pulled onto the SAME page
+     // as one simple swipe strip at the bottom.
+     const LOOKBOOK_SESSIONS=["Cake Smash","Infant"];
+     const sc0=parse(scope||"");
+     const isLB=!!(scope&&sc0.session&&LOOKBOOK_SESSIONS.includes(sc0.session)&&sc0.kind!=="Outfits");
+     if(!isLB) return boards.map(b=>{const blocks=secs.filter(x=>x.board===b).sort((a,c)=>(a.sort||0)-(c.sort||0)).map(s=>({s,its:secItems(s)})).filter(x=>x.its.length);return blocks.length?<div key={b}>
+       {boards.length>1&&<h2 style={{textAlign:"center",fontSize:21,fontWeight:800,margin:"28px 0 14px",letterSpacing:"-.01em"}}>{titleOf(b)}</h2>}
+       {blocks.map(({s,its})=><div key={s.id} style={{marginBottom:28}}>
+         <div style={{padding:"0 14px",display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,marginBottom:s.note?2:10}}>
+           <div style={{fontSize:17,fontWeight:700}}>{s.title}</div>
+           {its.length>2&&<div style={{fontSize:11,color:"#a0a0a0",fontWeight:500}}>{its.length} items · swipe ›</div>}
+         </div>
+         {s.note&&<div style={{padding:"0 14px",fontSize:12.5,color:"#8a8a8a",marginBottom:10}}>{s.note}</div>}
+         {/* Horizontal-scroll strip per section — Instagram-style; snaps to each card on mobile */}
+         <div style={{display:"flex",gap:10,alignItems:"flex-start",overflowX:"auto",scrollSnapType:"x mandatory",WebkitOverflowScrolling:"touch",padding:"4px 14px 12px",scrollbarWidth:"thin"}}>
+           {its.map((it,idx)=><div key={idx} className="pubcell"><PubTile it={it} onClick={()=>setBox({list:its,index:idx})}/></div>)}
+         </div>
+       </div>)}
+     </div>:null;});
+     // ── Lookbook render ──
+     const themeBoards=boards.filter(b=>parse(b).kind!=="Outfits");
+     // Sibling outfit boards for the same studio/session (+gender when scoped).
+     const outPrefix=[sc0.loc,sc0.session,"Outfits"].filter(Boolean).join(" · ");
+     let outBoards=[...new Set(secs.map(s=>s.board))].filter(b=>b===outPrefix||b.startsWith(outPrefix+" · "));
+     if(sc0.gender) outBoards=outBoards.filter(b=>{const g=parse(b).gender;return !g||g===sc0.gender;});
+     const seenOut={}; const outfitItems=[];
+     outBoards.forEach(b=>secs.filter(x=>x.board===b).sort((a,c)=>(a.sort||0)-(c.sort||0)).forEach(s=>secItems(s).forEach(it=>{const k=(it.name||"")+"|"+(it.img||"");if(!seenOut[k]){seenOut[k]=1;outfitItems.push(it);}})));
+     return <div>
+       {themeBoards.map(b=>{const blocks=secs.filter(x=>x.board===b).sort((a,c)=>(a.sort||0)-(c.sort||0)).map(s=>({s,its:secItems(s)})).filter(x=>x.its.length);return blocks.length?<div key={b}>
+         {themeBoards.length>1&&<h2 style={{textAlign:"center",fontSize:21,fontWeight:800,margin:"28px 0 14px",letterSpacing:"-.01em"}}>{titleOf(b)}</h2>}
+         {blocks.map(({s,its})=><div key={s.id} style={{marginBottom:14}}>
+           <div style={{textAlign:"center",margin:"26px 0 20px"}}>
+             <div style={{fontSize:12,letterSpacing:".22em",textTransform:"uppercase",color:"#b5b0a8",fontWeight:700}}>{s.title}</div>
+             {s.note&&<div style={{fontSize:12.5,color:"#8a8a8a",marginTop:5}}>{s.note}</div>}
+             <div style={{width:44,height:2,background:"#e3ded6",margin:"12px auto 0",borderRadius:2}}/>
+           </div>
+           {its.map((it,idx)=><LookTile key={idx} it={it} onClick={()=>setBox({list:its,index:idx})}/>)}
+         </div>)}
+       </div>:null;})}
+       {outfitItems.length?<div style={{marginTop:30}}>
+         <div style={{textAlign:"center",margin:"10px 0 16px"}}>
+           <div style={{fontSize:12,letterSpacing:".22em",textTransform:"uppercase",color:"#b5b0a8",fontWeight:700}}>Outfits</div>
+           <div style={{fontSize:12.5,color:"#8a8a8a",marginTop:5}}>{outfitItems.length} option{outfitItems.length===1?"":"s"} · swipe ›</div>
+           <div style={{width:44,height:2,background:"#e3ded6",margin:"12px auto 0",borderRadius:2}}/>
+         </div>
+         <div style={{display:"flex",gap:10,alignItems:"flex-start",overflowX:"auto",scrollSnapType:"x mandatory",WebkitOverflowScrolling:"touch",padding:"4px 16px 14px",scrollbarWidth:"thin"}}>
+           {outfitItems.map((it,idx)=><div key={idx} style={{flex:"0 0 148px",scrollSnapAlign:"start"}}><PubTile it={it} onClick={()=>setBox({list:outfitItems,index:idx})}/></div>)}
+         </div>
+       </div>:null}
+     </div>;
+   })()}
    </div>
    <div style={{textAlign:"center",padding:"20px 0 44px",color:"#bcbcbc",fontSize:11.5}}>You Baby Studio · Dubai · Abu Dhabi · Doha · Al Quoz</div>
    {box&&<PublicLightbox items={box.list} index={box.index} onClose={()=>setBox(null)}/>}
