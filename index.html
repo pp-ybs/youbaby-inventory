@@ -106,6 +106,20 @@ const D = window.YBS_DATA || {themes:[],categories:[],branches:[]};
 const SB_URL="https://ahysgpjnhldhdeinymrd.supabase.co";
 const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFoeXNncGpuaGxkaGRlaW55bXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTk3MTYsImV4cCI6MjA5MTM5NTcxNn0.qq4BA212jK39iiQP8X4dADDb7Wm9Id2ygEvRdKqlvxg";
 const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null;
+// Supabase caps every request at 1000 rows — with 1200+ items a single select
+// silently drops the tail (items exist in DB but are invisible in the app).
+// sbAll() pages any query via .range() and concats, so loads always get everything.
+async function sbAll(builderFn,size=1000){
+ const out=[]; let off=0;
+ for(;;){
+   const {data,error}=await builderFn().range(off,off+size-1);
+   if(error) return {data:out,error};
+   out.push(...(data||[]));
+   if(!data||data.length<size) return {data:out,error:null};
+   off+=size;
+   if(off>200000) return {data:out,error:null};
+ }
+}
 // who's logged in (for comment authorship) + a cached staff-name list for assignment
 let ME="";
 let STAFF_CACHE=null;
@@ -1704,7 +1718,7 @@ function AddInvItem({onClose,onSaved,init={}}){
  const OPSTATUS=["Available","In use","In repair","Retired","For sale"];
  const [locs,setLocs]=useState(()=>{const m={};(init.locs||[]).forEach(b=>{if(BR.includes(b))m[b]={on:true,qty:1,times:0};});return m;});
  const [linkIds,setLinkIds]=useState([]),[cand,setCand]=useState([]);
- useEffect(()=>{if(sb)sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").order("name").then(({data})=>setCand(data||[]))},[]);
+ useEffect(()=>{if(sb)sbAll(()=>sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").order("name")).then(({data})=>setCand(data||[]))},[]);
  const [busy,setBusy]=useState(false),[err,setErr]=useState(""),[saved,setSaved]=useState(null);
  const [kAdd,setKAdd]=useState(false),[kTxt,setKTxt]=useState("");
  const [moreOpen,setMoreOpen]=useState(false);
@@ -2014,7 +2028,7 @@ function InvEdit({item,onClose,onSaved}){
    });setLocs(m);
    if(item.type==="theme"){const {data:tl}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",item.id);setLinks((tl||[]).map(x=>x.component_item_id));}
    else{const {data:tl}=await sb.from("inv_theme_item").select("theme_id").eq("component_item_id",item.id);setLinks((tl||[]).map(x=>x.theme_id));}
-   const {data:av}=await sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").neq("id",item.id).order("name");setAll(av||[]);
+   const {data:av}=await sbAll(()=>sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").neq("id",item.id).order("name"));setAll(av||[]);
  })()},[]);
  useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
  const kindsE=KIND_BY_CAT[f.session_type]||ITEM_KINDS;
@@ -2423,10 +2437,10 @@ function NewInventory({initCat=""}){
  const drillGender=groupF==="shoot"&&(loc||browseAll)&&!!catSel&&bucketGendered&&!genF;
  const atItems=!!groupF&&(loc||browseAll)&&!!catSel&&(isElecView||(!!bucketF&&(!bucketGendered||!!genF)));
  const pickGroup=g=>{setGroupF(g);setLoc("");setBrowseAll(false);setCatF("");setGenF("");setKindF("");setSubF("");setSizeF("");setTypeF("");setBucketF("");setNewF(false);setBalloonF("");setUnusedF(false);setEcatF("");setEtypeF("");setEstatF("");};
- const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sb.from("inv_item").select("*,inv_item_location(location,quantity,status,times_selected,condition,acquired_on)").order("created_at",{ascending:false});if(error)setErr(error.message);setRows(data||[]);};
+ const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sbAll(()=>sb.from("inv_item").select("*,inv_item_location(location,quantity,status,times_selected,condition,acquired_on)").order("created_at",{ascending:false}));if(error)setErr(error.message);setRows(data||[]);};
  const [pubF,setPubF]=useState("");
  const [pubSet,setPubSet]=useState(()=>new Set());
- const loadPub=async()=>{if(!sb)return;const {data}=await sb.from("showcase_section_item").select("item_id").limit(50000);setPubSet(new Set((data||[]).map(x=>x.item_id)));};
+ const loadPub=async()=>{if(!sb)return;const {data}=await sbAll(()=>sb.from("showcase_section_item").select("item_id").order("id"));setPubSet(new Set((data||[]).map(x=>x.item_id)));};
  useEffect(()=>{loadPub()},[]);
  const isPub=r=>pubSet.has(r.id);
  const removeItem=async(r,e)=>{if(e)e.stopPropagation();if(!window.confirm("Remove “"+(r.name||r.code)+"”? This can't be undone."))return;if(sb){await sb.from("inv_item_location").delete().eq("item_id",r.id);await sb.from("inv_theme_item").delete().eq("theme_id",r.id);await sb.from("inv_theme_item").delete().eq("component_item_id",r.id);await sb.from("inv_item").delete().eq("id",r.id);}load();};
@@ -2876,7 +2890,7 @@ function App(){
  const [themes,setThemes]=useState(()=>D.themes.map(t=>({...t})));
  const [source,setSource]=useState("local");
  const [invRows,setInvRows]=useState([]);
- const loadInv=()=>{if(sb)sb.from("inv_item").select("*,inv_item_location(location,quantity,times_selected,condition,acquired_on)").then(({data})=>setInvRows(data||[]));};
+ const loadInv=()=>{if(sb)sbAll(()=>sb.from("inv_item").select("*,inv_item_location(location,quantity,times_selected,condition,acquired_on)").order("created_at",{ascending:false})).then(({data})=>setInvRows(data||[]));};
  const [taxV,setTaxV]=useState(0);
  useEffect(()=>{loadInv()},[]);
  useEffect(()=>{loadTax().then(()=>setTaxV(v=>v+1))},[]);
