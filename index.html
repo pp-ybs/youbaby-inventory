@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260713-lookbook2";
+  var BUILD="20260713-lookbook3";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -620,6 +620,9 @@ function ShowRow({title,sub,items,onOpen}){
 }
 // after gender/twins (or directly for no-gender sessions) the page splits into Themes vs Outfits
 const SHOWCASE_KINDS={Maternity:["Outfits"],"Gender Reveal":["Themes & setups"]};
+// Sessions whose customer page is the editorial LOOKBOOK: themes big + the
+// sibling Outfits boards folded into the SAME page as a strip at the bottom.
+const LOOKBOOK_SESSIONS=["Cake Smash","Infant","Sitter","Children"];
 const showKindsFor=s=>SHOWCASE_KINDS[s]||["Themes & setups","Outfits"];
 const SHOW_KIND_ICON={["Themes & setups"]:"layers",Outfits:"shirt"};
 const GENDER_VAL={Girls:"Girl",Boys:"Boy",Twins:"Twins"};
@@ -834,7 +837,7 @@ function PublicShowcase({scope}){
  // Lookbook sessions get a distinct editorial identity: warm ivory backdrop +
  // serif display type — visibly different from the standard (Newborn etc.) pages.
  const scPage=parse(scope||"");
- const isLBpage=!!(scope&&scPage.session&&["Cake Smash","Infant"].includes(scPage.session)&&scPage.kind!=="Outfits");
+ const isLBpage=!!(scope&&scPage.session&&LOOKBOOK_SESSIONS.includes(scPage.session)&&scPage.kind!=="Outfits");
  const serif='Georgia, "Times New Roman", serif';
  return <div style={{minHeight:"100vh",background:isLBpage?"#f7f2ea":"#fafafa",fontFamily:font,color:"#1a1a1a"}}>
    <div style={{textAlign:"center",padding:isLBpage?"44px 18px 12px":"34px 18px 12px"}}>
@@ -862,7 +865,6 @@ function PublicShowcase({scope}){
      // BIG and editorial (one artwork per row, uncropped), and the matching
      // Outfits boards for the same studio/gender are pulled onto the SAME page
      // as one simple swipe strip at the bottom.
-     const LOOKBOOK_SESSIONS=["Cake Smash","Infant"];
      const sc0=parse(scope||"");
      const isLB=!!(scope&&sc0.session&&LOOKBOOK_SESSIONS.includes(sc0.session)&&sc0.kind!=="Outfits");
      if(!isLB) return boards.map(b=>{const blocks=secs.filter(x=>x.board===b).sort((a,c)=>(a.sort||0)-(c.sort||0)).map(s=>({s,its:secItems(s)})).filter(x=>x.its.length);return blocks.length?<div key={b}>
@@ -1237,7 +1239,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
        // Cake Smash / Infant lookbook pages: the customer page shows themes BIG
        // with an Outfits strip at the bottom — so the OUTFITS for this same page
        // are managed right here too, no separate drill needed.
-       if(!(scSession&&["Cake Smash","Infant"].includes(scSession)&&scKind==="Themes & setups")) return null;
+       if(!(scSession&&LOOKBOOK_SESSIONS.includes(scSession)&&scKind==="Themes & setups")) return null;
        const oBoard=activeBoard.replace(" · Themes & setups"," · Outfits");
        const oSecs=boardSecs(oBoard);
        return <div style={{marginTop:8}}>
