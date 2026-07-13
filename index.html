@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260713-imgopt";
+  var BUILD="20260713-lookbook2";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -750,7 +750,7 @@ function LookTile({it,onClick}){
        {it.img?<img src={it.img} loading="lazy" style={{width:"100%",height:"auto",display:"block"}}/>:<div style={{aspectRatio:"16/10",display:"flex",alignItems:"center",justifyContent:"center",color:"#c4c4c4",fontSize:13}}>No image</div>}
      </div>
      <div style={{textAlign:"center",marginTop:13}}>
-       <span style={{fontSize:20,fontWeight:800,letterSpacing:"-.01em",color:"#1a1a1a"}}>{it.name}</span>
+       <span style={{fontSize:22,fontWeight:600,letterSpacing:"0",color:"#1a1a1a",fontFamily:'Georgia, "Times New Roman", serif'}}>{it.name}</span>
        {it.size?<span style={{marginLeft:8,fontSize:12,color:"#9a9a9a",fontWeight:600}}>{it.size}</span>:null}
      </div>
    </button>
@@ -831,10 +831,15 @@ function PublicShowcase({scope}){
  const scopeLoc=scope?parse(scope).loc:null;
  const allLocs=[...new Set(boards.map(b=>parse(b).loc).filter(Boolean))];
  const branchLabel=scopeLoc||(allLocs.length===1?allLocs[0]:null);
- return <div style={{minHeight:"100vh",background:"#fafafa",fontFamily:font,color:"#1a1a1a"}}>
-   <div style={{textAlign:"center",padding:"34px 18px 12px"}}>
-     <div style={{fontSize:11.5,letterSpacing:".24em",textTransform:"uppercase",color:"#a0a0a0",fontWeight:700}}>You Baby Studio</div>
-     {scope&&<div style={{fontSize:26,fontWeight:800,marginTop:7,letterSpacing:"-.02em"}}>{titleOf(scope)}</div>}
+ // Lookbook sessions get a distinct editorial identity: warm ivory backdrop +
+ // serif display type — visibly different from the standard (Newborn etc.) pages.
+ const scPage=parse(scope||"");
+ const isLBpage=!!(scope&&scPage.session&&["Cake Smash","Infant"].includes(scPage.session)&&scPage.kind!=="Outfits");
+ const serif='Georgia, "Times New Roman", serif';
+ return <div style={{minHeight:"100vh",background:isLBpage?"#f7f2ea":"#fafafa",fontFamily:font,color:"#1a1a1a"}}>
+   <div style={{textAlign:"center",padding:isLBpage?"44px 18px 12px":"34px 18px 12px"}}>
+     <div style={{fontSize:11.5,letterSpacing:".24em",textTransform:"uppercase",color:isLBpage?"#b3a893":"#a0a0a0",fontWeight:700}}>You Baby Studio</div>
+     {scope&&<div style={isLBpage?{fontSize:34,fontWeight:600,marginTop:9,letterSpacing:"0",fontFamily:serif,fontStyle:"italic"}:{fontSize:26,fontWeight:800,marginTop:7,letterSpacing:"-.02em"}}>{titleOf(scope)}</div>}
      {branchLabel&&<div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,padding:"5px 13px",background:"#fff",border:"1px solid #e5e5e5",borderRadius:20,fontSize:12.5,fontWeight:600,color:"#5a5a5a",boxShadow:"0 1px 4px rgba(0,0,0,.04)"}}><span style={{fontSize:13}}>📍</span>{branchLabel} Studio</div>}
    </div>
    <div style={{maxWidth:1000,margin:"0 auto",padding:"6px 0 50px"}}>
@@ -889,7 +894,7 @@ function PublicShowcase({scope}){
            <div style={{textAlign:"center",margin:"26px 0 20px"}}>
              <div style={{fontSize:12,letterSpacing:".22em",textTransform:"uppercase",color:"#b5b0a8",fontWeight:700}}>{s.title}</div>
              {s.note&&<div style={{fontSize:12.5,color:"#8a8a8a",marginTop:5}}>{s.note}</div>}
-             <div style={{width:44,height:2,background:"#e3ded6",margin:"12px auto 0",borderRadius:2}}/>
+             <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginTop:12}}><span style={{width:34,height:1,background:"#ddd2bf"}}/><span style={{color:"#c9bda3",fontSize:10}}>✦</span><span style={{width:34,height:1,background:"#ddd2bf"}}/></div>
            </div>
            {its.map((it,idx)=><LookTile key={idx} it={it} onClick={()=>setBox({list:its,index:idx})}/>)}
          </div>)}
@@ -898,7 +903,7 @@ function PublicShowcase({scope}){
          <div style={{textAlign:"center",margin:"10px 0 16px"}}>
            <div style={{fontSize:12,letterSpacing:".22em",textTransform:"uppercase",color:"#b5b0a8",fontWeight:700}}>Outfits</div>
            <div style={{fontSize:12.5,color:"#8a8a8a",marginTop:5}}>{outfitItems.length} option{outfitItems.length===1?"":"s"} · swipe ›</div>
-           <div style={{width:44,height:2,background:"#e3ded6",margin:"12px auto 0",borderRadius:2}}/>
+           <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginTop:12}}><span style={{width:34,height:1,background:"#ddd2bf"}}/><span style={{color:"#c9bda3",fontSize:10}}>✦</span><span style={{width:34,height:1,background:"#ddd2bf"}}/></div>
          </div>
          <div style={{display:"flex",gap:10,alignItems:"flex-start",overflowX:"auto",scrollSnapType:"x mandatory",WebkitOverflowScrolling:"touch",padding:"4px 16px 14px",scrollbarWidth:"thin"}}>
            {outfitItems.map((it,idx)=><div key={idx} style={{flex:"0 0 148px",scrollSnapAlign:"start"}}><PubTile it={it} onClick={()=>setBox({list:outfitItems,index:idx})}/></div>)}
@@ -1130,7 +1135,9 @@ function Showcase({themes,onOpen,onItemsChanged}){
    load();
  };
  const rmItem=async(linkId)=>{await sb.from("showcase_section_item").delete().eq("id",linkId);load();};
- const pickItems=themes.filter(t=>{const q=pq.trim().toLowerCase();const kindOk=!scKind||(scKind==="Outfits"?(t._row&&t._row.kind==="outfit"):(t._row&&t._row.type==="theme"));return kindOk&&(!q||((t.name||"")+" "+(t._row&&t._row.code||"")).toLowerCase().includes(q));});
+ const pickerBoard=(picker!=null?((secs.find(x=>x.id===picker)||{}).board):null)||activeBoard||"";
+ const pickerKind=pickerBoard.includes("Outfits")?"Outfits":(pickerBoard.includes("Themes & setups")?"Themes & setups":scKind);
+ const pickItems=themes.filter(t=>{const q=pq.trim().toLowerCase();const kindOk=!pickerKind||(pickerKind==="Outfits"?(t._row&&t._row.kind==="outfit"):(t._row&&t._row.type==="theme"));return kindOk&&(!q||((t.name||"")+" "+(t._row&&t._row.code||"")).toLowerCase().includes(q));});
  const thumb=(url,d,sz)=>url?<img src={url} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--panel2)"}}><Icon d={I.image} s={sz||20} c="#c4c7d2"/></div>;
  // resolve the items a section shows — manual links, or auto-filled when dynamic
  // PER-STUDIO demand map: item id → {location → times_selected}. Every section
@@ -1160,6 +1167,30 @@ function Showcase({themes,onOpen,onItemsChanged}){
  const shareLink=()=>{if(navigator.clipboard)navigator.clipboard.writeText(publicUrl());setCopied(true);setTimeout(()=>setCopied(false),2200);};
  const openExternal=()=>window.open(publicUrl(),"_blank");
  const cover=(key,fb)=>(key&&SHOWCASE_COVERS[key])||fb;
+ // One section card — reused for the active board AND (on Cake Smash/Infant
+ // theme pages) the sibling Outfits board rendered inline below.
+ const renderSecCard=(s,i,arr)=>{const its=secItems(s);return <div key={s.id} onDragOver={e=>{const di=dragItem.current;if(dragSec.current&&dragSec.current!==s.id){e.preventDefault();if(dragOverSec!==s.id)setDragOverSec(s.id);}else if(di&&di.sid!==s.id&&!s.dyn){e.preventDefault();if(dragOverSec!==s.id)setDragOverSec(s.id);}}} onDragLeave={()=>{if(dragOverSec===s.id)setDragOverSec(null);}} onDrop={e=>{e.preventDefault();if(dragSec.current)dropSec(s.id);else if(dragItem.current)dropItem(s.id,null);}} style={{background:"var(--panel)",border:dragOverSec===s.id?"1.5px dashed var(--accent)":"1px solid var(--line)",borderRadius:10,padding:"14px 16px",boxShadow:"var(--shadow)"}}>
+       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+         <span draggable onDragStart={e=>{dragSec.current=s.id;try{e.dataTransfer.setData("text/plain",String(s.id));}catch(_){}e.dataTransfer.effectAllowed="move";}} onDragEnd={()=>{dragSec.current=null;setDragOverSec(null);}} title="Drag to reorder sections" style={{cursor:"grab",color:"var(--muted)",fontSize:15,padding:"0 2px",userSelect:"none",lineHeight:1}}>⠿</span>
+         <input value={s.title} onChange={e=>upd(s.id,{title:e.target.value})} style={{fontSize:15,fontWeight:700,border:"none",borderBottom:"1px dashed var(--line2)",background:"transparent",flex:1,minWidth:120,padding:"2px 0"}}/>
+         <button onClick={()=>{const goingDyn=!s.dyn;const msg=goingDyn
+             ?("Switch “"+(s.title||"this section")+"” to AUTO?\n\nIt will fill itself by a rule (Most demanded / New arrivals). Your hand-picked items are kept but hidden until you switch back.")
+             :("Switch “"+(s.title||"this section")+"” back to HAND-PICKED?\n\nIt will stop auto-filling and show your curated list again.");
+           if(window.confirm(msg))upd(s.id,{dyn:goingDyn,rule:goingDyn?(s.rule||"popular"):null});}} title={s.dyn?"Auto-filled from the catalog by a rule (click to change — asks first)":"Hand-picked items (click to change — asks first)"} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:10.5,fontWeight:700,letterSpacing:".02em",textTransform:"uppercase",color:s.dyn?"var(--accent)":"var(--soft)",background:s.dyn?"var(--accent)18":"var(--panel2)",border:`1px solid ${s.dyn?"var(--accent)":"var(--line2)"}`,borderRadius:7,padding:"4px 9px",cursor:"pointer"}}><Dot c={s.dyn?"var(--accent)":"#9aa0b0"} s={6}/>{s.dyn?"Auto":"Hand-picked"}</button>
+         {s.dyn&&<select value={s.rule||"new"} onChange={e=>upd(s.id,{rule:e.target.value})} style={{width:"auto",padding:"4px 8px",fontSize:11.5}}><option value="new">New arrivals</option><option value="popular">Most demanded</option></select>}
+         <button onClick={()=>move(s,-1)} disabled={i===0} title="Move up" style={{padding:5,opacity:i===0?.3:1}}><Icon d={I.up} s={16} c="var(--muted)"/></button>
+         <button onClick={()=>move(s,1)} disabled={i===arr.length-1} title="Move down" style={{padding:5,opacity:i===arr.length-1?.3:1}}><Icon d="M12 5v14 M5 12l7 7 7-7" s={16} c="var(--muted)"/></button>
+         <button onClick={()=>delSection(s)} title="Delete section" style={{padding:5}}><Icon d={I.trash} s={15} c="var(--danger)"/></button>
+       </div>
+       <input value={s.note||""} onChange={e=>upd(s.id,{note:e.target.value})} placeholder="Optional note (e.g. +DRESS 600 AED · studio only)" style={{fontSize:12,color:"var(--muted)",border:"none",background:"transparent",width:"100%",padding:"0 0 10px"}}/>
+       {s.dyn?
+         <div><div style={{fontSize:11.5,color:"var(--muted)",marginBottom:8}}>Auto-filled · top 15 {s.rule==="popular"?"most-selected (by real booking picks)":"newest arrivals (tagged “New” first)"} for this page. Updates itself.</div>
+           <div style={{display:"flex",gap:9,flexWrap:"wrap"}}>{its.length?its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>{it.sel}× booked</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>):<span style={{fontSize:12,color:"var(--muted)"}}>No matching items yet.</span>}</div></div>
+         :<div style={{display:"flex",gap:9,flexWrap:"wrap",alignItems:"center"}}>
+         {its.map(it=><div key={it.key} draggable onDragStart={e=>{dragItem.current={sid:s.id,linkId:it.linkId};try{e.dataTransfer.setData("text/plain",String(it.linkId));}catch(_){}e.dataTransfer.effectAllowed="move";}} onDragEnd={()=>{dragItem.current=null;}} onDragOver={e=>{const d=dragItem.current;if(d&&d.linkId!==it.linkId)e.preventDefault();}} onDrop={e=>{e.preventDefault();e.stopPropagation();dropItem(s.id,it.linkId);}} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust · drag to reorder, or drop onto another section to move it there" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"grab"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}<button onClick={e=>{e.stopPropagation();rmItem(it.linkId);}} title="Remove from this section" style={{position:"absolute",top:3,right:3,width:22,height:22,borderRadius:"50%",background:"rgba(0,0,0,.65)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.x} s={11} c="#fff"/></button>{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>{it.sel}× booked</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>)}
+         <button onClick={()=>{setPq("");setPicker(s.id);}} style={{width:100,height:130,borderRadius:8,border:"1.5px dashed var(--line2)",color:"var(--soft)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,fontSize:11,fontWeight:600}}><Icon d={I.plus} s={18} c="var(--soft)"/>Add</button>
+       </div>}
+     </div>;};
  if(!loaded) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)"}}>Loading…</div>;
  return <div className="scroll fade" style={{flex:1,overflow:"auto",padding:"26px 30px"}}>
    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:6}}>
@@ -1188,28 +1219,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
        {scLoc&&scSession&&scKind&&needGender&&!scGender&&[["Girls","Girl"],["Boys","Boy"],["Twins","Twins"]].map(([g,gv])=><CoverTile key={g} label={g} sub={boardSecs([scLoc,scSession,scKind,g].join(" · ")).length+" sections"} coverKey={[scLoc,scSession,scKind,g].join(" · ")} fallback={pic(t=>t.category===scSession&&genHit(t.gender,gv)&&(scKind==="Outfits"?(t._row&&t._row.kind==="outfit"):(t._row&&t._row.type==="theme"))&&(t.branches||[]).includes(scLoc))} onClick={()=>setScGender(g)} onChanged={()=>setCoverV(v=>v+1)}/>)}
      </div>
    :<div style={{display:"flex",flexDirection:"column",gap:14}}>
-     {boardSecs(activeBoard).map((s,i,arr)=>{const its=secItems(s);return <div key={s.id} onDragOver={e=>{const di=dragItem.current;if(dragSec.current&&dragSec.current!==s.id){e.preventDefault();if(dragOverSec!==s.id)setDragOverSec(s.id);}else if(di&&di.sid!==s.id&&!s.dyn){e.preventDefault();if(dragOverSec!==s.id)setDragOverSec(s.id);}}} onDragLeave={()=>{if(dragOverSec===s.id)setDragOverSec(null);}} onDrop={e=>{e.preventDefault();if(dragSec.current)dropSec(s.id);else if(dragItem.current)dropItem(s.id,null);}} style={{background:"var(--panel)",border:dragOverSec===s.id?"1.5px dashed var(--accent)":"1px solid var(--line)",borderRadius:10,padding:"14px 16px",boxShadow:"var(--shadow)"}}>
-       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
-         <span draggable onDragStart={e=>{dragSec.current=s.id;try{e.dataTransfer.setData("text/plain",String(s.id));}catch(_){}e.dataTransfer.effectAllowed="move";}} onDragEnd={()=>{dragSec.current=null;setDragOverSec(null);}} title="Drag to reorder sections" style={{cursor:"grab",color:"var(--muted)",fontSize:15,padding:"0 2px",userSelect:"none",lineHeight:1}}>⠿</span>
-         <input value={s.title} onChange={e=>upd(s.id,{title:e.target.value})} style={{fontSize:15,fontWeight:700,border:"none",borderBottom:"1px dashed var(--line2)",background:"transparent",flex:1,minWidth:120,padding:"2px 0"}}/>
-         <button onClick={()=>{const goingDyn=!s.dyn;const msg=goingDyn
-             ?("Switch “"+(s.title||"this section")+"” to AUTO?\n\nIt will fill itself by a rule (Most demanded / New arrivals). Your hand-picked items are kept but hidden until you switch back.")
-             :("Switch “"+(s.title||"this section")+"” back to HAND-PICKED?\n\nIt will stop auto-filling and show your curated list again.");
-           if(window.confirm(msg))upd(s.id,{dyn:goingDyn,rule:goingDyn?(s.rule||"popular"):null});}} title={s.dyn?"Auto-filled from the catalog by a rule (click to change — asks first)":"Hand-picked items (click to change — asks first)"} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:10.5,fontWeight:700,letterSpacing:".02em",textTransform:"uppercase",color:s.dyn?"var(--accent)":"var(--soft)",background:s.dyn?"var(--accent)18":"var(--panel2)",border:`1px solid ${s.dyn?"var(--accent)":"var(--line2)"}`,borderRadius:7,padding:"4px 9px",cursor:"pointer"}}><Dot c={s.dyn?"var(--accent)":"#9aa0b0"} s={6}/>{s.dyn?"Auto":"Hand-picked"}</button>
-         {s.dyn&&<select value={s.rule||"new"} onChange={e=>upd(s.id,{rule:e.target.value})} style={{width:"auto",padding:"4px 8px",fontSize:11.5}}><option value="new">New arrivals</option><option value="popular">Most demanded</option></select>}
-         <button onClick={()=>move(s,-1)} disabled={i===0} title="Move up" style={{padding:5,opacity:i===0?.3:1}}><Icon d={I.up} s={16} c="var(--muted)"/></button>
-         <button onClick={()=>move(s,1)} disabled={i===arr.length-1} title="Move down" style={{padding:5,opacity:i===arr.length-1?.3:1}}><Icon d="M12 5v14 M5 12l7 7 7-7" s={16} c="var(--muted)"/></button>
-         <button onClick={()=>delSection(s)} title="Delete section" style={{padding:5}}><Icon d={I.trash} s={15} c="var(--danger)"/></button>
-       </div>
-       <input value={s.note||""} onChange={e=>upd(s.id,{note:e.target.value})} placeholder="Optional note (e.g. +DRESS 600 AED · studio only)" style={{fontSize:12,color:"var(--muted)",border:"none",background:"transparent",width:"100%",padding:"0 0 10px"}}/>
-       {s.dyn?
-         <div><div style={{fontSize:11.5,color:"var(--muted)",marginBottom:8}}>Auto-filled · top 15 {s.rule==="popular"?"most-selected (by real booking picks)":"newest arrivals (tagged “New” first)"} for this page. Updates itself.</div>
-           <div style={{display:"flex",gap:9,flexWrap:"wrap"}}>{its.length?its.map(it=><div key={it.key} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust this product" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"pointer"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>{it.sel}× booked</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>):<span style={{fontSize:12,color:"var(--muted)"}}>No matching items yet.</span>}</div></div>
-         :<div style={{display:"flex",gap:9,flexWrap:"wrap",alignItems:"center"}}>
-         {its.map(it=><div key={it.key} draggable onDragStart={e=>{dragItem.current={sid:s.id,linkId:it.linkId};try{e.dataTransfer.setData("text/plain",String(it.linkId));}catch(_){}e.dataTransfer.effectAllowed="move";}} onDragEnd={()=>{dragItem.current=null;}} onDragOver={e=>{const d=dragItem.current;if(d&&d.linkId!==it.linkId)e.preventDefault();}} onDrop={e=>{e.preventDefault();e.stopPropagation();dropItem(s.id,it.linkId);}} onClick={()=>it.id&&openItem(it.id)} title="Click to adjust · drag to reorder, or drop onto another section to move it there" style={{position:"relative",width:100,height:130,borderRadius:8,overflow:"hidden",border:"1px solid var(--line)",cursor:"grab"}}>{thumb(it.img)}{it.excl&&<span style={{position:"absolute",top:4,left:4,fontSize:8,fontWeight:800,letterSpacing:".04em",color:"#caa24a",background:"rgba(20,20,28,.85)",borderRadius:4,padding:"1px 4px"}}>EXCL</span>}<button onClick={e=>{e.stopPropagation();rmItem(it.linkId);}} title="Remove from this section" style={{position:"absolute",top:3,right:3,width:22,height:22,borderRadius:"50%",background:"rgba(0,0,0,.65)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={I.x} s={11} c="#fff"/></button>{it.sel>0&&<span title={"Selected on "+it.sel+" bookings at this studio"} style={{position:"absolute",right:4,bottom:24,fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.7)",borderRadius:8,padding:"1px 6px"}}>{it.sel}× booked</span>}<div style={{position:"absolute",bottom:0,left:0,right:0,fontSize:10,color:"#fff",background:"rgba(0,0,0,.55)",padding:"3px 6px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.name}</div></div>)}
-         <button onClick={()=>{setPq("");setPicker(s.id);}} style={{width:100,height:130,borderRadius:8,border:"1.5px dashed var(--line2)",color:"var(--soft)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,fontSize:11,fontWeight:600}}><Icon d={I.plus} s={18} c="var(--soft)"/>Add</button>
-       </div>}
-     </div>;})}
+     {boardSecs(activeBoard).map(renderSecCard)}
      {!addChoice
        ?<button onClick={()=>setAddChoice(true)} style={{padding:"13px",borderRadius:10,border:"1.5px dashed var(--line2)",color:"var(--soft)",fontWeight:600,fontSize:13.5}}>+ Add section</button>
        :<div style={{display:"flex",gap:10,alignItems:"stretch",flexWrap:"wrap"}}>
@@ -1223,6 +1233,22 @@ function Showcase({themes,onOpen,onItemsChanged}){
          </button>
          <button onClick={()=>setAddChoice(false)} title="Cancel" style={{padding:"0 14px",borderRadius:10,border:"1px solid var(--line2)",color:"var(--muted)",fontWeight:700}}>✕</button>
        </div>}
+     {(()=>{
+       // Cake Smash / Infant lookbook pages: the customer page shows themes BIG
+       // with an Outfits strip at the bottom — so the OUTFITS for this same page
+       // are managed right here too, no separate drill needed.
+       if(!(scSession&&["Cake Smash","Infant"].includes(scSession)&&scKind==="Themes & setups")) return null;
+       const oBoard=activeBoard.replace(" · Themes & setups"," · Outfits");
+       const oSecs=boardSecs(oBoard);
+       return <div style={{marginTop:8}}>
+         <div style={{display:"flex",alignItems:"center",gap:10,margin:"16px 0 10px"}}>
+           <div style={{flex:1,height:1,background:"var(--line2)"}}/>
+           <div style={{fontSize:11,fontWeight:800,letterSpacing:".08em",textTransform:"uppercase",color:"var(--soft)"}}>Outfits · shown at the bottom of this customer page</div>
+           <div style={{flex:1,height:1,background:"var(--line2)"}}/>
+         </div>
+         {oSecs.map(renderSecCard)}
+         <button onClick={async()=>{const mx=Math.max(0,...oSecs.map(x=>x.sort||0),0);await sb.from("showcase_section").insert({board:oBoard,title:"Outfits",sort:mx+1,dyn:false});load();}} style={{padding:"12px",width:"100%",borderRadius:10,border:"1.5px dashed var(--line2)",color:"var(--soft)",fontWeight:600,fontSize:13,marginTop:oSecs.length?10:0}}>+ Add outfits section</button>
+       </div>;})()}
    </div>}
    {picker!==null&&<div style={{position:"fixed",inset:0,background:"#1a1a2433",backdropFilter:"blur(3px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&setPicker(null)}>
      <div className="scroll fade modalcard" style={{width:560,maxWidth:"96vw",maxHeight:"86vh",background:"var(--panel)",borderRadius:12,overflow:"auto"}}>
@@ -1232,7 +1258,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
        </div>
      </div>
    </div>}
-   {addNew!==null&&<AddInvItem init={{grp:"shoot",session_type:scSession||"Newborn",type:scKind==="Outfits"?"item":"theme",kind:"outfit",gender:needGender?(GENDER_VAL[scGender]||""):"",locs:scLoc?[scLoc]:[],website_display:true}} onClose={()=>setAddNew(null)} onSaved={async(row)=>{
+   {addNew!==null&&(()=>{const nb=((secs.find(x=>x.id===addNew)||{}).board)||activeBoard||"";const nKind=nb.includes("Outfits")?"Outfits":"Themes & setups";return <AddInvItem init={{grp:"shoot",session_type:scSession||"Newborn",type:nKind==="Outfits"?"item":"theme",kind:"outfit",gender:needGender?(GENDER_VAL[scGender]||""):"",locs:scLoc?[scLoc]:[],website_display:true}} onClose={()=>setAddNew(null)} onSaved={async(row)=>{
      // The inv_item was just created by AddInvItem. Now link it to the section
      // the team opened the picker from. This was previously silently swallowed:
      // when the session token had expired, the inv_item insert still worked
@@ -1299,7 +1325,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
        }
      }
      onItemsChanged&&onItemsChanged();load();
-   }}/>}
+   }}/>;})()}
    {editItem&&<InvEdit item={editItem} onClose={()=>setEditItem(null)} onSaved={()=>{setEditItem(null);load();onItemsChanged&&onItemsChanged();}}/>}
  </div>;
 }
