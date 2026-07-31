@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260731-showcasepaging";
+  var BUILD="20260731-anchorbar";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -895,7 +895,18 @@ function PublicShowcase({scope}){
      if(sc0.gender) outBoards=outBoards.filter(b=>{const g=parse(b).gender;return !g||g===sc0.gender;});
      const seenOut={}; const outfitItems=[];
      outBoards.forEach(b=>secs.filter(x=>x.board===b).sort((a,c)=>(a.sort||0)-(c.sort||0)).forEach(s=>secItems(s).forEach(it=>{const k=(it.name||"")+"|"+(it.img||"");if(!seenOut[k]){seenOut[k]=1;outfitItems.push(it);}})));
+     const hasThemes=themeBoards.some(b=>secs.filter(x=>x.board===b).some(s=>secItems(s).length>0));
+     const hasOutfits=outfitItems.length>0;
+     // Jump anchors: when a page has BOTH themes and outfits, a sticky Themes /
+     // Outfits bar lets the customer flip between them instead of scrolling.
+     const jumpTo=id=>{const el=document.getElementById(id);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});};
+     const jumpPill={appearance:"none",border:"1px solid #d8cdb8",background:"#fff",color:"#6a5f4c",borderRadius:20,padding:"7px 22px",fontSize:12.5,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",cursor:"pointer",fontFamily:"inherit",boxShadow:"0 1px 4px rgba(0,0,0,.05)"};
      return <div>
+       {hasThemes&&hasOutfits&&<div style={{position:"sticky",top:0,zIndex:20,background:isLBpage?"#f7f2ea":"#fafafa",display:"flex",justifyContent:"center",gap:10,padding:"10px 0 11px",marginBottom:4,borderBottom:"1px solid rgba(0,0,0,.06)"}}>
+         <button type="button" onClick={()=>jumpTo("lb-themes")} style={jumpPill}>Themes</button>
+         <button type="button" onClick={()=>jumpTo("lb-outfits")} style={jumpPill}>Outfits</button>
+       </div>}
+       <div id="lb-themes" style={{scrollMarginTop:56}}>
        {themeBoards.map(b=>{const blocks=secs.filter(x=>x.board===b).sort((a,c)=>(a.sort||0)-(c.sort||0)).map(s=>({s,its:secItems(s)})).filter(x=>x.its.length);return blocks.length?<div key={b}>
          {themeBoards.length>1&&<h2 style={{textAlign:"center",fontSize:21,fontWeight:800,margin:"28px 0 14px",letterSpacing:"-.01em"}}>{titleOf(b)}</h2>}
          {blocks.map(({s,its})=><div key={s.id} style={{marginBottom:14}}>
@@ -907,7 +918,8 @@ function PublicShowcase({scope}){
            {its.map((it,idx)=><LookTile key={idx} it={it} onClick={()=>setBox({list:its,index:idx})}/>)}
          </div>)}
        </div>:null;})}
-       {outfitItems.length?<div style={{marginTop:30}}>
+       </div>
+       {outfitItems.length?<div id="lb-outfits" style={{marginTop:30,scrollMarginTop:56}}>
          <div style={{textAlign:"center",margin:"10px 0 16px"}}>
            <div style={{fontSize:12,letterSpacing:".22em",textTransform:"uppercase",color:"#b5b0a8",fontWeight:700}}>Outfits</div>
            <div style={{fontSize:12.5,color:"#8a8a8a",marginTop:5}}>{outfitItems.length} option{outfitItems.length===1?"":"s"} · swipe ›</div>
