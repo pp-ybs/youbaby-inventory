@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260731-familyphoto";
+  var BUILD="20260731-showcasepaging";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -777,10 +777,16 @@ function PublicShowcase({scope}){
        if(off>200000) return out;
      }
    };
+   // NOTE: every paginated read MUST carry a unique tiebreaker (id). `.range()`
+   // issues each 1000-row page as a SEPARATE request, and Postgres does not
+   // guarantee a stable order for rows sharing the same `sort` (every section
+   // restarts at 1,2,3…) — so without a unique final key, rows near the page
+   // boundary get shuffled/dropped and whole boards silently vanish once the
+   // view crosses 1000 rows. Ordering by id last makes pagination deterministic.
    try{const [s,l,it]=await Promise.all([
-     fetchAll(()=>sb.from("v_show_sections").select("*").order("sort")),
-     fetchAll(()=>sb.from("v_show_links").select("*").order("sort")),
-     fetchAll(()=>sb.from("v_show_items").select("*"))
+     fetchAll(()=>sb.from("v_show_sections").select("*").order("sort").order("id")),
+     fetchAll(()=>sb.from("v_show_links").select("*").order("sort").order("id")),
+     fetchAll(()=>sb.from("v_show_items").select("*").order("id"))
    ]).then(([s,l,it])=>[{data:s},{data:l},{data:it}]);
      setData({secs:s.data||[],links:l.data||[],items:it.data||[]});}catch(e){setData({secs:[],links:[],items:[]});}
  },[]);
@@ -952,8 +958,8 @@ function Showcase({themes,onOpen,onItemsChanged}){
    return {data:all,error:null};
  };
  const load=async()=>{if(!sb){setLoaded(true);return;}await loadCovers();
-   const {data:s,error:se}=await fetchAllPages(()=>sb.from("showcase_section").select("*").order("sort"));
-   const {data:l,error:le}=await fetchAllPages(()=>sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender,static_tags)").order("sort"));
+   const {data:s,error:se}=await fetchAllPages(()=>sb.from("showcase_section").select("*").order("sort").order("id"));
+   const {data:l,error:le}=await fetchAllPages(()=>sb.from("showcase_section_item").select("id,section_id,item_id,sort,inv_item(id,name,code,photo_url,session_type,subcategory,size,gender,static_tags)").order("sort").order("id"));
    if(!se&&s) setSecs(s);
    if(!le&&l){
      // Belt-and-braces: even with full pagination, if a row we just optimistically
@@ -1841,7 +1847,7 @@ function AddInvItem({onClose,onSaved,init={}}){
  const OPSTATUS=["Available","In use","In repair","Retired","For sale"];
  const [locs,setLocs]=useState(()=>{const m={};(init.locs||[]).forEach(b=>{if(BR.includes(b))m[b]={on:true,qty:1,times:0};});return m;});
  const [linkIds,setLinkIds]=useState([]),[cand,setCand]=useState([]);
- useEffect(()=>{if(sb)sbAll(()=>sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").order("name")).then(({data})=>setCand(data||[]))},[]);
+ useEffect(()=>{if(sb)sbAll(()=>sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").order("name").order("id")).then(({data})=>setCand(data||[]))},[]);
  const [busy,setBusy]=useState(false),[err,setErr]=useState(""),[saved,setSaved]=useState(null);
  const [kAdd,setKAdd]=useState(false),[kTxt,setKTxt]=useState("");
  const [moreOpen,setMoreOpen]=useState(false);
@@ -2151,7 +2157,7 @@ function InvEdit({item,onClose,onSaved}){
    });setLocs(m);
    if(item.type==="theme"){const {data:tl}=await sb.from("inv_theme_item").select("component_item_id").eq("theme_id",item.id);setLinks((tl||[]).map(x=>x.component_item_id));}
    else{const {data:tl}=await sb.from("inv_theme_item").select("theme_id").eq("component_item_id",item.id);setLinks((tl||[]).map(x=>x.theme_id));}
-   const {data:av}=await sbAll(()=>sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").neq("id",item.id).order("name"));setAll(av||[]);
+   const {data:av}=await sbAll(()=>sb.from("inv_item").select("id,code,name,kind,type,item_group,photo_url,session_type").neq("id",item.id).order("name").order("id"));setAll(av||[]);
  })()},[]);
  useEffect(()=>{const h=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
  const kindsE=KIND_BY_CAT[f.session_type]||ITEM_KINDS;
@@ -2560,7 +2566,7 @@ function NewInventory({initCat=""}){
  const drillGender=groupF==="shoot"&&(loc||browseAll)&&!!catSel&&bucketGendered&&!genF;
  const atItems=!!groupF&&(loc||browseAll)&&!!catSel&&(isElecView||(!!bucketF&&(!bucketGendered||!!genF)));
  const pickGroup=g=>{setGroupF(g);setLoc("");setBrowseAll(false);setCatF("");setGenF("");setKindF("");setSubF("");setSizeF("");setTypeF("");setBucketF("");setNewF(false);setBalloonF("");setUnusedF(false);setEcatF("");setEtypeF("");setEstatF("");};
- const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sbAll(()=>sb.from("inv_item").select("*,inv_item_location(location,quantity,status,times_selected,condition,acquired_on)").order("created_at",{ascending:false}));if(error)setErr(error.message);setRows(data||[]);};
+ const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sbAll(()=>sb.from("inv_item").select("*,inv_item_location(location,quantity,status,times_selected,condition,acquired_on)").order("created_at",{ascending:false}).order("id"));if(error)setErr(error.message);setRows(data||[]);};
  const [pubF,setPubF]=useState("");
  const [pubSet,setPubSet]=useState(()=>new Set());
  const loadPub=async()=>{if(!sb)return;const {data}=await sbAll(()=>sb.from("showcase_section_item").select("item_id").order("id"));setPubSet(new Set((data||[]).map(x=>x.item_id)));};
@@ -3013,7 +3019,7 @@ function App(){
  const [themes,setThemes]=useState(()=>D.themes.map(t=>({...t})));
  const [source,setSource]=useState("local");
  const [invRows,setInvRows]=useState([]);
- const loadInv=()=>{if(sb)sbAll(()=>sb.from("inv_item").select("*,inv_item_location(location,quantity,times_selected,condition,acquired_on)").order("created_at",{ascending:false})).then(({data})=>setInvRows(data||[]));};
+ const loadInv=()=>{if(sb)sbAll(()=>sb.from("inv_item").select("*,inv_item_location(location,quantity,times_selected,condition,acquired_on)").order("created_at",{ascending:false}).order("id")).then(({data})=>setInvRows(data||[]));};
  const [taxV,setTaxV]=useState(0);
  useEffect(()=>{loadInv()},[]);
  useEffect(()=>{loadTax().then(()=>setTaxV(v=>v+1))},[]);
