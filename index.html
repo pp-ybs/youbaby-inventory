@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260731-anchorbar";
+  var BUILD="20260731-linkfix";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -990,7 +990,7 @@ function Showcase({themes,onOpen,onItemsChanged}){
    setLoaded(true);};
  useEffect(()=>{load()},[]);
  // jump to a board from a #show= deep link (internal)
- useEffect(()=>{const m=/^#show=(.*)$/.exec(window.location.hash||"");if(!m)return;const parts=decodeURIComponent(m[1]).split(" · ");if(!parts[0])return;setScLoc(parts[0]);setScSession(parts[1]||"");const k=parts.find(x=>["Themes & setups","Outfits"].includes(x));if(k)setScKind(k);const g=parts.find(x=>["Girls","Boys","Twins"].includes(x));if(g)setScGender(g);},[]);
+ useEffect(()=>{const m=/^#show=(.*)$/.exec(window.location.hash||"");if(!m)return;const parts=decodeURIComponent(m[1]).replace(/[<>]/g,"").trim().split(" · ");if(!parts[0])return;setScLoc(parts[0]);setScSession(parts[1]||"");const k=parts.find(x=>["Themes & setups","Outfits"].includes(x));if(k)setScKind(k);const g=parts.find(x=>["Girls","Boys","Twins"].includes(x));if(g)setScGender(g);},[]);
  const openItem=id=>{const t=themes.find(x=>x.id===id);if(t&&t._row)setEditItem(t._row);};
  const needGender=scSession&&!NO_GENDER.includes(scSession);
  const kindOpts=showKindsFor(scSession);
@@ -3078,7 +3078,11 @@ function App(){
  const catState={q,setQ,cat,setCat,br,setBr:setBr2,gen,setGen,disp,setDisp,onlyPhoto,setOnlyPhoto,sort,setSort,mode,setMode};
  const signOut=()=>sb&&sb.auth.signOut();
  const pubM=/^#p=(.*)$/.exec(window.location.hash||"");
- if(pubM) return <PublicShowcase scope={decodeURIComponent(pubM[1])}/>;
+ // Sanitize the scope: shared links sometimes arrive with a stray angle bracket
+ // (e.g. a link pasted as <url> leaves a trailing ">") or surrounding whitespace.
+ // Board names never contain <>/edge spaces, so stripping them makes those links
+ // resolve instead of showing an empty "gallery is being prepared" page.
+ if(pubM) return <PublicShowcase scope={decodeURIComponent(pubM[1]).replace(/[<>]/g,"").trim()}/>;
  if(sb&&session===undefined) return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:14}}>Loading…</div>;
  if(sb&&!session) return <LoginScreen/>;
  return <div style={{display:"flex",height:"100vh",overflow:"hidden"}}>
