@@ -16,16 +16,21 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260802-loginfix";
+  var BUILD="20260802-bootfix";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
-    if(localStorage.getItem("yb_build")!==BUILD){
-      localStorage.setItem("yb_build",BUILD);
-      if(!/[?&]v=/.test(location.search)){
-        location.replace(location.pathname+"?v="+BUILD+location.hash);
-        return;
-      }
+    // Only a RETURNING visitor holding a stale build needs the forced reload.
+    // A first-time visitor has no marker, so the old `!==BUILD` test fired for
+    // every single customer opening a WhatsApp link and sent them through TWO
+    // full page loads — two rounds of the third-party CDN scripts below, which
+    // doubled the window in which one slow origin leaves them staring at a
+    // blank page. New visitors now just record the marker and carry on.
+    var prev=localStorage.getItem("yb_build");
+    localStorage.setItem("yb_build",BUILD);
+    if(prev&&prev!==BUILD&&!/[?&]v=/.test(location.search)){
+      location.replace(location.pathname+"?v="+BUILD+location.hash);
+      return;
     }
   }catch(e){}
 })();
@@ -97,7 +102,79 @@ label{font-size:11px;font-weight:600;color:var(--soft);letter-spacing:.02em;disp
 </style>
 </head>
 <body>
-<div id="root"></div>
+<!-- Boot placeholder. React replaces the whole of #root when it mounts, so
+     this only ever shows while the page is still coming up. Without it the
+     customer sees a pure white screen for the entire boot: five blocking
+     third-party scripts, then Babel transpiling ~340KB of JSX in the browser.
+     On a phone that is seconds even when everything works. -->
+<div id="root"><div id="yb-boot" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-family:'Plus Jakarta Sans',system-ui,-apple-system,Segoe UI,sans-serif;color:#8a8a99;background:#f4f5f8;">
+  <div style="width:34px;height:34px;border:3px solid #e3e4ea;border-top-color:#b9879b;border-radius:50%;animation:ybspin .8s linear infinite;"></div>
+  <div id="yb-boot-msg" style="font-size:14px;font-weight:600;letter-spacing:.01em;">Loading…</div>
+  <div id="yb-boot-sub" style="font-size:12.5px;max-width:280px;text-align:center;line-height:1.5;opacity:0;transition:opacity .3s;">Taking longer than usual — still trying.</div>
+  <button id="yb-boot-retry" onclick="location.reload()" style="display:none;margin-top:2px;padding:9px 18px;border:1px solid #d9dae2;background:#fff;color:#4a4a58;border-radius:9px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">Reload</button>
+</div></div>
+<style>@keyframes ybspin{to{transform:rotate(360deg)}}</style>
+<script>
+// ── Boot resilience ────────────────────────────────────────────────────────
+// The app is React + ReactDOM + Babel + supabase-js + 2 helpers, all pulled
+// from unpkg / jsdelivr as render-blocking scripts, and #root was empty. If
+// ANY one of those origins is slow or briefly unreachable — routine on mobile
+// networks here — nothing renders, there is no error, and the customer gets a
+// white page that "works again a minute later" once the CDN responds. This
+// re-fetches whatever is missing from the OTHER origin (unpkg <-> jsdelivr),
+// written synchronously so the text/babel block below still finds its globals.
+(function(){
+  var alt=[["React","https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"],
+           ["ReactDOM","https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"],
+           ["Babel","https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js"],
+           ["supabase","https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"],
+           ["JsBarcode","https://unpkg.com/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"],
+           ["qrcode","https://unpkg.com/qrcode-generator@1.4.4/qrcode.min.js"]];
+  for(var i=0;i<alt.length;i++){
+    if(!window[alt[i][0]]) document.write('<scr'+'ipt src="'+alt[i][1]+'"><\/scr'+'ipt>');
+  }
+})();
+</script>
+<script>
+// Watchdog: if React still has not mounted, say so instead of showing a void.
+// One automatic retry (a reload usually lands on a warm CDN), then a manual
+// button — never an endless silent white screen.
+(function(){
+  var t0=Date.now();
+  setTimeout(function(){
+    var b=document.getElementById("yb-boot"); if(!b) return;          // mounted
+    var s=document.getElementById("yb-boot-sub"); if(s) s.style.opacity="1";
+  },3500);
+  setTimeout(function(){
+    var b=document.getElementById("yb-boot"); if(!b) return;          // mounted
+    // Reload ONLY when a library genuinely never arrived. If all three globals
+    // are present the page is simply slow — Babel is still transpiling ~340KB
+    // of JSX on a tired phone — and reloading would throw that work away and
+    // start the wait over.
+    var libsMissing=!(window.React&&window.ReactDOM&&window.Babel);
+    var tried=false; try{ tried=sessionStorage.getItem("yb_boot_retry")==="1"; }catch(e){}
+    if(libsMissing&&!tried){
+      try{ sessionStorage.setItem("yb_boot_retry","1"); }catch(e){}
+      location.reload(); return;
+    }
+    var m=document.getElementById("yb-boot-msg"),
+        s=document.getElementById("yb-boot-sub"),
+        r=document.getElementById("yb-boot-retry");
+    if(m) m.textContent="Couldn't load";
+    if(s){ s.style.opacity="1"; s.textContent="Please check your connection and try again."; }
+    if(r) r.style.display="";
+  },12000);
+  // Clear the retry latch once the app actually mounts, so the next genuine
+  // failure still gets its free retry.
+  var iv=setInterval(function(){
+    if(!document.getElementById("yb-boot")){
+      clearInterval(iv);
+      try{ sessionStorage.removeItem("yb_boot_retry"); }catch(e){}
+      if(window.console&&Date.now()-t0>4000) console.info("[boot] mounted in "+(Date.now()-t0)+"ms");
+    }
+  },250);
+})();
+</script>
 <script type="text/babel" data-presets="react">
 const {useState,useMemo,useEffect,useRef} = React;
 const D = window.YBS_DATA || {themes:[],categories:[],branches:[]};
