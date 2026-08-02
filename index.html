@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260731-linkfix";
+  var BUILD="20260731-blockdates";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -2330,6 +2330,7 @@ function InvEdit({item,onClose,onSaved}){
        {f.session_type==="Maternity"&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("Exclusive")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Exclusive"])]:(f.static_tags||[]).filter(x=>x!=="Exclusive"))}/><span style={{fontSize:13,fontWeight:500}}>Exclusive <span style={{color:"var(--muted)",fontWeight:400}}>(exclusive dress / setup — Maternity)</span></span></div>}
        {(f.type==="theme"&&(f.session_type==="Cake Smash"||f.session_type==="Sitter"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("Real balloon")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Real balloon"])]:(f.static_tags||[]).filter(x=>x!=="Real balloon"))}/><span style={{fontSize:13,fontWeight:500}}>Real balloon <span style={{color:"var(--muted)",fontWeight:400}}>(off = plain theme — Cake Smash &amp; Sitter)</span></span></div>}
        {!isAsset&&<div style={{background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"12px 14px"}}><div style={{fontSize:12.5,fontWeight:700,marginBottom:9}}>Show on website <span style={{color:"var(--muted)",fontWeight:400}}>· choose exactly where it appears</span></div><WebsitePlacement studios={BR.filter(b=>locs[b]&&locs[b].on)} session={f.session_type} type={f.type} kind={f.kind} gender={f.gender} value={place} onChange={setPlace}/></div>}
+       {!isAsset&&<Availability item={item}/>}
        {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8}}>{err}</div>}
        <div style={{display:"flex",gap:10,alignItems:"center"}}>
          {del?<span style={{display:"flex",alignItems:"center",gap:8,marginRight:"auto"}}><span style={{fontSize:12.5,color:"var(--danger)",fontWeight:600}}>Delete this card?</span><button onClick={remove} disabled={busy} style={{padding:"9px 14px",background:"var(--danger)",color:"#fff",borderRadius:8,fontWeight:600,fontSize:12.5}}>Yes, delete</button><button onClick={()=>setDel(false)} style={{fontSize:12.5,color:"var(--soft)",fontWeight:600}}>No</button></span>
@@ -2340,6 +2341,74 @@ function InvEdit({item,onClose,onSaved}){
      </div></div></div>;
 }
 
+// ---- temporary unavailability -------------------------------------------
+// A piece goes to another branch, or into repair, and today the team broadcasts
+// "don't book this until August" and switches the item off entirely — which
+// loses the dates and the reason, and someone has to remember to switch it back.
+// A block is a date RANGE with a reason: the customer selector and the booking
+// picker don't offer it for sessions inside that window, and it returns on its
+// own afterwards.
+const BLOCK_REASONS=[["other_branch","At another branch"],["repair","In repair"],
+  ["cleaning","Cleaning / laundry"],["reserved","Reserved"],["other","Other"]];
+function Availability({item}){
+  const [rows,setRows]=React.useState([]);
+  const [open,setOpen]=React.useState(false);
+  const [from,setFrom]=React.useState(""),[to,setTo]=React.useState("");
+  const [reason,setReason]=React.useState("other_branch"),[note,setNote]=React.useState("");
+  const [loc,setLoc]=React.useState("");
+  const [busy,setBusy]=React.useState(false),[err,setErr]=React.useState("");
+  const load=async()=>{ if(!sb||!item||!item.id) return;
+    const {data}=await sb.from("inv_item_block").select("*").eq("item_id",item.id).order("from_date");
+    setRows(Array.isArray(data)?data:[]); };
+  React.useEffect(()=>{load()},[item&&item.id]);
+  const today=new Date().toISOString().slice(0,10);
+  const add=async()=>{
+    setErr("");
+    if(!from||!to) return setErr("Pick both dates.");
+    if(to<from)    return setErr("The end date can't be before the start date.");
+    setBusy(true);
+    const {error}=await sb.from("inv_item_block").insert({item_id:item.id,location:loc||null,
+      from_date:from,to_date:to,reason,note:note.trim()||null});
+    setBusy(false);
+    if(error) return setErr(error.message||"Could not save.");
+    setFrom("");setTo("");setNote("");setOpen(false);load();
+  };
+  const drop=async(id)=>{ await sb.from("inv_item_block").delete().eq("id",id); load(); };
+  const fmt=d=>{ try{ return new Date(d+"T12:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}); }catch(e){ return d; } };
+  const live=rows.filter(r=>r.to_date>=today);
+  const inp={padding:"8px 10px",border:"1px solid var(--line2)",borderRadius:8,fontSize:13,width:"100%"};
+  return <div style={{background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"12px 14px"}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:live.length?9:0}}>
+      <div style={{fontSize:12.5,fontWeight:700}}>Availability <span style={{color:"var(--muted)",fontWeight:400}}>· hide it for a period, with a reason</span></div>
+      <button type="button" onClick={()=>setOpen(!open)} style={{fontSize:12,fontWeight:700,color:"var(--ink)",border:"1px solid var(--line2)",borderRadius:8,padding:"6px 11px"}}>{open?"Cancel":"＋ Block dates"}</button>
+    </div>
+    {live.map(r=><div key={r.id} style={{display:"flex",alignItems:"center",gap:9,background:"#fdf4ea",border:"1px solid #ecd9bf",borderRadius:8,padding:"8px 11px",marginBottom:6}}>
+      <span style={{fontSize:13}}>🚫</span>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:12.5,fontWeight:700,color:"#87542a"}}>{fmt(r.from_date)} – {fmt(r.to_date)} · {(BLOCK_REASONS.find(x=>x[0]===r.reason)||["",r.reason])[1]}</div>
+        <div style={{fontSize:11,color:"#9a7550"}}>{r.location?r.location:"All branches"}{r.note?" · "+r.note:""}</div>
+      </div>
+      <button type="button" onClick={()=>drop(r.id)} style={{fontSize:11.5,fontWeight:700,color:"var(--danger)"}}>Remove</button>
+    </div>)}
+    {!live.length&&!open&&<div style={{fontSize:12,color:"var(--muted)"}}>Available — not blocked for any dates.</div>}
+    {open&&<div style={{marginTop:10,display:"grid",gap:8}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <div><span style={{fontSize:11,color:"var(--muted)",fontWeight:700}}>From</span><input type="date" value={from} onChange={e=>setFrom(e.target.value)} style={inp}/></div>
+        <div><span style={{fontSize:11,color:"var(--muted)",fontWeight:700}}>Until (inclusive)</span><input type="date" value={to} onChange={e=>setTo(e.target.value)} style={inp}/></div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <div><span style={{fontSize:11,color:"var(--muted)",fontWeight:700}}>Reason</span>
+          <select value={reason} onChange={e=>setReason(e.target.value)} style={inp}>{BLOCK_REASONS.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
+        <div><span style={{fontSize:11,color:"var(--muted)",fontWeight:700}}>Branch</span>
+          <select value={loc} onChange={e=>setLoc(e.target.value)} style={inp}><option value="">All branches</option>{BR.map(b=><option key={b} value={b}>{b}</option>)}</select></div>
+      </div>
+      <input placeholder="Note (optional) — e.g. shooting in Abu Dhabi" value={note} onChange={e=>setNote(e.target.value)} style={inp}/>
+      {err&&<div style={{fontSize:12,color:"var(--danger)"}}>{err}</div>}
+      <button type="button" onClick={add} disabled={busy} style={{padding:"10px 16px",background:"var(--ink)",color:"#fff",borderRadius:8,fontWeight:700,fontSize:13}}>{busy?"Saving…":"Make unavailable"}</button>
+      <div style={{fontSize:11,color:"var(--muted)"}}>Customers and the booking picker won't be offered it for sessions in this window. It comes back on its own afterwards.</div>
+    </div>}
+  </div>;
+}
 // ---- printable barcode + QR label sheet ----
 // Each label carries BOTH a phone-friendly QR (centre, large) and a CODE128
 // barcode for handheld scanner guns (bottom, smaller). The QR encodes a deep-
