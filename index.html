@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260731-blockdates";
+  var BUILD="20260802-blockunits";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -2356,6 +2356,7 @@ function Availability({item}){
   const [from,setFrom]=React.useState(""),[to,setTo]=React.useState("");
   const [reason,setReason]=React.useState("other_branch"),[note,setNote]=React.useState("");
   const [loc,setLoc]=React.useState("");
+  const [qty,setQty]=React.useState("");   // blank = every unit at that branch
   const [busy,setBusy]=React.useState(false),[err,setErr]=React.useState("");
   const load=async()=>{ if(!sb||!item||!item.id) return;
     const {data}=await sb.from("inv_item_block").select("*").eq("item_id",item.id).order("from_date");
@@ -2367,11 +2368,12 @@ function Availability({item}){
     if(!from||!to) return setErr("Pick both dates.");
     if(to<from)    return setErr("The end date can't be before the start date.");
     setBusy(true);
+    const nq=parseInt(qty,10);
     const {error}=await sb.from("inv_item_block").insert({item_id:item.id,location:loc||null,
-      from_date:from,to_date:to,reason,note:note.trim()||null});
+      from_date:from,to_date:to,reason,note:note.trim()||null,qty:(nq>0?nq:null)});
     setBusy(false);
     if(error) return setErr(error.message||"Could not save.");
-    setFrom("");setTo("");setNote("");setOpen(false);load();
+    setFrom("");setTo("");setNote("");setQty("");setOpen(false);load();
   };
   const drop=async(id)=>{ await sb.from("inv_item_block").delete().eq("id",id); load(); };
   const fmt=d=>{ try{ return new Date(d+"T12:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}); }catch(e){ return d; } };
@@ -2386,7 +2388,7 @@ function Availability({item}){
       <span style={{fontSize:13}}>🚫</span>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:12.5,fontWeight:700,color:"#87542a"}}>{fmt(r.from_date)} – {fmt(r.to_date)} · {(BLOCK_REASONS.find(x=>x[0]===r.reason)||["",r.reason])[1]}</div>
-        <div style={{fontSize:11,color:"#9a7550"}}>{r.location?r.location:"All branches"}{r.note?" · "+r.note:""}</div>
+        <div style={{fontSize:11,color:"#9a7550"}}>{r.location?r.location:"All branches"} · {r.qty?(r.qty+" unit"+(r.qty>1?"s":"")):"all units"}{r.note?" · "+r.note:""}</div>
       </div>
       <button type="button" onClick={()=>drop(r.id)} style={{fontSize:11.5,fontWeight:700,color:"var(--danger)"}}>Remove</button>
     </div>)}
@@ -2402,10 +2404,12 @@ function Availability({item}){
         <div><span style={{fontSize:11,color:"var(--muted)",fontWeight:700}}>Branch</span>
           <select value={loc} onChange={e=>setLoc(e.target.value)} style={inp}><option value="">All branches</option>{BR.map(b=><option key={b} value={b}>{b}</option>)}</select></div>
       </div>
+      <div><span style={{fontSize:11,color:"var(--muted)",fontWeight:700}}>How many units are out? <span style={{fontWeight:400}}>(leave empty if it's all of them)</span></span>
+        <input type="number" min="1" placeholder="all" value={qty} onChange={e=>setQty(e.target.value)} style={inp}/></div>
       <input placeholder="Note (optional) — e.g. shooting in Abu Dhabi" value={note} onChange={e=>setNote(e.target.value)} style={inp}/>
       {err&&<div style={{fontSize:12,color:"var(--danger)"}}>{err}</div>}
       <button type="button" onClick={add} disabled={busy} style={{padding:"10px 16px",background:"var(--ink)",color:"#fff",borderRadius:8,fontWeight:700,fontSize:13}}>{busy?"Saving…":"Make unavailable"}</button>
-      <div style={{fontSize:11,color:"var(--muted)"}}>Customers and the booking picker won't be offered it for sessions in this window. It comes back on its own afterwards.</div>
+      <div style={{fontSize:11,color:"var(--muted)"}}>Customers won't be offered it for sessions in this window — unless you still have other units of it at that branch. It comes back on its own afterwards.</div>
     </div>}
   </div>;
 }
