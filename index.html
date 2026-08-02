@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260802-blockunits";
+  var BUILD="20260802-loginfix";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -2854,12 +2854,26 @@ function Sidebar({view,setView,themes,setBr,source,signOut,email,dohaCount,setIn
 // ---- login ----
 function LoginScreen(){
  const [email,setEmail]=useState(""),[pw,setPw]=useState(""),[err,setErr]=useState(""),[busy,setBusy]=useState(false);
- const go=async()=>{if(!email||!pw)return;setBusy(true);setErr("");const {error}=await sb.auth.signInWithPassword({email:email.trim(),password:pw});setBusy(false);if(error)setErr(error.message)};
+ // Surface something useful: a GoTrue failure can arrive with no .message (it
+ // showed as an empty "{}"), which left people staring at a blank red box.
+ const go=async()=>{
+   if(!email||!pw) return;
+   setBusy(true); setErr("");
+   try{
+     const {error}=await sb.auth.signInWithPassword({email:email.trim().toLowerCase(),password:pw});
+     setBusy(false);
+     if(!error) return;
+     const msg=(error&&(error.message||error.error_description||error.msg))||"";
+     setErr(msg && msg!=="{}" ? msg
+       : (error&&error.status===400 ? "Wrong email or password."
+       : "Couldn't sign in — please tell the office and we'll check the account."));
+   }catch(e){ setBusy(false); setErr((e&&e.message)||"Couldn't reach the server — check your connection."); }
+ };
  return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg)"}}>
    <div className="fade" style={{width:384,maxWidth:"92vw",background:"var(--panel)",border:"1px solid var(--line)",borderRadius:9,padding:"34px 30px",boxShadow:"var(--shadow-h)"}}>
      <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:16}}><div style={{width:42,height:42,borderRadius:8,background:"linear-gradient(135deg,#ff6468,#f0a23c)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:16,boxShadow:"0 4px 12px rgba(255,100,104,.35)"}}>YB</div><div><div style={{fontWeight:700,fontSize:16}}>You Baby Studio</div><div style={{fontSize:10,color:"var(--muted)",letterSpacing:".18em",fontWeight:700}}>INVENTORY SYSTEM</div></div></div>
      <p style={{fontSize:13,color:"var(--soft)",marginBottom:18}}>Sign in to manage your themes.</p>
-     <label>EMAIL</label><input value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()} placeholder="you@youbabystudio.com" style={{marginBottom:14}} autoFocus/>
+     <label>EMAIL</label><input value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()} placeholder="you@youbabystudio.com" autoCapitalize="none" autoCorrect="off" spellCheck={false} style={{marginBottom:14}} autoFocus/>
      <label>PASSWORD</label><input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()} placeholder="••••••••" style={{marginBottom:16}}/>
      {err&&<div style={{fontSize:12.5,color:"var(--danger)",marginBottom:12,background:"#fbecea",padding:"8px 11px",borderRadius:8}}>{err}</div>}
      <button onClick={go} disabled={busy} style={{width:"100%",background:"var(--ink)",color:"#fff",borderRadius:8,padding:"12px",fontWeight:600,fontSize:14,opacity:busy?.6:1}}>{busy?"Signing in…":"Sign in"}</button>
