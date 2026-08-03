@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260802-loginfix";
+  var BUILD="20260803-scoperesolve";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -802,8 +802,47 @@ function PublicShowcase({scope}){
  const font="-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter',system-ui,sans-serif";
  if(!data) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:font,color:"#999",background:"#fafafa"}}>Loading…</div>;
  const {secs,links,items}=data;
- const boards=[...new Set(secs.filter(s=>scope?(s.board===scope||s.board.startsWith(scope+" · ")):true).map(s=>s.board))].sort();
  const parse=b=>{const seg=(b||"").split(" · ");return {loc:seg[0],session:seg[1],kind:seg.find(x=>["Themes & setups","Outfits"].includes(x)),gender:seg.find(x=>["Girls","Boys","Twins"].includes(x))};};
+ // Resolve a shared link's scope to real boards. Customer links get hand-made,
+ // re-typed and pasted, so an exact prefix match alone dead-ends the customer on
+ // "This gallery is being prepared" for a link that is only slightly off. That is
+ // exactly what "… · Themes & setups · BoysGirls" was: someone building a boy-&-girl
+ // twins link by hand, when the real boards are "· Boys" and "· Girls" separately.
+ // Order of attempts: exact/prefix → a multi-gender tail → case/punctuation-
+ // insensitive → then drop trailing segments until something real matches. The
+ // customer always lands on the nearest real gallery instead of a dead end.
+ const GEN_WORDS=["Girls","Boys","Twins"];
+ const nrm=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]+/g,"");
+ const boardsFor=sc=>[...new Set(secs.filter(s=>sc?(s.board===sc||s.board.startsWith(sc+" · ")):true).map(s=>s.board))];
+ const resolveScope=raw=>{
+   const sc=String(raw||"").trim();
+   if(!sc) return {bs:boardsFor(""),sc:"",gens:null};
+   const direct=boardsFor(sc); if(direct.length) return {bs:direct,sc,gens:null};
+   const segs=sc.split(" · ").map(x=>x.trim()).filter(Boolean);
+   // Multi-gender tail — "Boys & Girls" (canonical), plus the run-together
+   // "BoysGirls" / "Boys Girls" / "boys and girls" people type by hand. Show BOTH
+   // boards: a twins boy-&-girl customer genuinely wants both sides.
+   const tail=segs[segs.length-1]||"", tn=nrm(tail);
+   const hits=GEN_WORDS.filter(g=>tn.includes(nrm(g))).sort((a,b)=>tn.indexOf(nrm(a))-tn.indexOf(nrm(b)));
+   if(hits.length>1){
+     const head=segs.slice(0,-1).join(" · ");
+     const multi=[...new Set(hits.flatMap(g=>boardsFor(head+" · "+g)))];
+     if(multi.length) return {bs:multi,sc:head,gens:hits};
+   }
+   const all=[...new Set(secs.map(s=>s.board))];
+   const ci=all.filter(b=>nrm(b)===nrm(sc)||nrm(b).startsWith(nrm(sc)));
+   if(ci.length) return {bs:ci,sc,gens:null};
+   for(let n=segs.length-1;n>0;n--){
+     const head=segs.slice(0,n).join(" · ");
+     const bb=boardsFor(head);
+     if(bb.length) return {bs:bb,sc:head,gens:null};
+   }
+   return {bs:[],sc,gens:null};
+ };
+ const _rs=resolveScope(scope);
+ const boards=_rs.bs.slice().sort();
+ const effScope=_rs.sc;      // the scope we actually resolved to (may be a parent of the link's)
+ const effGens=_rs.gens;     // set when the link asked for several genders at once
  // PER-STUDIO demand: loc_selected is a {"Dubai":5,...} map of how many bookings
  // picked the item AT THAT STUDIO (synced live from the OS). Every section — dynamic
  // AND manual — orders its items by the board's own studio demand, so the same item
@@ -837,18 +876,20 @@ function PublicShowcase({scope}){
  };
  const titleOf=b=>{const p=parse(b);return [p.session,p.gender].filter(Boolean).join(" · ")||p.loc||"Our work";};
  // Resolve the studio/branch this preview link is for (taken from the top-level scope OR the only board's loc).
- const scopeLoc=scope?parse(scope).loc:null;
+ const scopeLoc=effScope?parse(effScope).loc:null;
  const allLocs=[...new Set(boards.map(b=>parse(b).loc).filter(Boolean))];
  const branchLabel=scopeLoc||(allLocs.length===1?allLocs[0]:null);
  // Lookbook sessions get a distinct editorial identity: warm ivory backdrop +
  // serif display type — visibly different from the standard (Newborn etc.) pages.
- const scPage=parse(scope||"");
- const isLBpage=!!(scope&&scPage.session&&LOOKBOOK_SESSIONS.includes(scPage.session)&&scPage.kind!=="Outfits");
+ const scPage=parse(effScope||"");
+ const isLBpage=!!(effScope&&scPage.session&&LOOKBOOK_SESSIONS.includes(scPage.session)&&scPage.kind!=="Outfits");
+ // "Newborn · Boys & Girls" when one link covers several genders (twins).
+ const pageTitle=(()=>{const t=titleOf(effScope);return (effGens&&effGens.length>1)?(t+" · "+effGens.join(" & ")):t;})();
  const serif='Georgia, "Times New Roman", serif';
  return <div style={{minHeight:"100vh",background:isLBpage?"#f7f2ea":"#fafafa",fontFamily:font,color:"#1a1a1a"}}>
    <div style={{textAlign:"center",padding:isLBpage?"44px 18px 12px":"34px 18px 12px"}}>
      <div style={{fontSize:11.5,letterSpacing:".24em",textTransform:"uppercase",color:isLBpage?"#b3a893":"#a0a0a0",fontWeight:700}}>You Baby Studio</div>
-     {scope&&<div style={isLBpage?{fontSize:34,fontWeight:600,marginTop:9,letterSpacing:"0",fontFamily:serif,fontStyle:"italic"}:{fontSize:26,fontWeight:800,marginTop:7,letterSpacing:"-.02em"}}>{titleOf(scope)}</div>}
+     {effScope&&<div style={isLBpage?{fontSize:34,fontWeight:600,marginTop:9,letterSpacing:"0",fontFamily:serif,fontStyle:"italic"}:{fontSize:26,fontWeight:800,marginTop:7,letterSpacing:"-.02em"}}>{pageTitle}</div>}
      {branchLabel&&<div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,padding:"5px 13px",background:"#fff",border:"1px solid #e5e5e5",borderRadius:20,fontSize:12.5,fontWeight:600,color:"#5a5a5a",boxShadow:"0 1px 4px rgba(0,0,0,.04)"}}><span style={{fontSize:13}}>📍</span>{branchLabel} Studio</div>}
    </div>
    <div style={{maxWidth:1000,margin:"0 auto",padding:"6px 0 50px"}}>
@@ -871,8 +912,8 @@ function PublicShowcase({scope}){
      // BIG and editorial (one artwork per row, uncropped), and the matching
      // Outfits boards for the same studio/gender are pulled onto the SAME page
      // as one simple swipe strip at the bottom.
-     const sc0=parse(scope||"");
-     const isLB=!!(scope&&sc0.session&&LOOKBOOK_SESSIONS.includes(sc0.session)&&sc0.kind!=="Outfits");
+     const sc0=parse(effScope||"");
+     const isLB=!!(effScope&&sc0.session&&LOOKBOOK_SESSIONS.includes(sc0.session)&&sc0.kind!=="Outfits");
      if(!isLB) return boards.map(b=>{const blocks=secs.filter(x=>x.board===b).sort((a,c)=>(a.sort||0)-(c.sort||0)).map(s=>({s,its:secItems(s)})).filter(x=>x.its.length);return blocks.length?<div key={b}>
        {boards.length>1&&<h2 style={{textAlign:"center",fontSize:21,fontWeight:800,margin:"28px 0 14px",letterSpacing:"-.01em"}}>{titleOf(b)}</h2>}
        {blocks.map(({s,its})=><div key={s.id} style={{marginBottom:28}}>
