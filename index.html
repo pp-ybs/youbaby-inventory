@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260803-scoperesolve";
+  var BUILD="20260803-fastimages";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -732,6 +732,33 @@ function CoverTile({label,sub,coverKey,fallback,onClick,onChanged,badge}){
 // Lightbox walks a FLAT list of photos (cover + extra_photos) across all items in the
 // strip — prev/next moves through every photo of every item without leaving the modal.
 // `index` = item index to open at (always lands on that item's cover).
+// ── Customer-page image sizing ────────────────────────────────────────────────
+// The team (rightly) uploads full-quality photos, so the originals in storage
+// average ~340 KB and run up to 15 MB. Served raw into a ~150px thumbnail, that
+// made ONE showcase page 54 MB — about 90s and 54 MB of a customer's data on 4G.
+//
+// Supabase Storage resizes on the fly: swap /object/public/ for
+// /render/image/public/ plus width & quality, and it content-negotiates to WebP
+// for any browser sending Accept: image/webp (i.e. every phone). Measured across
+// all 161 photos of the live Dubai Newborn page: 53.7 MB -> 4.4 MB, 100% of them
+// transformed successfully, same picture on screen.
+//
+// The ORIGINALS are never touched — this only changes what the customer page
+// asks for. Team-facing inventory screens still load full quality.
+const IMG_RE=/^(https?:\/\/[^/]+\/storage\/v1)\/object\/public\/(.+)$/;
+function imgAt(url,width,quality){
+  try{
+    const m=IMG_RE.exec(String(url||""));
+    if(!m) return url;                       // external / already-transformed URL — leave alone
+    return m[1]+"/render/image/public/"+m[2]+"?width="+width+"&quality="+(quality||70);
+  }catch(_){ return url; }
+}
+// If a transform ever fails (odd source format, transform quota), fall back to the
+// original file rather than showing a broken tile. Runs at most once per <img>.
+function imgFallback(e,original){
+  const im=e&&e.target; if(!im||im.dataset.fellBack) return;
+  im.dataset.fellBack="1"; im.src=original;
+}
 function PublicLightbox({items,index,onClose}){
  // Flatten: each item -> {p, name, size, itemIdx, photoIdx, photoTotal}
  const flat=React.useMemo(()=>items.flatMap((it,i)=>{
@@ -755,7 +782,7 @@ function PublicLightbox({items,index,onClose}){
  return <div onClick={onClose} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,.94)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",touchAction:"pan-y pinch-zoom"}}>
    <button onClick={onClose} aria-label="Close" style={{position:"absolute",top:12,right:14,width:42,height:42,borderRadius:"50%",border:"none",background:"rgba(255,255,255,.16)",color:"#fff",fontSize:21,cursor:"pointer"}}>✕</button>
    <div onClick={e=>e.stopPropagation()} style={{display:"flex",alignItems:"center",justifyContent:"center",maxWidth:"94vw",maxHeight:"80vh"}}>
-     {cur.p?<img src={cur.p} style={{maxWidth:"94vw",maxHeight:"80vh",objectFit:"contain",borderRadius:10,boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}/>:<div style={{color:"#fff"}}>No image</div>}
+     {cur.p?<img src={imgAt(cur.p,1600,80)} onError={e=>imgFallback(e,cur.p)} style={{maxWidth:"94vw",maxHeight:"80vh",objectFit:"contain",borderRadius:10,boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}/>:<div style={{color:"#fff"}}>No image</div>}
    </div>
    {(cur.name||cur.size||cur.photoTotal>1)&&<div style={{color:"#fff",marginTop:16,fontSize:15,fontWeight:600,textAlign:"center",padding:"0 16px"}}>{cur.name}{cur.size?" · "+cur.size:""}{cur.photoTotal>1?<span style={{marginLeft:8,fontWeight:400,opacity:.7,fontSize:12.5}}>· photo {cur.photoIdx+1} of {cur.photoTotal}</span>:null}</div>}
    {/* Dots indicator for the current item's photos (when multi-image) */}
@@ -795,8 +822,9 @@ function PubTile({it,onClick}){
    <div className="pubframe" style={{position:"relative",aspectRatio:ratio,borderRadius:12,overflow:"hidden",background:"#ececec",boxShadow:"0 1px 5px rgba(0,0,0,.07)"}}>
      {n?<div ref={scRef} onScroll={onScroll} className="pubcarousel" style={{position:"absolute",inset:0,display:"flex",overflowX:n>1?"auto":"hidden",overflowY:"hidden",scrollSnapType:"x mandatory",WebkitOverflowScrolling:"touch"}}>
        {photos.map((p,i)=><div key={i} onClick={()=>onClick&&onClick()} style={{position:"relative",flex:"0 0 100%",width:"100%",height:"100%",scrollSnapAlign:"start",cursor:"pointer",overflow:"hidden",background:"#f2f0ec"}}>
-         {fit[i]&&<img src={p} aria-hidden="true" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",filter:"blur(18px) saturate(1.05)",transform:"scale(1.25)",opacity:.55}}/>}
-         <img src={p} loading="lazy" draggable={false} onLoad={e=>onImgLoad(i,e)} style={{position:"relative",width:"100%",height:"100%",objectFit:fit[i]?"contain":"cover",display:"block"}}/>
+         {/* Blur backdrop reuses the SAME transformed URL, so it's a cache hit — 0 extra bytes. */}
+         {fit[i]&&<img src={imgAt(p,600,70)} aria-hidden="true" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",filter:"blur(18px) saturate(1.05)",transform:"scale(1.25)",opacity:.55}}/>}
+         <img src={imgAt(p,600,70)} onError={e=>imgFallback(e,p)} loading="lazy" decoding="async" draggable={false} onLoad={e=>onImgLoad(i,e)} style={{position:"relative",width:"100%",height:"100%",objectFit:fit[i]?"contain":"cover",display:"block"}}/>
        </div>)}
      </div>
      :<div onClick={()=>onClick&&onClick()} style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#c4c4c4",fontSize:12,cursor:"pointer"}}>No image</div>}
@@ -827,7 +855,7 @@ function LookTile({it,onClick}){
            :it.badge==="excl"?{background:"rgba(20,20,28,.86)",color:"#e8c568"}
            :{background:"rgba(255,255,255,.96)",color:"#2563c9"})}}>
          {it.badge==="top"?"Most loved":it.badge==="excl"?"Exclusive":"New"}</span>}
-       {it.img?<img src={it.img} loading="lazy" style={{width:"100%",height:"auto",display:"block"}}/>:<div style={{aspectRatio:"16/10",display:"flex",alignItems:"center",justifyContent:"center",color:"#c4c4c4",fontSize:13}}>No image</div>}
+       {it.img?<img src={imgAt(it.img,1200,75)} onError={e=>imgFallback(e,it.img)} loading="lazy" decoding="async" style={{width:"100%",height:"auto",display:"block"}}/>:<div style={{aspectRatio:"16/10",display:"flex",alignItems:"center",justifyContent:"center",color:"#c4c4c4",fontSize:13}}>No image</div>}
      </div>
      <div style={{textAlign:"center",marginTop:13}}>
        <span style={{fontSize:22,fontWeight:600,letterSpacing:"0",color:"#1a1a1a",fontFamily:'Georgia, "Times New Roman", serif'}}>{it.name}</span>
