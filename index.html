@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260803-smashcake";
+  var BUILD="20260803-smashgrey";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -1812,7 +1812,9 @@ const styleFieldLabel=s=>s==="Cake Smash"?"Cake smash use":"Style";
 const SMASH_LABEL={
   "Smash-safe":        {t:"🎂 Smash-safe",       n:"any cake colour",               bg:"#e8f6ed",fg:"#1a7a45",bd:"#b6e0c6"},
   "Vanilla cake only": {t:"🤍 Vanilla cake only",n:"no chocolate or bright colours",bg:"#fdf4e3",fg:"#8a6212",bd:"#eddcb4"},
-  "Not for smashing":  {t:"⛔ Not for smashing",  n:"",                              bg:"#fdf0ec",fg:"#b5502e",bd:"#f2cfc2"}
+  // Quiet grey, no warning icon: it isn't an error, it's a beautiful dress that
+  // stays clean. Red read as "something's wrong" against a page of pastel dresses.
+  "Not for smashing":  {t:"Not for smashing",   n:"for photos before the smash",   bg:"#f2f1ef",fg:"#6b6560",bd:"#dedad4"}
 };
 // The option list is editable from Settings, so the team can add their own (e.g.
 // "Pastel cakes only"). An unknown value must still SHOW — falling through to
