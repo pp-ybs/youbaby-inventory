@@ -1,7 +1,9 @@
 -- 2026-08-03 — Cake Smash outfits: "can the baby smash in this?"
 --
 -- Stored on inv_item.subcategory (the existing Style field), values:
---   'Smash-safe'        — can be worn into the cake
+--   'Smash-safe'        — can be worn into the cake, any cake colour
+--   'Vanilla cake only' — safe ONLY against a vanilla/light cake; chocolate or a
+--                         bright colour stains it permanently (the white dresses)
 --   'Not for smashing'  — before-the-smash portraits only, must stay clean
 -- NULL means "not classified yet" and deliberately shows no label at all.
 --
@@ -36,5 +38,5 @@ create or replace view public.v_show_links as
 
 update app_settings
 set value = jsonb_set(value, '{styleOpts,Cake Smash}',
-                      '["Smash-safe","Not for smashing"]'::jsonb, true)
+                      '["Smash-safe","Vanilla cake only","Not for smashing"]'::jsonb, true)
 where key = 'taxonomy';

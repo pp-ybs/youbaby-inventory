@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260803-smashlabel";
+  var BUILD="20260803-smashcake";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -844,7 +844,10 @@ function PubTile({it,onClick}){
        the cake, or does it need to stay clean. Sits UNDER the photo so it can't
        collide with the size (top-right) or the Most loved / Exclusive / New
        badge (top-left), and reads at a glance while scrolling the strip. */}
-   {it.smash&&<div style={{marginTop:6,padding:"0 2px"}}><span style={{display:"inline-block",fontSize:10.5,fontWeight:700,lineHeight:1.5,padding:"2px 8px",borderRadius:20,background:it.smash.bg,color:it.smash.fg,border:"1px solid "+it.smash.bd,whiteSpace:"nowrap"}}>{it.smash.t}</span></div>}
+   {it.smash&&<div style={{marginTop:6,padding:"0 2px"}}>
+     <span style={{display:"inline-block",fontSize:10.5,fontWeight:700,lineHeight:1.5,padding:"2px 8px",borderRadius:20,background:it.smash.bg,color:it.smash.fg,border:"1px solid "+it.smash.bd}}>{it.smash.t}</span>
+     {it.smash.n&&<div style={{fontSize:9.5,color:"#8f8f8f",lineHeight:1.35,marginTop:2}}>{it.smash.n}</div>}
+   </div>}
    {it.name?<div className="pubname">{it.name}</div>:<div className="pubname"/>}
  </div>;
 }
@@ -865,7 +868,10 @@ function LookTile({it,onClick}){
      <div style={{textAlign:"center",marginTop:13}}>
        <span style={{fontSize:22,fontWeight:600,letterSpacing:"0",color:"#1a1a1a",fontFamily:'Georgia, "Times New Roman", serif'}}>{it.name}</span>
        {it.size?<span style={{marginLeft:8,fontSize:12,color:"#9a9a9a",fontWeight:600}}>{it.size}</span>:null}
-       {it.smash&&<div style={{marginTop:8}}><span style={{display:"inline-block",fontSize:11.5,fontWeight:700,padding:"3px 11px",borderRadius:20,background:it.smash.bg,color:it.smash.fg,border:"1px solid "+it.smash.bd}}>{it.smash.t}</span></div>}
+       {it.smash&&<div style={{marginTop:8}}>
+         <span style={{display:"inline-block",fontSize:11.5,fontWeight:700,padding:"3px 11px",borderRadius:20,background:it.smash.bg,color:it.smash.fg,border:"1px solid "+it.smash.bd}}>{it.smash.t}</span>
+         {it.smash.n&&<div style={{fontSize:11,color:"#9a9a9a",marginTop:4}}>{it.smash.n}</div>}
+       </div>}
      </div>
    </button>
  </div>;
@@ -1797,18 +1803,32 @@ const GENDERS_T=["Girl","Boy","Twins","Unisex"];
 // "Style" is the generic name for subcategory, but on a Cake Smash outfit the
 // field answers a specific question, so it gets a label that says so.
 const styleFieldLabel=s=>s==="Cake Smash"?"Cake smash use":"Style";
-// The customer-facing chip for a Cake Smash outfit. Anything unset shows nothing —
-// no label is better than a wrong one, and 169 outfits start out unset.
-const SMASH_LABEL={"Smash-safe":{t:"🎂 Smash-safe",bg:"#e8f6ed",fg:"#1a7a45",bd:"#b6e0c6"},
-                   "Not for smashing":{t:"Not for smashing",bg:"#fdf0ec",fg:"#b5502e",bd:"#f2cfc2"}};
-const smashChip=(session,sub)=>(session==="Cake Smash"&&SMASH_LABEL[sub])?SMASH_LABEL[sub]:null;
+// The customer-facing chip for a Cake Smash outfit. It answers TWO questions at
+// once — can it be smashed in, and with which cake — because a white dress is
+// only safe against a vanilla cake; chocolate or a bright colour stains it for
+// good. `n` is the plain-language caveat printed under the chip.
+// Anything unset shows nothing: no label beats a wrong one, and mislabelling
+// here costs a dress.
+const SMASH_LABEL={
+  "Smash-safe":        {t:"🎂 Smash-safe",       n:"any cake colour",               bg:"#e8f6ed",fg:"#1a7a45",bd:"#b6e0c6"},
+  "Vanilla cake only": {t:"🤍 Vanilla cake only",n:"no chocolate or bright colours",bg:"#fdf4e3",fg:"#8a6212",bd:"#eddcb4"},
+  "Not for smashing":  {t:"⛔ Not for smashing",  n:"",                              bg:"#fdf0ec",fg:"#b5502e",bd:"#f2cfc2"}
+};
+// The option list is editable from Settings, so the team can add their own (e.g.
+// "Pastel cakes only"). An unknown value must still SHOW — falling through to
+// null would silently hide a rule someone deliberately set.
+function smashChip(session,sub){
+  if(session!=="Cake Smash") return null;
+  const v=String(sub||"").trim(); if(!v) return null;
+  return SMASH_LABEL[v]||{t:v,n:"",bg:"#f1f0ee",fg:"#5a5348",bd:"#dcd8d1"};
+}
 const UNISEX_G=g=>!g||g==="Unisex"||g==="Neutral"||g==="Unisex / Neutral";
 const genHit=(g,tile)=>g===tile||UNISEX_G(g);
 // per-category Style (subcategory) options + which categories skip gender
 // Cake Smash outfits carry the one thing customers actually need to know before
 // picking: can the baby wear it INTO the cake, or is it a before-the-smash outfit
 // that must stay clean. Set per outfit; shown as a label on the customer pages.
-let STYLE_OPTS={Maternity:["Classic Black","Classic White","Fabrics","Elegant","Exclusive Setups","Private Collection","Outdoor"],"Cake Smash":["Smash-safe","Not for smashing"]};
+let STYLE_OPTS={Maternity:["Classic Black","Classic White","Fabrics","Elegant","Exclusive Setups","Private Collection","Outdoor"],"Cake Smash":["Smash-safe","Vanilla cake only","Not for smashing"]};
 let NO_GENDER=["Maternity","Gender Reveal","Adult Photography","Family Photography"];
 // which item kinds are offered per session type
 let KIND_BY_CAT={Maternity:["outfit","backdrop","accessory"],"Cake Smash":["outfit","prop","backdrop","accessory"],Newborn:["outfit","wrap","basket","prop","backdrop","accessory"],Infant:["outfit","basket","prop","backdrop","accessory"],Sitter:["outfit","prop","backdrop","accessory"],Children:["outfit","prop","backdrop","accessory"],"Gender Reveal":["prop"],Christmas:["outfit","prop","backdrop","accessory","wrap"],"Adult Photography":["outfit","prop","backdrop","accessory"],"Family Photography":["outfit","prop","backdrop","accessory"]};
