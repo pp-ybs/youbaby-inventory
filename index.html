@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20260803-fastimages";
+  var BUILD="20260803-smashlabel";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -840,6 +840,11 @@ function PubTile({it,onClick}){
        <div style={{position:"absolute",left:0,right:0,bottom:6,display:"flex",justifyContent:"center",gap:0}}>{photos.map((_,k)=><button key={k} onClick={e=>goto(e,k)} aria-label={"Photo "+(k+1)} style={{border:"none",background:"none",padding:"5px 3px",cursor:"pointer",display:"flex",alignItems:"center"}}><span style={{width:k===idx?15:6,height:6,borderRadius:3,background:k===idx?"#fff":"rgba(255,255,255,.6)",transition:"width .15s",boxShadow:"0 1px 2px rgba(0,0,0,.25)",display:"block"}}/></button>)}</div>
      </>}
    </div>
+   {/* Cake Smash outfits carry a plain-language chip: can the baby wear it into
+       the cake, or does it need to stay clean. Sits UNDER the photo so it can't
+       collide with the size (top-right) or the Most loved / Exclusive / New
+       badge (top-left), and reads at a glance while scrolling the strip. */}
+   {it.smash&&<div style={{marginTop:6,padding:"0 2px"}}><span style={{display:"inline-block",fontSize:10.5,fontWeight:700,lineHeight:1.5,padding:"2px 8px",borderRadius:20,background:it.smash.bg,color:it.smash.fg,border:"1px solid "+it.smash.bd,whiteSpace:"nowrap"}}>{it.smash.t}</span></div>}
    {it.name?<div className="pubname">{it.name}</div>:<div className="pubname"/>}
  </div>;
 }
@@ -860,6 +865,7 @@ function LookTile({it,onClick}){
      <div style={{textAlign:"center",marginTop:13}}>
        <span style={{fontSize:22,fontWeight:600,letterSpacing:"0",color:"#1a1a1a",fontFamily:'Georgia, "Times New Roman", serif'}}>{it.name}</span>
        {it.size?<span style={{marginLeft:8,fontSize:12,color:"#9a9a9a",fontWeight:600}}>{it.size}</span>:null}
+       {it.smash&&<div style={{marginTop:8}}><span style={{display:"inline-block",fontSize:11.5,fontWeight:700,padding:"3px 11px",borderRadius:20,background:it.smash.bg,color:it.smash.fg,border:"1px solid "+it.smash.bd}}>{it.smash.t}</span></div>}
      </div>
    </button>
  </div>;
@@ -971,13 +977,13 @@ function PublicShowcase({scope}){
    const dOf=i=>String(i.created_at||"");
    if(s.rule==="popular")pool=[...pool].sort((a,b)=>(selAt(b,p.loc)-selAt(a,p.loc))||dOf(b).localeCompare(dOf(a)));
    else pool=[...pool].sort((a,b)=>((isNew(b)?1:0)-(isNew(a)?1:0))||dOf(b).localeCompare(dOf(a)));
-   return assignBadges(pool.slice(0,15).map(i=>({img:i.photo_url,extras:Array.isArray(i.extra_photos)?i.extra_photos:[],name:i.name,size:i.size,sel:selAt(i,p.loc),isn:isFresh(i.static_tags,i.created_at),excl:Array.isArray(i.static_tags)&&i.static_tags.includes("Exclusive")})),s.rule||"new");};
+   return assignBadges(pool.slice(0,15).map(i=>({img:i.photo_url,extras:Array.isArray(i.extra_photos)?i.extra_photos:[],name:i.name,size:i.size,sel:selAt(i,p.loc),isn:isFresh(i.static_tags,i.created_at),excl:Array.isArray(i.static_tags)&&i.static_tags.includes("Exclusive"),smash:smashChip(i.session_type,i.subcategory)})),s.rule||"new");};
  const secItems=s=>{
    if(s.dyn) return dyn(s,s.board);
    const loc=parse(s.board).loc;
    return assignBadges(links.filter(l=>l.section_id===s.id)
      .slice().sort((a,b)=>selAt(b,loc)-selAt(a,loc))   // stable: ties keep curated order
-     .map(l=>({img:l.photo_url,extras:Array.isArray(l.extra_photos)?l.extra_photos:[],name:l.name,size:l.size,sel:selAt(l,loc),isn:isFresh(l.static_tags,createdOf[l.item_id]),excl:Array.isArray(l.static_tags)&&l.static_tags.includes("Exclusive")})),null);
+     .map(l=>({img:l.photo_url,extras:Array.isArray(l.extra_photos)?l.extra_photos:[],name:l.name,size:l.size,sel:selAt(l,loc),isn:isFresh(l.static_tags,createdOf[l.item_id]),excl:Array.isArray(l.static_tags)&&l.static_tags.includes("Exclusive"),smash:smashChip(l.session_type,l.subcategory)})),null);
  };
  const titleOf=b=>{const p=parse(b);return [p.session,p.gender].filter(Boolean).join(" · ")||p.loc||"Our work";};
  // Resolve the studio/branch this preview link is for (taken from the top-level scope OR the only board's loc).
@@ -1788,10 +1794,21 @@ const ITEM_KINDS=["outfit","fabric","prop","backdrop","wrap","basket","accessory
 let SESSION_CATS=["Newborn","Infant","Sitter","Cake Smash","Children","Maternity","Gender Reveal","Christmas","Adult Photography","Family Photography"];
 const GENDERS_T=["Girl","Boy","Twins","Unisex"];
 // a unisex / general item shows up under every gender (Boy, Girl AND Twins)
+// "Style" is the generic name for subcategory, but on a Cake Smash outfit the
+// field answers a specific question, so it gets a label that says so.
+const styleFieldLabel=s=>s==="Cake Smash"?"Cake smash use":"Style";
+// The customer-facing chip for a Cake Smash outfit. Anything unset shows nothing —
+// no label is better than a wrong one, and 169 outfits start out unset.
+const SMASH_LABEL={"Smash-safe":{t:"🎂 Smash-safe",bg:"#e8f6ed",fg:"#1a7a45",bd:"#b6e0c6"},
+                   "Not for smashing":{t:"Not for smashing",bg:"#fdf0ec",fg:"#b5502e",bd:"#f2cfc2"}};
+const smashChip=(session,sub)=>(session==="Cake Smash"&&SMASH_LABEL[sub])?SMASH_LABEL[sub]:null;
 const UNISEX_G=g=>!g||g==="Unisex"||g==="Neutral"||g==="Unisex / Neutral";
 const genHit=(g,tile)=>g===tile||UNISEX_G(g);
 // per-category Style (subcategory) options + which categories skip gender
-let STYLE_OPTS={Maternity:["Classic Black","Classic White","Fabrics","Elegant","Exclusive Setups","Private Collection","Outdoor"]};
+// Cake Smash outfits carry the one thing customers actually need to know before
+// picking: can the baby wear it INTO the cake, or is it a before-the-smash outfit
+// that must stay clean. Set per outfit; shown as a label on the customer pages.
+let STYLE_OPTS={Maternity:["Classic Black","Classic White","Fabrics","Elegant","Exclusive Setups","Private Collection","Outdoor"],"Cake Smash":["Smash-safe","Not for smashing"]};
 let NO_GENDER=["Maternity","Gender Reveal","Adult Photography","Family Photography"];
 // which item kinds are offered per session type
 let KIND_BY_CAT={Maternity:["outfit","backdrop","accessory"],"Cake Smash":["outfit","prop","backdrop","accessory"],Newborn:["outfit","wrap","basket","prop","backdrop","accessory"],Infant:["outfit","basket","prop","backdrop","accessory"],Sitter:["outfit","prop","backdrop","accessory"],Children:["outfit","prop","backdrop","accessory"],"Gender Reveal":["prop"],Christmas:["outfit","prop","backdrop","accessory","wrap"],"Adult Photography":["outfit","prop","backdrop","accessory"],"Family Photography":["outfit","prop","backdrop","accessory"]};
@@ -2208,7 +2225,7 @@ function AddInvItem({onClose,onSaved,init={}}){
                {isAsset&&<div><span style={lab}>{f.subcategory==="Key"?"Key holder":"Assigned to / held at"}</span><input value={f.assignee} onChange={e=>set("assignee",e.target.value)} list="staffnamesA" placeholder="person or room" style={inputStyle}/></div>}
                {!isAsset&&<div><span style={lab}>Assigned to<span style={labHint}>· optional</span></span><input value={f.assignee} onChange={e=>set("assignee",e.target.value)} list="staffnamesA" placeholder="person responsible" style={inputStyle}/></div>}
                <datalist id="staffnamesA">{staffNames.map(n=><option key={n} value={n}/>)}</datalist>
-               {showStyle&&<div><span style={lab}>Style</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={STYLE_OPTS[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("style",f.session_type,v)} placeholder="New style…" addLabel="+ Add style…"/></div>}
+               {showStyle&&<div><span style={lab}>{styleFieldLabel(f.session_type)}</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={STYLE_OPTS[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("style",f.session_type,v)} placeholder="New style…" addLabel="+ Add style…"/></div>}
                {showSetupStyle&&<div><span style={lab}>Reveal type</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={SETUP_STYLE[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("setup",f.session_type,v)} placeholder="New reveal type…" addLabel="+ Add reveal type…"/></div>}
                {showSub&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!subList.includes(v))addTaxOption(f.kind==="prop"?"propsub":"subkind",f.kind==="prop"?f.session_type:f.kind,v);}} list="subopts" placeholder={SUBTYPE_PH[f.kind]||""} style={inputStyle}/><datalist id="subopts">{subList.map(s=><option key={s} value={s}/>)}</datalist></div>}
                {showDim&&<div><span style={lab}>Dimensions</span><input value={f.dimensions||""} onChange={e=>set("dimensions",e.target.value)} placeholder="e.g. 40 × 30 cm" style={inputStyle}/></div>}
@@ -2416,7 +2433,7 @@ function InvEdit({item,onClose,onSaved}){
          {!isAsset&&<div><span style={lab}>Assigned to <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><input value={f.assignee||""} onChange={e=>set("assignee",e.target.value)} list="staffnamesE" placeholder="person responsible"/></div>}
          <datalist id="staffnamesE">{staffNames.map(n=><option key={n} value={n}/>)}</datalist>
          {isAsset&&f.subcategory!=="Key"&&<div><span style={lab}>Origin <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></span><input value={f.origin||""} onChange={e=>set("origin",e.target.value)} placeholder="e.g. brand / source"/></div>}
-         {showStyle&&<div><span style={lab}>Style</span><TaxSelect value={f.subcategory||""} onChange={v=>set("subcategory",v)} options={STYLE_OPTS[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("style",f.session_type,v)} placeholder="New style…" addLabel="+ Add style…"/></div>}
+         {showStyle&&<div><span style={lab}>{styleFieldLabel(f.session_type)}</span><TaxSelect value={f.subcategory||""} onChange={v=>set("subcategory",v)} options={STYLE_OPTS[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("style",f.session_type,v)} placeholder="New style…" addLabel="+ Add style…"/></div>}
          {showSetupStyle&&<div><span style={lab}>Reveal type</span><TaxSelect value={f.subcategory||""} onChange={v=>set("subcategory",v)} options={SETUP_STYLE[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("setup",f.session_type,v)} placeholder="New reveal type…" addLabel="+ Add reveal type…"/></div>}
          {showGender&&<div><span style={lab}>Gender</span><select value={f.gender||""} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS_T.map(g=><option key={g}>{g}</option>)}</select></div>}
          {showSub&&<div><span style={lab}>Type</span><input value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!subList.includes(v))addTaxOption(f.kind==="prop"?"propsub":"subkind",f.kind==="prop"?f.session_type:f.kind,v);}} list="suboptsE" placeholder={SUBTYPE_PH[f.kind]||""}/><datalist id="suboptsE">{subList.map(s=><option key={s} value={s}/>)}</datalist></div>}
