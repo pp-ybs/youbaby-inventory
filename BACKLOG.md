@@ -2,6 +2,36 @@
 
 Заметки на будущее (не делать сейчас, но не терять).
 
+## Backdrops category + shared-backdrop blocking  — ✅ BUILT (Nov 2026)
+**Owner's ask:** a separate category for every kind of backdrop, connected to themes — the same
+background is used by several themes, so once one theme is selected (booked / blocked) the backdrop
+and the other themes on it must be blocked too.
+
+**What's built (app, `index.html`):**
+- Catalog › Session inventory › *studio* now has a **Backdrops** tile next to the session types.
+  It lists every `kind = backdrop / Printed Background` item from every session in one place, with
+  filters: backdrop type (`subcategory`), "Used for" session (`session_type` + `usable_for`),
+  availability today. "Add backdrop" opens the add form pre-set to kind = backdrop.
+- Backdrop type = `subcategory`, options in `taxonomy.subtypeOpts.backdrop` (editable in Settings):
+  Plain colour · Printed · Fabric / curtain · Textured · Floral · Wooden · Scenic · Cutout set · Seasonal.
+  78 existing backdrops were labelled by name; 20 are still blank (set from the card).
+- A backdrop card/edit form has **"Used in these themes"** (writes `inv_theme_item`, same table the
+  theme side uses). A theme's edit form shows, under its items, which other themes share each backdrop.
+- Cards, list rows, the detail panel and the Availability box show live/upcoming blocks, including
+  the ones inherited through a shared backdrop ("🔗 In use · <theme>"), with where the block was set.
+- Backdrops with `usable_for` also appear under those sessions' Items bucket (no duplicate cards).
+
+**DB (migration `supabase/migrations/20261105_backdrops_shared_blocking.sql`, applied):**
+- `inv_is_blocked(item, on, location)` now also returns true when (a) a theme's shared backdrop is
+  blocked or held by another theme that day, (b) a backdrop is held by a blocked/booked theme.
+- `inv_inherited_blocks(item)` lists those inherited windows (via backdrop, source block, label).
+- `session_inventory()` `blocks` now includes inherited windows flagged `inherited:true`
+  (`reason:'shared_backdrop'`, `via`, `source`, `source_code`, `qty:null`) — consumers that only read
+  from/to/location keep working; one backdrop = one unit, so a held backdrop blocks the whole theme.
+
+**Open:** label the 20 remaining backdrops; link backdrops to the themes that use them (only 3 are
+linked today) — the blocking only works through those links.
+
 ## Public website showcase / «On website» toggle  — RAISED, DEFERRED
 **Вопрос владельца (June 2026):** переключатель «On website» в карточках — он сейчас просто
 ставится вручную и реально с сайтом не связан?

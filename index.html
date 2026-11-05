@@ -16,7 +16,7 @@
 // load goes to the network. Back/forward navigation (bfcache) also triggers
 // a reload so a deploy made while a tab was backgrounded never lingers.
 (function(){
-  var BUILD="20261102-itemcode";
+  var BUILD="20261105-backdrops";
   try{
     var nav=performance.getEntriesByType&&performance.getEntriesByType("navigation");
     if(nav&&nav[0]&&nav[0].type==="back_forward"){ location.reload(); return; }
@@ -1810,6 +1810,17 @@ function ItemsProps(){
 let CAT_CODE={"Cake Smash":"CS",Newborn:"NB",Infant:"IN",Maternity:"MA",Sitter:"SI",Children:"CH","Gender Reveal":"GR",Christmas:"XM","Adult Photography":"AP","Family Photography":"FA"};
 const KIND_CODE={outfit:"OF",fabric:"FB",prop:"PR",backdrop:"BD",wrap:"WR",basket:"BS",accessory:"AC",other:"IT",setup:"SET"};
 const ITEM_KINDS=["outfit","fabric","prop","backdrop","wrap","basket","accessory","other"];
+// ---- Backdrops: a cross-session category ------------------------------------
+// One physical backdrop is used by many themes across many sessions (the same
+// printed background sits behind a Cake Smash theme AND a Sitter theme), so it
+// gets its own catalogue category instead of being buried inside each session,
+// plus a theme link list. Booking any linked theme blocks the backdrop — and
+// therefore every other theme on it — for those dates (see inv_is_blocked /
+// inv_inherited_blocks in the DB).
+const BACKDROP_TYPES=["Plain colour","Printed","Fabric / curtain","Textured","Floral","Wooden","Scenic","Cutout set","Seasonal"];
+const isBackdropKind=k=>/backdrop|background/i.test(String(k||""));
+const BACKDROPS_CAT="__backdrops";   // sentinel category id in the Catalog drilldown
+const BD_COLOR="#7c4dff";
 let SESSION_CATS=["Newborn","Infant","Sitter","Cake Smash","Children","Maternity","Gender Reveal","Christmas","Adult Photography","Family Photography"];
 const GENDERS_T=["Girl","Boy","Twins","Unisex"];
 // a unisex / general item shows up under every gender (Boy, Girl AND Twins)
@@ -1854,8 +1865,8 @@ let SIZE_BY_CAT={Maternity:["S","M","L","XL","XXL","One size"],"Cake Smash":["1 
 const PROP_SUBTYPES=["flowers","toys","balloons","number","cake stand","banner","other"];
 let PROP_SUBTYPES_BY_CAT={"Gender Reveal":["confetti","balloon","paint","box"]};
 let SETUP_STYLE={"Gender Reveal":["Confetti","Balloon","Paint","Box"]};
-let SUBTYPE_OPTS={prop:PROP_SUBTYPES,basket:["Bed","Sofa","Basket"],accessory:["bonnet","headband","hat","crown","bow tie","veil"]};
-const SUBTYPE_PH={prop:"e.g. flowers, toys, number…",basket:"e.g. Bed, Sofa, Basket",accessory:"e.g. bonnet, headband, hat"};
+let SUBTYPE_OPTS={prop:PROP_SUBTYPES,basket:["Bed","Sofa","Basket"],accessory:["bonnet","headband","hat","crown","bow tie","veil"],backdrop:BACKDROP_TYPES};
+const SUBTYPE_PH={prop:"e.g. flowers, toys, number…",basket:"e.g. Bed, Sofa, Basket",accessory:"e.g. bonnet, headband, hat",backdrop:"e.g. Plain colour, Printed, Fabric…"};
 const CURRENCIES=["AED","QAR","USD"];
 let DEFAULT_CCY="AED";
 // ---- taxonomy persistence (option lists editable from Settings) ----
@@ -1869,6 +1880,8 @@ function applyTax(t){
  if(t.styleOpts&&typeof t.styleOpts==="object")STYLE_OPTS=t.styleOpts;
  if(t.setupStyle&&typeof t.setupStyle==="object")SETUP_STYLE=t.setupStyle;
  if(t.subtypeOpts&&typeof t.subtypeOpts==="object")SUBTYPE_OPTS=t.subtypeOpts;
+ // a taxonomy saved before backdrop types existed must still offer them
+ if(!Array.isArray(SUBTYPE_OPTS.backdrop)||!SUBTYPE_OPTS.backdrop.length)SUBTYPE_OPTS={...SUBTYPE_OPTS,backdrop:BACKDROP_TYPES};
  if(t.propSubtypesByCat&&typeof t.propSubtypesByCat==="object")PROP_SUBTYPES_BY_CAT=t.propSubtypesByCat;
  if(t.sizeByCat&&typeof t.sizeByCat==="object")SIZE_BY_CAT=t.sizeByCat;
  if(Array.isArray(t.noGender))NO_GENDER=t.noGender;
@@ -1939,7 +1952,7 @@ function SizePicker({value,onChange,opts=SIZE_OPTS,onAdd}){
 function UsablePicker({value,onChange}){
  const cur=Array.isArray(value)?value:[];
  const toggle=s=>onChange(cur.includes(s)?cur.filter(x=>x!==s):[...cur,s]);
- return <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{SHOOT_TYPES.map(s=>{const on=cur.includes(s);return <button type="button" key={s} onClick={()=>toggle(s)} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${on?(CAT_COLOR[s]||"var(--ink)"):"var(--line2)"}`,background:on?(CAT_COLOR[s]||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:12,fontWeight:600}}>{s}</button>})}</div>;
+ return <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{[...new Set([...SESSION_CATS,...SHOOT_TYPES,...cur])].map(s=>{const on=cur.includes(s);return <button type="button" key={s} onClick={()=>toggle(s)} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${on?(CAT_COLOR[s]||"var(--ink)"):"var(--line2)"}`,background:on?(CAT_COLOR[s]||"var(--ink)"):"var(--panel)",color:on?"#fff":"var(--soft)",fontSize:12,fontWeight:600}}>{s}</button>})}</div>;
 }
 const codePrefix=(cat,seg)=>(CAT_CODE[cat]||((cat||"XX").replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase()||"XX"))+"-"+seg;
 async function nextCode(cat,seg){const p=codePrefix(cat,seg)+"-";if(!sb)return p+"001";const {data}=await sb.from("inv_item").select("code").like("code",p+"%");let mx=0;(data||[]).forEach(r=>{const m=/(\d+)\s*$/.exec(r.code||"");if(m)mx=Math.max(mx,parseInt(m[1],10))});return p+String(mx+1).padStart(3,"0");}
@@ -2262,7 +2275,7 @@ function AddInvItem({onClose,onSaved,init={}}){
                <datalist id="staffnamesA">{staffNames.map(n=><option key={n} value={n}/>)}</datalist>
                {showStyle&&<div><span style={lab}>{styleFieldLabel(f.session_type)}</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={STYLE_OPTS[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("style",f.session_type,v)} placeholder="New style…" addLabel="+ Add style…"/></div>}
                {showSetupStyle&&<div><span style={lab}>Reveal type</span><TaxSelect value={f.subcategory} onChange={v=>set("subcategory",v)} options={SETUP_STYLE[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("setup",f.session_type,v)} placeholder="New reveal type…" addLabel="+ Add reveal type…"/></div>}
-               {showSub&&<div><span style={lab}>Type</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!subList.includes(v))addTaxOption(f.kind==="prop"?"propsub":"subkind",f.kind==="prop"?f.session_type:f.kind,v);}} list="subopts" placeholder={SUBTYPE_PH[f.kind]||""} style={inputStyle}/><datalist id="subopts">{subList.map(s=><option key={s} value={s}/>)}</datalist></div>}
+               {showSub&&<div><span style={lab}>{isBackdropKind(f.kind)?"Backdrop type":"Type"}</span><input value={f.subcategory} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!subList.includes(v))addTaxOption(f.kind==="prop"?"propsub":"subkind",f.kind==="prop"?f.session_type:f.kind,v);}} list="subopts" placeholder={SUBTYPE_PH[f.kind]||""} style={inputStyle}/><datalist id="subopts">{subList.map(s=><option key={s} value={s}/>)}</datalist></div>}
                {showDim&&<div><span style={lab}>Dimensions</span><input value={f.dimensions||""} onChange={e=>set("dimensions",e.target.value)} placeholder="e.g. 40 × 30 cm" style={inputStyle}/></div>}
                {!noCond&&<div><span style={lab}>Condition <span style={{color:"var(--muted)",fontWeight:400}}>(starting state for all units — refine per unit later in Edit)</span></span><CondMeter value={f.condition} onChange={v=>set("condition",v)}/></div>}
              </div>
@@ -2275,6 +2288,11 @@ function AddInvItem({onClose,onSaved,init={}}){
          {/* LINKS — only a theme attaches items/outfits to itself */}
          {!isAsset&&f.type==="theme"&&<Section title="Items in this setup" hint="optional · outfits / props / backdrops" accent="#9a6fd1">
            <ItemPicker pool={cand.filter(a=>a.type==="item"&&a.item_group==="shoot")} selectedIds={linkIds} onToggle={id=>setLinkIds(l=>l.includes(id)?l.filter(x=>x!==id):[...l,id])} emptyHint="None yet — pick outfits / props / backdrops below."/>
+         </Section>}
+
+         {/* BACKDROP ↔ THEMES — a backdrop is shared: link every theme that uses it, so booking one blocks the rest */}
+         {!isAsset&&f.type==="item"&&isBackdropKind(f.kind)&&<Section title="Used in these themes" hint="link every theme that uses this backdrop · booking one of them blocks the others" accent={BD_COLOR}>
+           <ItemPicker pool={cand.filter(a=>a.type==="theme"&&a.item_group==="shoot")} selectedIds={linkIds} onToggle={id=>setLinkIds(l=>l.includes(id)?l.filter(x=>x!==id):[...l,id])} emptyHint="No themes linked yet — search a theme below."/>
          </Section>}
 
          {/* TAGS & VISIBILITY */}
@@ -2471,7 +2489,7 @@ function InvEdit({item,onClose,onSaved}){
          {showStyle&&<div><span style={lab}>{styleFieldLabel(f.session_type)}</span><TaxSelect value={f.subcategory||""} onChange={v=>set("subcategory",v)} options={STYLE_OPTS[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("style",f.session_type,v)} placeholder="New style…" addLabel="+ Add style…"/></div>}
          {showSetupStyle&&<div><span style={lab}>Reveal type</span><TaxSelect value={f.subcategory||""} onChange={v=>set("subcategory",v)} options={SETUP_STYLE[f.session_type]||[]} allowEmpty onAdd={v=>addTaxOption("setup",f.session_type,v)} placeholder="New reveal type…" addLabel="+ Add reveal type…"/></div>}
          {showGender&&<div><span style={lab}>Gender</span><select value={f.gender||""} onChange={e=>set("gender",e.target.value)}><option value="">—</option>{GENDERS_T.map(g=><option key={g}>{g}</option>)}</select></div>}
-         {showSub&&<div><span style={lab}>Type</span><input value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!subList.includes(v))addTaxOption(f.kind==="prop"?"propsub":"subkind",f.kind==="prop"?f.session_type:f.kind,v);}} list="suboptsE" placeholder={SUBTYPE_PH[f.kind]||""}/><datalist id="suboptsE">{subList.map(s=><option key={s} value={s}/>)}</datalist></div>}
+         {showSub&&<div><span style={lab}>{isBackdropKind(f.kind)?"Backdrop type":"Type"}</span><input value={f.subcategory||""} onChange={e=>set("subcategory",e.target.value)} onBlur={e=>{const v=e.target.value.trim();if(v&&!subList.includes(v))addTaxOption(f.kind==="prop"?"propsub":"subkind",f.kind==="prop"?f.session_type:f.kind,v);}} list="suboptsE" placeholder={SUBTYPE_PH[f.kind]||""}/><datalist id="suboptsE">{subList.map(s=><option key={s} value={s}/>)}</datalist></div>}
          {showDim&&<div><span style={lab}>Dimensions</span><input value={f.dimensions||""} onChange={e=>set("dimensions",e.target.value)} placeholder="e.g. 40 × 30 cm"/></div>}
          {showColor&&<div style={{gridColumn:"1/-1"}}><span style={lab}>{f.type==="theme"?"Colour / palette":"Color"}</span><ColorPicker value={f.color||""} onChange={v=>set("color",v)}/></div>}
          {showSize&&<div style={{gridColumn:"1/-1"}}><span style={lab}>Size</span><SizePicker value={f.size||""} onChange={v=>set("size",v)} opts={sizeOptsE} onAdd={v=>addTaxOption("size",f.session_type,v)}/></div>}
@@ -2523,6 +2541,10 @@ function InvEdit({item,onClose,onSaved}){
          </div></div>
        {!isAsset&&item.type==="theme"&&<div><span style={lab}>ITEMS IN THIS SETUP <span style={{color:"var(--muted)",fontWeight:400}}>(outfit / backdrop / props)</span></span>
          <ItemPicker pool={all.filter(a=>a.type==="item"&&a.item_group==="shoot")} selectedIds={links} onToggle={id=>toggleLink(id)} emptyHint="None yet — pick outfits / props / backdrops below."/>
+         <SharedBackdrops themeId={item.id} links={links} all={all}/>
+       </div>}
+       {!isAsset&&item.type==="item"&&isBackdropKind(f.kind)&&<div><span style={lab}>USED IN THESE THEMES <span style={{color:"var(--muted)",fontWeight:400}}>(shared backdrop — booking any of them blocks the others on that date)</span></span>
+         <ItemPicker pool={all.filter(a=>a.type==="theme"&&a.item_group==="shoot")} selectedIds={links} onToggle={id=>toggleLink(id)} emptyHint="No themes linked yet — search a theme below."/>
        </div>}
        {(f.type==="theme"||(f.session_type==="Maternity"&&f.kind==="outfit"))&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("New")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"New"])]:(f.static_tags||[]).filter(x=>x!=="New"))}/><span style={{fontSize:13,fontWeight:500}}>Tag as “New” <span style={{color:"var(--muted)",fontWeight:400}}>(shows under the New filter)</span></span></div>}
        {f.session_type==="Maternity"&&<div style={{display:"flex",alignItems:"center",gap:10,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"10px 14px"}}><Toggle on={(f.static_tags||[]).includes("Exclusive")} onChange={v=>set("static_tags",v?[...new Set([...(f.static_tags||[]),"Exclusive"])]:(f.static_tags||[]).filter(x=>x!=="Exclusive"))}/><span style={{fontSize:13,fontWeight:500}}>Exclusive <span style={{color:"var(--muted)",fontWeight:400}}>(exclusive dress / setup — Maternity)</span></span></div>}
@@ -2548,6 +2570,37 @@ function InvEdit({item,onClose,onSaved}){
 // own afterwards.
 const BLOCK_REASONS=[["other_branch","At another branch"],["repair","In repair"],
   ["cleaning","Cleaning / laundry"],["reserved","Reserved"],["other","Other"]];
+const BLOCK_LABEL=Object.fromEntries(BLOCK_REASONS);
+// Which other themes share this theme's backdrops — shown under the item picker
+// so the team sees, while building a setup, that booking it blocks its siblings.
+function SharedBackdrops({themeId,links,all}){
+  const bds=(links||[]).filter(id=>{const a=(all||[]).find(x=>x.id===id);return a&&isBackdropKind(a.kind);});
+  const key=bds.join(",");
+  const [rows,setRows]=React.useState([]);
+  React.useEffect(()=>{(async()=>{ if(!sb||!bds.length){setRows([]);return;}
+    const {data}=await sb.from("inv_theme_item").select("theme_id,component_item_id").in("component_item_id",bds).neq("theme_id",themeId);
+    setRows(Array.isArray(data)?data:[]); })()},[key,themeId]);
+  if(!bds.length) return null;
+  return <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:5}}>{bds.map(id=>{const bd=all.find(x=>x.id===id);const others=rows.filter(r=>r.component_item_id===id).map(r=>all.find(x=>x.id===r.theme_id)).filter(Boolean);
+    return <div key={id} style={{display:"flex",gap:7,alignItems:"flex-start",fontSize:11.5,color:others.length?"#5b3fa8":"var(--muted)",background:others.length?"#f3f0fb":"var(--panel2)",border:"1px solid "+(others.length?"#ddd3f3":"var(--line)"),borderRadius:8,padding:"7px 10px"}}><span>🔗</span><span><b>{bd.name}</b>{others.length?" — also used by "+others.map(o=>o.name+(o.session_type?" ("+o.session_type+")":"")).join(", ")+". Booking any of these blocks the others for that date.":" — only this theme uses it."}</span></div>;})}</div>;
+}
+// Live + upcoming unavailability for one item — its own blocks plus the ones it
+// inherits through a shared backdrop — for the detail panel.
+function ItemBlocks({item}){
+  const [rows,setRows]=React.useState(null);
+  React.useEffect(()=>{(async()=>{ if(!sb||!item||!item.id){setRows([]);return;} const t=today();
+    try{ const [{data:d},{data:x}]=await Promise.all([sb.from("inv_item_block").select("*").eq("item_id",item.id).gte("to_date",t).order("from_date"),sb.rpc("inv_inherited_blocks",{p_item:item.id})]);
+      const list=[...(d||[]).map(b=>({id:b.id,from:b.from_date,to:b.to_date,location:b.location,label:(BLOCK_LABEL[b.reason]||b.reason||"Unavailable")+(b.note?" · "+b.note:""),inherited:false})),
+                  ...(x||[]).map(b=>({id:b.block_id+"-"+(b.via_id||""),from:b.from_date,to:b.to_date,location:b.location,label:b.label,source_code:b.source_code,inherited:true}))].sort((a,b)=>a.from<b.from?-1:a.from>b.from?1:0);
+      setRows(list); }catch(_){ setRows([]); } })()},[item&&item.id]);
+  const t=today(); const fmt=d=>{ try{ return new Date(d+"T12:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}); }catch(e){ return d; } };
+  if(rows===null) return null;
+  const now=rows.filter(r=>r.from<=t&&r.to>=t);
+  return <div style={{marginTop:12,background:now.length?"#fdf4ea":"var(--panel2)",border:"1px solid "+(now.length?"#ecd9bf":"var(--line)"),borderRadius:8,padding:"11px 14px"}}>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:rows.length?7:0}}><Dot c={now.length?"#e0812a":"#16a34a"} s={8}/><span style={{fontSize:13,fontWeight:600}}>{now.length?"Unavailable today":"Available today"}</span>{rows.length>0&&<span style={{fontSize:11,color:"var(--muted)"}}>· {rows.length} window{rows.length!==1?"s":""} ahead</span>}</div>
+    {rows.slice(0,6).map(r=><div key={r.id} style={{display:"flex",gap:7,fontSize:11.5,padding:"4px 0",borderTop:"1px solid var(--line)",color:r.inherited?"#5b3fa8":"#87542a"}}><span>{r.inherited?"🔗":"🚫"}</span><span style={{flex:1}}><b>{fmt(r.from)} – {fmt(r.to)}</b> · {r.label}{r.location?" · "+r.location:""}{r.inherited&&r.source_code?<span style={{color:"var(--muted)"}}> · set on {r.source_code}</span>:null}</span></div>)}
+  </div>;
+}
 function Availability({item}){
   const [rows,setRows]=React.useState([]);
   const [open,setOpen]=React.useState(false);
@@ -2556,9 +2609,11 @@ function Availability({item}){
   const [loc,setLoc]=React.useState("");
   const [qty,setQty]=React.useState("");   // blank = every unit at that branch
   const [busy,setBusy]=React.useState(false),[err,setErr]=React.useState("");
+  const [inh,setInh]=React.useState([]);   // windows inherited through a shared backdrop (removed where they were set)
   const load=async()=>{ if(!sb||!item||!item.id) return;
     const {data}=await sb.from("inv_item_block").select("*").eq("item_id",item.id).order("from_date");
-    setRows(Array.isArray(data)?data:[]); };
+    setRows(Array.isArray(data)?data:[]);
+    try{ const {data:x}=await sb.rpc("inv_inherited_blocks",{p_item:item.id}); setInh(Array.isArray(x)?x:[]); }catch(_){ setInh([]); } };
   React.useEffect(()=>{load()},[item&&item.id]);
   const today=new Date().toISOString().slice(0,10);
   const add=async()=>{
@@ -2590,7 +2645,14 @@ function Availability({item}){
       </div>
       <button type="button" onClick={()=>drop(r.id)} style={{fontSize:11.5,fontWeight:700,color:"var(--danger)"}}>Remove</button>
     </div>)}
-    {!live.length&&!open&&<div style={{fontSize:12,color:"var(--muted)"}}>Available — not blocked for any dates.</div>}
+    {inh.map(r=><div key={r.block_id+"-"+(r.via_id||"")} style={{display:"flex",alignItems:"center",gap:9,background:"#f3f0fb",border:"1px solid #ddd3f3",borderRadius:8,padding:"8px 11px",marginBottom:6}}>
+      <span style={{fontSize:13}}>🔗</span>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:12.5,fontWeight:700,color:"#5b3fa8"}}>{fmt(r.from_date)} – {fmt(r.to_date)} · {r.label}</div>
+        <div style={{fontSize:11,color:"#7a66b3"}}>{r.location?r.location:"All branches"} · set on {r.source_type==="theme"?"theme":"backdrop"} <span style={{fontFamily:"ui-monospace,monospace"}}>{r.source_code}</span>{r.note?" · "+r.note:""} — remove it there to free this one</div>
+      </div>
+    </div>)}
+    {!live.length&&!inh.length&&!open&&<div style={{fontSize:12,color:"var(--muted)"}}>Available — not blocked for any dates.</div>}
     {open&&<div style={{marginTop:10,display:"grid",gap:8}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
         <div><span style={{fontSize:11,color:"var(--muted)",fontWeight:700}}>From</span><input type="date" value={from} onChange={e=>setFrom(e.target.value)} style={inp}/></div>
@@ -2688,6 +2750,7 @@ function ItemPanel({item:r,published,onClose,onEdit,onPrint,onOpen}){
            <datalist id="ipstaff">{staffNames.map(n=><option key={n} value={n}/>)}</datalist></div>
          <div style={{fontSize:11,fontWeight:700,color:"var(--muted)",margin:"4px 0 6px"}}>Locations</div>
          {locs.length?locs.map(l=><div key={l.location} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid var(--line)"}}><Dot c={BR_COLOR[l.location]||"#bbb"} s={8}/><span style={{fontSize:13,fontWeight:600,flex:1}}>{l.location}</span>{!isAsset&&l.condition&&<span style={{fontSize:11.5,color:COND_COLOR[l.condition],fontWeight:600,marginRight:10}}>{l.condition}</span>}<span style={{fontSize:12.5,color:"var(--soft)"}}>qty {l.quantity}</span></div>):<div style={lab}>No locations.</div>}
+         {!isAsset&&<ItemBlocks item={r}/>}
          {r.value!=null&&r.value!==""&&<Row k="Value" v={(r.value_currency||"")+" "+r.value}/>}
          {!isAsset&&<div style={{marginTop:14,display:"flex",alignItems:"center",gap:11,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"11px 14px"}}><Icon d={I.globe} s={18} c={published?"#16a34a":"var(--muted)"}/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{published?"Published on website":"Not on website"}</div><div style={{fontSize:11,color:"var(--muted)"}}>{published?"Live because it's in the Website Showcase":"Add it in Website Showcase to publish"}</div></div></div>}
          <div style={{marginTop:16}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><span style={{fontSize:11,fontWeight:700,color:"var(--muted)"}}>{r.type==="theme"?"Items in this setup":"Part of these setups"}</span><span style={{flex:1}}/>{onEdit&&<button onClick={()=>onEdit(r)} style={{fontSize:11.5,fontWeight:600,color:"var(--accent)"}}>{r.type==="theme"?"+ Add / manage":"Manage"}</button>}</div>
@@ -2805,7 +2868,7 @@ function FindByPhoto({rows,onClose,onOpen}){
  </div>;
 }
 function NewInventory({initCat=""}){
- const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[scan,setScan]=useState(false),[scanErr,setScanErr]=useState(""),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("popular"),[catF,setCatF]=useState(initCat),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState(""),[sizeF,setSizeF]=useState(""),[condF,setCondF]=useState(""),[newF,setNewF]=useState(false),[balloonF,setBalloonF]=useState(""),[unusedF,setUnusedF]=useState(false),[showArch,setShowArch]=useState(false),[labels,setLabels]=useState(false),[ecatF,setEcatF]=useState(""),[etypeF,setEtypeF]=useState(""),[estatF,setEstatF]=useState(""),[bucketF,setBucketF]=useState(""),[findOpen,setFindOpen]=useState(false);
+ const [rows,setRows]=useState(null),[err,setErr]=useState(""),[add,setAdd]=useState(false),[edit,setEdit]=useState(null),[scan,setScan]=useState(false),[scanErr,setScanErr]=useState(""),[loc,setLoc]=useState(""),[typeF,setTypeF]=useState(""),[q,setQ]=useState(""),[sort,setSort]=useState("popular"),[catF,setCatF]=useState(initCat),[kindF,setKindF]=useState(""),[groupF,setGroupF]=useState(""),[genF,setGenF]=useState(""),[subF,setSubF]=useState(""),[sizeF,setSizeF]=useState(""),[condF,setCondF]=useState(""),[newF,setNewF]=useState(false),[balloonF,setBalloonF]=useState(""),[unusedF,setUnusedF]=useState(false),[showArch,setShowArch]=useState(false),[labels,setLabels]=useState(false),[ecatF,setEcatF]=useState(""),[etypeF,setEtypeF]=useState(""),[estatF,setEstatF]=useState(""),[bucketF,setBucketF]=useState(""),[findOpen,setFindOpen]=useState(false),[bdTypeF,setBdTypeF]=useState(""),[bdSessF,setBdSessF]=useState(""),[availF,setAvailF]=useState("");
  // Deep-link handler for #scan=<code> — fired by the QR codes on printed labels
  // and by any URL the team shares ("https://inventory.youbabystudio.com/#scan=NB-OF-014").
  // Looks the code up by inv_item.code and opens its edit panel. Listens for
@@ -2839,22 +2902,39 @@ function NewInventory({initCat=""}){
  const catSel=isElecView?ecatF:catF;
  const needGenderCat=c=>!!c&&!NO_GENDER.includes(c);
  const BUCKETS=[["theme","Themes & setups",I.layers],["outfit","Outfits",I.shirt],["items","Items",I.box]];
- const resetCat=()=>{setEcatF("");setEtypeF("");setCatF("");setTypeF("");setBucketF("");setGenF("");};
+ const resetCat=()=>{setEcatF("");setEtypeF("");setCatF("");setTypeF("");setBucketF("");setGenF("");setBdTypeF("");setBdSessF("");setAvailF("");};
  const resetStudio=()=>{setLoc("");setBrowseAll(false);resetCat();};
  const resetBucket=()=>{setBucketF("");setTypeF("");setGenF("");};
  const drillStudio=!!groupF&&!loc&&!browseAll;
  const drillCat=!!groupF&&(loc||browseAll)&&!catSel;
  const bucketGendered=!!bucketF&&bucketF!=="items"&&needGenderCat(catSel);
- const drillBucket=groupF==="shoot"&&(loc||browseAll)&&!!catSel&&!bucketF;
+ // "Backdrops" is a cross-session category: no Themes/Outfits/Items buckets, no gender — straight to the list.
+ const isBdCat=catSel===BACKDROPS_CAT;
+ const catLabel=isBdCat?"Backdrops":catSel;
+ const drillBucket=groupF==="shoot"&&(loc||browseAll)&&!!catSel&&!isBdCat&&!bucketF;
  const drillGender=groupF==="shoot"&&(loc||browseAll)&&!!catSel&&bucketGendered&&!genF;
- const atItems=!!groupF&&(loc||browseAll)&&!!catSel&&(isElecView||(!!bucketF&&(!bucketGendered||!!genF)));
- const pickGroup=g=>{setGroupF(g);setLoc("");setBrowseAll(false);setCatF("");setGenF("");setKindF("");setSubF("");setSizeF("");setTypeF("");setBucketF("");setNewF(false);setBalloonF("");setUnusedF(false);setEcatF("");setEtypeF("");setEstatF("");};
+ const atItems=!!groupF&&(loc||browseAll)&&!!catSel&&(isElecView||isBdCat||(!!bucketF&&(!bucketGendered||!!genF)));
+ const pickGroup=g=>{setGroupF(g);setLoc("");setBrowseAll(false);setCatF("");setGenF("");setKindF("");setSubF("");setSizeF("");setTypeF("");setBucketF("");setNewF(false);setBalloonF("");setUnusedF(false);setEcatF("");setEtypeF("");setEstatF("");setBdTypeF("");setBdSessF("");setAvailF("");};
  const load=async()=>{if(!sb){setRows([]);return;}const {data,error}=await sbAll(()=>sb.from("inv_item").select("*,inv_item_location(location,quantity,status,times_selected,condition,acquired_on)").order("created_at",{ascending:false}).order("id"));if(error)setErr(error.message);setRows(data||[]);};
  const [pubF,setPubF]=useState("");
  const [pubSet,setPubSet]=useState(()=>new Set());
  const loadPub=async()=>{if(!sb)return;const {data}=await sbAll(()=>sb.from("showcase_section_item").select("item_id").order("id"));setPubSet(new Set((data||[]).map(x=>x.item_id)));};
  useEffect(()=>{loadPub()},[]);
  const isPub=r=>pubSet.has(r.id);
+ // Availability overlay: live + upcoming blocks per item — its own (inv_item_block)
+ // plus the ones inherited through a shared backdrop (a theme booked elsewhere
+ // holds the backdrop, so the backdrop and its sibling themes are out too).
+ const [blk,setBlk]=useState({}),[linkMap,setLinkMap]=useState({});
+ const loadBlocks=async()=>{if(!sb)return;try{const t=today();
+   const [{data:d},{data:x},{data:tl}]=await Promise.all([sb.from("inv_item_block").select("*").gte("to_date",t),sb.rpc("inv_inherited_blocks",{p_item:null}),sbAll(()=>sb.from("inv_theme_item").select("theme_id,component_item_id").order("theme_id"))]);
+   const m={};(d||[]).forEach(b=>{(m[b.item_id]=m[b.item_id]||[]).push({from:b.from_date,to:b.to_date,location:b.location,label:(BLOCK_LABEL[b.reason]||b.reason||"Unavailable")+(b.note?" · "+b.note:""),inherited:false});});
+   (x||[]).forEach(b=>{(m[b.item_id]=m[b.item_id]||[]).push({from:b.from_date,to:b.to_date,location:b.location,label:b.label,source:b.source_name,source_type:b.source_type,inherited:true});});
+   setBlk(m);
+   const lm={};(tl||[]).forEach(r=>{(lm[r.component_item_id]=lm[r.component_item_id]||[]).push(r.theme_id);(lm[r.theme_id]=lm[r.theme_id]||[]).push(r.component_item_id);});setLinkMap(lm);
+ }catch(_){}};
+ useEffect(()=>{loadBlocks()},[]);
+ const busyNow=r=>{const t=today();return (blk[r.id]||[]).filter(b=>b.from<=t&&b.to>=t&&(!loc||!b.location||b.location===loc));};
+ const themesOf=r=>(linkMap[r.id]||[]).map(id=>(rows||[]).find(x=>x.id===id)).filter(Boolean);
  const removeItem=async(r,e)=>{if(e)e.stopPropagation();if(!window.confirm("Remove “"+(r.name||r.code)+"”? This can't be undone."))return;if(sb){await sb.from("inv_item_location").delete().eq("item_id",r.id);await sb.from("inv_theme_item").delete().eq("theme_id",r.id);await sb.from("inv_theme_item").delete().eq("component_item_id",r.id);await sb.from("inv_item").delete().eq("id",r.id);}load();};
  useEffect(()=>{load()},[]);
  useEffect(()=>{if(initCat){setGroupF("shoot");setBrowseAll(true);setCatF(initCat);}},[initCat]);
@@ -2864,7 +2944,10 @@ function NewInventory({initCat=""}){
  const ql=q.trim().toLowerCase();
  const m=(r,ex)=>(ex==="group"||!groupF||(r.item_group||"shoot")===groupF)
    &&(ex==="loc"||!loc||locOf(r).includes(loc))
-   &&(ex==="cat"||!catF||r.session_type===catF)
+   &&(ex==="cat"||!catF||(catF===BACKDROPS_CAT?isBackdropKind(r.kind):(r.session_type===catF||(isBackdropKind(r.kind)&&(r.usable_for||[]).includes(catF)))))
+   &&(ex==="bdtype"||!bdTypeF||(r.subcategory||"")===bdTypeF)
+   &&(ex==="bdsess"||!bdSessF||r.session_type===bdSessF||(r.usable_for||[]).includes(bdSessF))
+   &&(ex==="avail"||!availF||(availF==="busy"?busyNow(r).length>0:busyNow(r).length===0))
    &&(ex==="kind"||!kindF||r.kind===kindF)
    &&(ex==="type"||!typeF||r.type===typeF)
    &&(ex==="bucket"||!bucketF||(bucketF==="theme"?r.type==="theme":bucketF==="outfit"?(r.type==="item"&&r.kind==="outfit"):(r.type==="item"&&r.kind!=="outfit")))
@@ -2901,6 +2984,7 @@ function NewInventory({initCat=""}){
  const card=r=>{const locs=r.inv_item_location||[];const tot=locs.reduce((s,x)=>s+(x.quantity||0),0);const ic=itemIcon(r);
    const kc=dTC(r.kind||(r.type==="theme"?"setup":""));const klabel=ucf(r.type==="theme"?"Setup":(r.kind||"item"));
    const meta=[r.session_type,r.subcategory,r.gender,r.size,r.assignee].filter(Boolean).join(" · ");
+   const now=busyNow(r);const thm=isBackdropKind(r.kind)?themesOf(r):[];
    return <div key={r.id} onClick={()=>setDetail(r)} className="fade listrow" style={{display:"flex",alignItems:"center",gap:13,background:"var(--panel)",border:"1px solid var(--line)",borderRadius:9,padding:"10px 13px",boxShadow:"var(--shadow)",cursor:"pointer"}}>
      <div style={{width:54,height:54,borderRadius:8,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:r.photo_url?"var(--panel2)":ic.c+"15"}}>{r.photo_url?<img src={r.photo_url} loading="lazy" alt={r.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon d={ic.d} s={24} c={ic.c} sw={1.7}/>}</div>
      <div style={{flex:1,minWidth:0}}>
@@ -2913,6 +2997,8 @@ function NewInventory({initCat=""}){
        <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center",marginTop:6}}>
          {locs.map(l=><span key={l.location} title={l.location+" · "+(l.condition||"—")+" · "+(l.quantity||0)} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:600,color:"var(--soft)",background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:8,padding:"1px 8px"}}><Dot c={COND_COLOR[l.condition]||"var(--line2)"} s={6}/>{l.location}<span style={{color:"var(--muted)"}}>{l.quantity}</span></span>)}
          {tot>0&&<span style={{fontSize:10,color:"var(--muted)",fontWeight:600}}>{tot} total</span>}
+         {thm.length>0&&<span title={"Used in: "+thm.map(t=>t.name+(t.session_type?" ("+t.session_type+")":"")).join(", ")} style={{fontSize:10,color:BD_COLOR,fontWeight:700}}>🔗 {thm.length} theme{thm.length!==1?"s":""}</span>}
+         {now.length>0&&<span title={now.map(b=>b.label+(b.location?" · "+b.location:"")+" · until "+b.to).join("\n")} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,color:now[0].inherited?"#5b3fa8":"#b4541c",background:now[0].inherited?"#efe9fb":"#fdeedd",borderRadius:8,padding:"1px 8px"}}>{now[0].inherited?"🔗 In use · "+(now[0].source||"shared backdrop"):"🚫 "+now[0].label.split(" · ")[0]}</span>}
          {(r.type==="theme"||r.kind==="outfit")&&selOf(r)>0&&<span style={{fontSize:10,color:"var(--soft)",fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}><Icon d={I.cursor} s={10} c="var(--muted)" sw={1.6}/>{selOf(r)} used</span>}
        </div>
      </div>
@@ -2933,7 +3019,7 @@ function NewInventory({initCat=""}){
      {(()=>{const na=rows.filter(r=>r.archived).length;return na>0&&<button onClick={()=>setShowArch(!showArch)} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 13px",borderRadius:8,border:`1px solid ${showArch?"var(--ink)":"var(--line2)"}`,background:showArch?"var(--ink)":"var(--panel)",color:showArch?"#fff":"var(--soft)",fontWeight:600,fontSize:13}}>{showArch?"Hide":"Show"} archived ({na})</button>})()}
      <button onClick={()=>setFindOpen(true)} title="Upload a reference photo and find your closest pieces" style={{display:"flex",alignItems:"center",gap:6,padding:"9px 13px",border:"1px solid var(--line2)",borderRadius:8,background:"var(--panel)",color:"var(--ink)",fontWeight:600,fontSize:13}}><span style={{fontSize:14}}>🔎</span>Find by photo</button>
      <button onClick={()=>setScan(true)} title="Scan a code or type it" style={{display:"flex",alignItems:"center",gap:6,padding:"9px 13px",border:"1px solid var(--line2)",borderRadius:8,background:"var(--panel)",color:"var(--ink)",fontWeight:600,fontSize:13}}><span style={{fontSize:14}}>📷</span>Scan</button>
-     <button onClick={()=>setAdd(true)} style={{display:"flex",alignItems:"center",gap:6,background:"var(--ink)",color:"#fff",padding:"9px 15px",borderRadius:8,fontWeight:600,fontSize:13}}><Icon d={I.plus} s={15} c="#fff"/>{etypeF?("Add "+etypeF):catF?("Add to "+catF):"Add item"}</button></div>
+     <button onClick={()=>setAdd(true)} style={{display:"flex",alignItems:"center",gap:6,background:"var(--ink)",color:"#fff",padding:"9px 15px",borderRadius:8,fontWeight:600,fontSize:13}}><Icon d={I.plus} s={15} c="#fff"/>{etypeF?("Add "+etypeF):catF===BACKDROPS_CAT?"Add backdrop":catF?("Add to "+catF):"Add item"}</button></div>
    <p style={{color:"var(--muted)",fontSize:12.5,marginTop:2,marginBottom:14}}>One card per real item · tracked across every studio.</p>
    <div style={{position:"relative",marginBottom:14}}><span style={{position:"absolute",left:13,top:"50%",transform:"translateY(-50%)"}}><Icon d={I.search} s={16} c="var(--muted)"/></span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search by name or code…" style={{paddingLeft:38,height:42}}/></div>
    {err&&<div style={{fontSize:12.5,color:"var(--danger)",background:"#fbecea",padding:"9px 12px",borderRadius:8,marginBottom:14}}>{err}</div>}
@@ -2943,16 +3029,20 @@ function NewInventory({initCat=""}){
      <button onClick={resetStudio} style={{color:(loc||browseAll)?"var(--accent)":"var(--ink)",fontWeight:700}}>{GL[groupF]}</button>
      {(loc||browseAll)&&<><Icon d={I.chev} s={14} c="var(--muted)"/><button onClick={resetCat} style={{color:catSel?"var(--accent)":"var(--ink)",fontWeight:700}}>{loc||"All studios"}</button>
        {/* Inline studio toggle — lets you switch the current view between one studio and all studios without backing out of the drilldown */}
-       {loc&&catSel&&<button onClick={()=>{setLoc("");setBrowseAll(true);}} title={`See ${catSel}${bucketF?" · "+bucketF:""}${genF?" · "+genF:""} across all 4 studios`} style={{display:"inline-flex",alignItems:"center",gap:4,marginLeft:6,padding:"3px 9px",borderRadius:14,border:"1px solid var(--line2)",background:"var(--panel)",color:"var(--soft)",fontSize:11.5,fontWeight:600,cursor:"pointer"}}><span style={{fontSize:11}}>↔</span> Across all studios</button>}
+       {loc&&catSel&&<button onClick={()=>{setLoc("");setBrowseAll(true);}} title={`See ${catLabel}${bucketF?" · "+bucketF:""}${genF?" · "+genF:""} across all 4 studios`} style={{display:"inline-flex",alignItems:"center",gap:4,marginLeft:6,padding:"3px 9px",borderRadius:14,border:"1px solid var(--line2)",background:"var(--panel)",color:"var(--soft)",fontSize:11.5,fontWeight:600,cursor:"pointer"}}><span style={{fontSize:11}}>↔</span> Across all studios</button>}
        {browseAll&&catSel&&<span style={{display:"inline-flex",alignItems:"center",gap:4,marginLeft:6,padding:"3px 9px",borderRadius:14,border:"1px solid var(--line2)",background:"var(--panel2)",color:"var(--muted)",fontSize:11.5,fontWeight:600}}>combined view</span>}
      </>}
-     {catSel&&<><Icon d={I.chev} s={14} c="var(--muted)"/><button onClick={()=>{if(groupF==="shoot")resetBucket();}} style={{color:(groupF==="shoot"&&bucketF)?"var(--accent)":"var(--ink)",fontWeight:700}}>{catSel}</button></>}
+     {catSel&&<><Icon d={I.chev} s={14} c="var(--muted)"/><button onClick={()=>{if(groupF==="shoot")resetBucket();}} style={{color:(groupF==="shoot"&&bucketF)?"var(--accent)":"var(--ink)",fontWeight:700}}>{catLabel}</button></>}
      {groupF==="shoot"&&bucketF&&<><Icon d={I.chev} s={14} c="var(--muted)"/><button onClick={()=>{if(bucketGendered)setGenF("");}} style={{color:(bucketGendered&&genF)?"var(--accent)":"var(--ink)",fontWeight:700}}>{(BUCKETS.find(b=>b[0]===bucketF)||[])[1]}</button></>}
      {groupF==="shoot"&&bucketGendered&&genF&&<><Icon d={I.chev} s={14} c="var(--muted)"/><span style={{fontWeight:700}}>{genF}</span></>}
      <span style={{flex:1}}/>
-     {atItems&&<button onClick={()=>setAdd(true)} style={{display:"inline-flex",alignItems:"center",gap:5,color:"var(--accent)",fontWeight:700,fontSize:12.5}}><Icon d={I.plus} s={14} c="var(--accent)"/>Add {groupF==="shoot"?(bucketF==="theme"?"theme":bucketF==="outfit"?"outfit":"item"):("to "+catSel)}</button>}
+     {atItems&&<button onClick={()=>setAdd(true)} style={{display:"inline-flex",alignItems:"center",gap:5,color:"var(--accent)",fontWeight:700,fontSize:12.5}}><Icon d={I.plus} s={14} c="var(--accent)"/>Add {groupF==="shoot"?(isBdCat?"backdrop":bucketF==="theme"?"theme":bucketF==="outfit"?"outfit":"item"):("to "+catSel)}</button>}
    </div>}
+   {isBdCat&&atItems&&<div style={{display:"flex",alignItems:"flex-start",gap:9,background:"#f3f0fb",border:"1px solid #ddd3f3",borderRadius:9,padding:"10px 14px",marginBottom:14,fontSize:12.5,color:"#4b3a86",lineHeight:1.45}}><span style={{fontSize:15}}>🔗</span><span><b>One backdrop, many themes.</b> Open a backdrop and link every theme that uses it (any session). When one of those themes is booked or blocked, the backdrop — and every other theme on it — shows as unavailable for those dates.</span></div>}
    {atItems&&<div className="filterbar" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:14}}>
+     {isBdCat&&(()=>{const ts=[...new Set([...(SUBTYPE_OPTS.backdrop||[]),...rows.filter(r=>m(r,"bdtype")).map(r=>r.subcategory).filter(Boolean)])];return <select value={bdTypeF} onChange={e=>setBdTypeF(e.target.value)} style={{width:"auto"}}><option value="">All backdrop types</option>{ts.map(t=><option key={t} value={t}>{t}</option>)}</select>;})()}
+     {isBdCat&&(()=>{const ss=SESSION_CATS.filter(s=>rows.some(r=>m(r,"bdsess")&&(r.session_type===s||(r.usable_for||[]).includes(s))));return ss.length?<select value={bdSessF} onChange={e=>setBdSessF(e.target.value)} style={{width:"auto"}}><option value="">Used for: any session</option>{ss.map(s=><option key={s} value={s}>{s}</option>)}</select>:null;})()}
+     {!isElecView&&<select value={availF} onChange={e=>setAvailF(e.target.value)} style={{width:"auto"}}><option value="">Availability: all</option><option value="free">Available today</option><option value="busy">Unavailable today</option></select>}
      {!isElecView&&(()=>{const ks=[...new Set(rows.filter(r=>m(r,"kind")).map(r=>r.kind).filter(Boolean))].sort();return ks.length?<select value={kindF} onChange={e=>setKindF(e.target.value)} style={{width:"auto"}}><option value="">All kinds</option>{ks.map(k=><option key={k} value={k}>{ucf(k)}</option>)}</select>:null})()}
      {!isElecView&&(()=>{const szs=[...new Set(rows.filter(r=>m(r,"size")).flatMap(r=>(r.size||"").split(",").map(x=>x.trim()).filter(Boolean)))].sort();return szs.length?<select value={sizeF} onChange={e=>setSizeF(e.target.value)} style={{width:"auto"}}><option value="">All sizes / ages</option>{szs.map(s=><option key={s}>{s}</option>)}</select>:null})()}
      {!isElecView&&groupF!=="shoot"&&(()=>{const gs=GENDERS_T.filter(g=>cnt("gen",r=>r.gender===g)>0);return gs.length?<select value={genF} onChange={e=>setGenF(e.target.value)} style={{width:"auto"}}><option value="">All genders</option>{gs.map(g=><option key={g}>{g}</option>)}</select>:null})()}
@@ -2978,12 +3068,16 @@ function NewInventory({initCat=""}){
      // Level 2 — pick a category
      if(drillCat){const cl=isElecView?ELEC_CATS:SESSION_CATS;const cof=isElecView?elecCat:(r=>r.session_type);const setC=isElecView?setEcatF:setCatF;
        const cats=cl.filter(c=>rows.some(r=>m(r,isElecView?"ecat":"cat")&&cof(r)===c));
-       if(!cats.length) return <div style={{color:"var(--muted)",fontSize:13,padding:"30px 0"}}>Nothing here{loc?" in "+loc:""} yet.</div>;
-       return tgrid(cats.map(c=>{const items=rows.filter(r=>m(r,isElecView?"ecat":"cat")&&cof(r)===c);
+       const nBd=isElecView?0:rows.filter(r=>m(r,"cat")&&isBackdropKind(r.kind)).length;
+       if(!cats.length&&!nBd) return <div style={{color:"var(--muted)",fontSize:13,padding:"30px 0"}}>Nothing here{loc?" in "+loc:""} yet.</div>;
+       const tiles=cats.map(c=>{const items=rows.filter(r=>m(r,isElecView?"ecat":"cat")&&cof(r)===c);
          // Session-type drill tiles get the dedicated session icon (Newborn → baby, Cake Smash → cake, …).
          // Electronics drill tiles keep itemIcon (camera/lens/bolt/…) since they're typed by subcategory.
          const sIcon=!isElecView&&SESSION_ICON[c]; const ic=sIcon?{d:sIcon,c:CAT_COLOR[c]||"#7c8291"}:itemIcon(items[0]||{item_group:groupF,subcategory:""});
-         return tile(c,()=>setC(c),ic.d,ic.c,c,items.length+" item"+(items.length!==1?"s":""));}));}
+         return tile(c,()=>setC(c),ic.d,ic.c,c,items.length+" item"+(items.length!==1?"s":""));});
+       // Backdrops: one shared category across every session (a backdrop is one physical thing used by many themes).
+       if(!isElecView) tiles.push(tile(BACKDROPS_CAT,()=>setCatF(BACKDROPS_CAT),I.backdrop,BD_COLOR,"Backdrops",nBd+" item"+(nBd!==1?"s":"")+" · shared across sessions"));
+       return tgrid(tiles);}
      // Level 2b (session only) — Themes & setups / Outfits / Items
      if(drillBucket){const cntB=key=>rows.filter(r=>m(r,"bucket")&&(key==="theme"?r.type==="theme":key==="outfit"?(r.type==="item"&&r.kind==="outfit"):(r.type==="item"&&r.kind!=="outfit"))).length;
        return tgrid(BUCKETS.map(([key,label,icd])=>{const n=cntB(key);return tile(key,()=>setBucketF(key),icd,"#7c8291",label,n+" item"+(n!==1?"s":""));}));}
@@ -3003,7 +3097,7 @@ function NewInventory({initCat=""}){
            <span style={{width:18,...cell}} onClick={e=>{e.stopPropagation();togglePick(r.id);}}><input type="checkbox" checked={on} readOnly style={{width:15,height:15,cursor:"pointer"}}/></span>
            <div style={{display:"flex",alignItems:"center",gap:12,flex:1,minWidth:0}}><div style={{width:40,height:40,borderRadius:8,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--panel2)"}}>{r.photo_url?<img src={r.photo_url} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon d={ic.d} s={19} c={ic.c} sw={1.7}/>}</div><div style={{minWidth:0}}><div style={{fontWeight:600,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</div><div style={{fontSize:11,color:"var(--muted)",fontFamily:"ui-monospace,SFMono-Regular,monospace"}}>{r.code}</div></div></div>
            <span style={{width:130}}>{colCat(r)?<span style={{display:"inline-block",fontSize:11.5,fontWeight:500,color:"var(--soft)",border:"1px solid var(--line2)",borderRadius:8,padding:"3px 10px",whiteSpace:"nowrap",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis"}}>{colCat(r)}</span>:<span style={{color:"var(--muted)"}}>—</span>}</span>
-           <span style={{width:110}}>{isStatus?<span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,fontWeight:600,color:c,background:c+"1c",borderRadius:20,padding:"3px 9px"}}><Dot c={c} s={5}/>{st}</span>:<span style={{fontSize:12.5,color:"var(--muted)"}}>{st||"—"}</span>}</span>
+           <span style={{width:110}}>{(()=>{const nb=busyNow(r);return nb.length?<span title={nb.map(b=>b.label+(b.location?" · "+b.location:"")+" · until "+b.to).join("\n")} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,fontWeight:600,color:nb[0].inherited?"#5b3fa8":"#b4541c",background:nb[0].inherited?"#efe9fb":"#fdeedd",borderRadius:20,padding:"3px 9px",whiteSpace:"nowrap"}}>{nb[0].inherited?"🔗 In use":"🚫 Unavailable"}</span>:isStatus?<span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,fontWeight:600,color:c,background:c+"1c",borderRadius:20,padding:"3px 9px"}}><Dot c={c} s={5}/>{st}</span>:<span style={{fontSize:12.5,color:"var(--muted)"}}>{st||"—"}</span>;})()}</span>
            <span style={{width:110,fontSize:12.5,color:cond?COND_COLOR[cond]:"var(--muted)",fontWeight:cond?500:400,display:"inline-flex",alignItems:"center",gap:6}}>{cond&&<Dot c={COND_COLOR[cond]} s={6}/>}{cond||"—"}</span>
            <span style={{width:130,fontSize:12.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.assignee?<span style={{display:"inline-flex",alignItems:"center",gap:5,color:"var(--soft)",fontWeight:600}}><Icon d={I.users} s={13} c="var(--muted)" sw={1.7}/>{r.assignee}</span>:<span style={{color:"var(--line2)"}}>—</span>}</span>
            <span style={{width:140,fontSize:12.5,color:"var(--soft)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{(r.inv_item_location||[]).map(l=>l.location).join(", ")||"—"}</span>
@@ -3013,10 +3107,10 @@ function NewInventory({initCat=""}){
        </div></div>;}
      return <div className="cardgrid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:10}}>{filtered.map(card)}</div>;
    })()}
-   {add&&<AddInvItem init={{grp:groupF||undefined,session_type:!isElecView?(catF||undefined):undefined,subcategory:isElecView?(etypeF||undefined):undefined,type:groupF==="shoot"?(bucketF==="theme"?"theme":bucketF?"item":undefined):undefined,kind:bucketF==="outfit"?"outfit":undefined,gender:(groupF==="shoot"&&genF)||undefined,locs:loc?[loc]:undefined}} onClose={()=>setAdd(false)} onSaved={()=>{load();loadPub();}}/>}
+   {add&&<AddInvItem init={{grp:groupF||undefined,session_type:(!isElecView&&catF!==BACKDROPS_CAT)?(catF||undefined):undefined,subcategory:isElecView?(etypeF||undefined):undefined,type:groupF==="shoot"?(bucketF==="theme"?"theme":(bucketF||catF===BACKDROPS_CAT)?"item":undefined):undefined,kind:bucketF==="outfit"?"outfit":catF===BACKDROPS_CAT?"backdrop":undefined,gender:(groupF==="shoot"&&genF)||undefined,locs:loc?[loc]:undefined}} onClose={()=>setAdd(false)} onSaved={()=>{load();loadPub();loadBlocks();}}/>}
    {scan&&<ScanModal onClose={()=>{setScan(false);setScanErr("");}} onFound={async code=>{ setScanErr(""); try{ const {data,error}=await sb.from("inv_item").select("*").eq("code",code).maybeSingle(); if(error)throw error; if(!data){ setScanErr("No item found for "+code+"."); return; } setScan(false); setEdit(data); }catch(e){ setScanErr((e&&e.message)||"Lookup failed."); } }}/>}
    {scanErr&&<div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",background:"#fde2e0",color:"var(--danger)",border:"1px solid #f3b8b3",borderRadius:8,padding:"10px 16px",fontSize:13,zIndex:400,boxShadow:"var(--shadow)"}}>{scanErr} <button onClick={()=>setScanErr("")} style={{marginLeft:12,padding:0,fontWeight:700}}>×</button></div>}
-   {edit&&<InvEdit item={edit} onClose={()=>setEdit(null)} onSaved={()=>{setEdit(null);setDetail(null);load();}}/>}
+   {edit&&<InvEdit item={edit} onClose={()=>{setEdit(null);loadBlocks();}} onSaved={()=>{setEdit(null);setDetail(null);load();loadBlocks();}}/>}
    {detail&&<ItemPanel item={detail} published={pubSet.has(detail.id)} onClose={()=>setDetail(null)} onEdit={r=>{setDetail(null);setEdit(r);}} onPrint={r=>setLabelItem(r)} onOpen={r=>setDetail(r)}/>}
    {findOpen&&<FindByPhoto rows={rows} onClose={()=>setFindOpen(false)} onOpen={r=>{setFindOpen(false);setDetail(r);}}/>}
    {labelItem&&<LabelSheet items={[labelItem]} onClose={()=>setLabelItem(null)}/>}
